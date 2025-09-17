@@ -204,14 +204,16 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     n = len(df)
     thr = thr_pct
 
-    # ✅ RSI 조건 만족하는 모든 봉을 신호로 잡기
+    # ✅ RSI 조건 만족하는 모든 봉 신호 후보
     if "≤" in rsi_side:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
     else:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
 
     for i in sig_idx:
-        end = min(i + lookahead, n - 1)
+        end = i + lookahead
+        if end >= n:
+            continue
 
         # 볼린저밴드 조건 검사
         if bb_cond != "없음":
@@ -229,7 +231,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             if not ok:
                 continue
 
-        # ✅ 기준가 = 저가(low) 기준
+        # ✅ 기준가 = 저가(low)
         base_price = float(df.at[i, "low"])
 
         # 수익률 계산
@@ -248,7 +250,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         else:
             result = "실패"
 
-        # 결과 저장
         res.append({
             "신호시간": df.at[i, "time"],
             "기준시가": int(round(base_price)),
@@ -261,9 +262,13 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         })
 
     out = pd.DataFrame(res)
-    if not out.empty and "중복 제거" in dedup_mode:
+
+    # ✅ dedup_mode 정확히 "중복 제거"일 때만 적용
+    if not out.empty and dedup_mode.startswith("중복 제거"):
         out = out.loc[out["결과"].shift() != out["결과"]]
+
     return out
+
 
 
 
@@ -415,6 +420,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
