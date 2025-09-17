@@ -1,21 +1,28 @@
 import streamlit as st
 import pandas as pd
 import requests
-import datetime
 import plotly.graph_objs as go
 import ta
 
 # --- 업비트에서 캔들 데이터 불러오기 ---
-def get_ohlcv(market="KRW-BTC", interval="minute1", count=200):
+def get_ohlcv(market="KRW-BTC", interval="minutes/1", count=200):
     url = f"https://api.upbit.com/v1/candles/{interval}"
     querystring = {"market": market, "count": count}
     headers = {"Accept": "application/json"}
     res = requests.get(url, headers=headers).json()
+
+    if isinstance(res, dict) and res.get("error"):
+        raise Exception(res["error"]["message"])
+
     df = pd.DataFrame(res)
+
+    # 실제 업비트 데이터 컬럼명 맞추기
     df = df.rename(columns={
         "candle_date_time_kst": "timestamp",
         "trade_price": "close"
     })
+
+    # timestamp를 datetime으로 변환
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df[["timestamp", "close"]]
     df = df.sort_values("timestamp")
@@ -32,7 +39,11 @@ st.title("📈 Upbit RSI 실시간 모니터")
 
 # 사용자 입력
 market = st.text_input("코인 선택 (예: KRW-BTC)", "KRW-BTC")
-interval = st.selectbox("봉 종류 선택", ["minutes/1", "minutes/3", "minutes/5", "minutes/15", "minutes/30", "minutes/60", "days"], index=0)
+interval = st.selectbox(
+    "봉 종류 선택",
+    ["minutes/1", "minutes/3", "minutes/5", "minutes/15", "minutes/30", "minutes/60", "days"],
+    index=0
+)
 count = st.slider("캔들 개수", 50, 200, 100)
 
 # 데이터 불러오기
