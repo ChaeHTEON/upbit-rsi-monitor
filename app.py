@@ -3,6 +3,7 @@
 # -----------------------------
 # 섹션: 기본 설정
 # -----------------------------
+import streamlit as st
 st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 with c1:
@@ -120,3 +121,4 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
