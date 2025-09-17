@@ -98,18 +98,23 @@ with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, step=0.1)
-    st.caption(f"현재 설정: **{threshold_pct:.1f}%**")
 with c6:
     rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
 
-c7 = st.container()
+c7, _, _ = st.columns(3)
 with c7:
     bb_cond = st.selectbox(
         "볼린저밴드 조건",
-        ["없음", "하한선 하향돌파", "하한선 상향돌파",
-         "상한선 하향돌파", "상한선 상향돌파",
-         "하한선 중앙돌파", "상한선 중앙돌파"],  # ✅ 중앙선 조건 추가
-        index=0
+        [
+            "없음",
+            "하한선 하향돌파",
+            "하한선 상향돌파",
+            "상한선 하향돌파",
+            "상한선 상향돌파",
+            "하한선 중앙돌파",
+            "상한선 중앙돌파",
+        ],
+        index=0,
     )
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
@@ -334,7 +339,7 @@ try:
         c4.metric("중립", f"{neu}")
         c5.metric("승률", f"{win:.1f}%")
         c6.metric("총 변동폭 합(%)", f"{range_sum:.1f}%")
-        c7.metric("최종수익률 합계", f"{final_succ:.1f}% / {final_fail:.1f}%")
+        c7.metric("최종수익률 합계", f"{final_succ:.1f} / {final_fail:.1f}")
         st.markdown("---")
 
     # 이후 차트/테이블은 기존대로, 선택된 dup_mode 결과만 사용
@@ -453,6 +458,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
