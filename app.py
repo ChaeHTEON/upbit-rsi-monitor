@@ -321,19 +321,20 @@ try:
     m5.metric("승률", f"{winrate:.1f}%")
 
     # -----------------------------
+    # -----------------------------
     # 가격 + RSI 함께 표시 (가독성 + 고정 비율)
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
-
-    # 캔들
+    
+    # 캔들 (상승=레드, 하락=블루)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"],
         low=df["low"], close=df["close"], name="가격",
         increasing_line_color="#E63946", decreasing_line_color="#457B9D",
         line=dict(width=1.2)
     ))
-
-    # 볼린저밴드
+    
+    # 볼린저밴드 (상/중/하)
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_up"], mode="lines",
         line=dict(color="#FFB703", width=1.5),
@@ -349,8 +350,8 @@ try:
         line=dict(color="#8D99AE", width=1.2, dash="dot"),
         name="BB 중앙"
     ))
-
-    # 신호
+    
+    # 신호 (circle, 색상 대비 강화)
     if total > 0:
         for label, color in [("성공","#06D6A0"), ("실패","#EF476F"), ("중립","#FFD166")]:
             sub = res[res["결과"] == label]
@@ -361,14 +362,14 @@ try:
                     marker=dict(size=10, color=color, symbol="circle",
                                 line=dict(width=1, color="black"))
                 ))
-
-    # RSI
+    
+    # RSI → 보조 y축
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
         line=dict(color="#2A9D8F", width=2), opacity=0.85,
         name="RSI(13)", yaxis="y2"
     ))
-
+    
     # RSI 기준선
     fig.add_hline(y=70, line_dash="dash", line_color="#E63946",
                   line_width=1.2, annotation_text="RSI 70",
@@ -376,20 +377,20 @@ try:
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D",
                   line_width=1.2, annotation_text="RSI 30",
                   annotation_position="bottom left", yref="y2")
-
-    # ✅ 차트 세로 비율 고정
+    
+    # ✅ 고정 비율(세로) + 가로는 컨테이너 폭에 맞춤(드래그/줌 가능)
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         xaxis_rangeslider_visible=False,
-        height=600,
-        autosize=False,
+        height=600,             # 원하는 고정 높이 (600~650 권장)
+        autosize=False,         # 세로 고정
         legend_orientation="h", legend_y=1.05,
         margin=dict(l=60, r=40, t=60, b=40),
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
     )
-
-    st.plotly_chart(fig, use_container_width=True)
+    
+    st.plotly_chart(fig, use_container_width=True)  # 가로는 컨테이너 폭에 맞춤
 
     # -----------------------------
     # 신호 결과 표
@@ -432,6 +433,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
