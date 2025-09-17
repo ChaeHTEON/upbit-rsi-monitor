@@ -377,18 +377,25 @@ try:
             if val == "실패": return 'color:blue; font-weight:600;'
             return 'color:green; font-weight:600;'
     
-        # ✅ 헤더/데이터 중앙 정렬 (괄호 꼭 닫힘!)
-        styled = (
-            tbl.style
-               .applymap(color_result, subset=["결과"])
-               .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])
-               .set_properties(**{"text-align": "center"})
-        )
-        st.dataframe(styled, use_container_width=True, hide_index=True)
+    # ✅ HTML 테이블로 변환 + 중앙정렬
+    tbl_html = tbl.to_html(index=False, justify="center")
+    
+    # 중앙정렬 CSS 추가
+    tbl_html = tbl_html.replace("<th", "<th style='text-align:center;'")
+    tbl_html = tbl_html.replace("<td", "<td style='text-align:center;'")
+    
+    # 결과 색상 강조
+    for label, css in [("성공", "color:red; font-weight:600;"),
+                       ("실패", "color:blue; font-weight:600;"),
+                       ("중립", "color:green; font-weight:600;")]:
+        tbl_html = tbl_html.replace(f">{label}<", f" style='{css}'>{label}<")
+
+st.markdown(tbl_html, unsafe_allow_html=True)
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
