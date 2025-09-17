@@ -254,9 +254,11 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
 
         if final_ret <= -thr:
             result = "실패"
+        elif 0 < final_ret < thr:
+            result = "중립"
         elif final_ret >= thr:
             result = "성공"
-        else:
+        else:  # final_ret == 0
             result = "중립"
 
         res.append({
@@ -376,4 +378,5 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
