@@ -204,11 +204,11 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     n = len(df)
     thr = thr_pct
 
-    # RSI 조건에 맞는 index 추출
-    if "≤" in rsi_side:
-        sig_idx = df.index[df["RSI13"] <= 30].tolist()
-    else:
-        sig_idx = df.index[df["RSI13"] >= 70].tolist()
+# ✅ NaN 제거 + 조건 필터 강화
+if "≤" in rsi_side:
+    sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
+else:
+    sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
 
     for i in sig_idx:
         end = i + lookahead
@@ -432,6 +432,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
