@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -194,7 +193,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
     n = len(df)
     thr = float(thr_pct)
 
-    # 1) 신호 후보: RSI 조건을 만족하는 모든 봉
     if "≤" in rsi_side:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
     else:
@@ -205,7 +203,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
         if end >= n:
             continue
 
-        # 2) 볼린저 조건
         if bb_cond != "없음":
             px = float(df.at[i, "close"])
             up  = float(df.at[i, "BB_up"])  if pd.notna(df.at[i, "BB_up"])  else None
@@ -221,20 +218,15 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
             if not ok:
                 continue
 
-        # 3) 기준가 = 저가(low)
         base_price = float(df.at[i, "low"])
-
-        # 4) 이후 N봉 종가 시퀀스
         closes = df.loc[i+1:end, "close"]
         if closes.empty:
             continue
 
-        # 5) 수익률 계산
         final_ret = (closes.iloc[-1] / base_price - 1.0) * 100.0
         min_ret   = (closes.min() / base_price - 1.0) * 100.0
         max_ret   = (closes.max() / base_price - 1.0) * 100.0
 
-        # 6) 판정
         if final_ret <= -thr:
             result = "실패"
         elif final_ret >= thr:
@@ -256,9 +248,62 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
         })
 
     out = pd.DataFrame(res)
-
-    # 7) dedup_mode가 "중복 제거"일 때만 적용
     if not out.empty and dedup_mode.startswith("중복 제거"):
         out = out.loc[out["결과"].shift() != out["결과"]]
-
     return out
+
+# -----------------------------
+# 메인 실행
+# -----------------------------
+if st.button("시뮬레이션 실행"):
+    df_raw = fetch_upbit_paged(market_code, interval_key,
+                               datetime.combine(start_date, datetime.min.time()),
+                               datetime.combine(end_date, datetime.max.time()),
+                               minutes_per_bar)
+    if df_raw.empty:
+        st.warning("데이터가 없습니다. 날짜 범위나 봉 종류를 확인하세요.")
+    else:
+        df = add_indicators(df_raw)
+        results = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, dup_mode)
+
+        st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
+        c1, c2, c3, c4, c5 = st.columns(5)
+        total = len(results)
+        success = (results["결과"] == "성공").sum()
+        fail = (results["결과"] == "실패").sum()
+        neutral = (results["결과"] == "중립").sum()
+        winrate = (success / total * 100) if total > 0 else 0
+        c1.metric("신호 수", total)
+        c2.metric("성공", success)
+        c3.metric("실패", fail)
+        c4.metric("중립", neutral)
+        c5.metric("승률", f"{winrate:.1f}%")
+
+        fig = make_subplots(specs=[[{"secondary_y": True}]])
+        fig.add_trace(go.Candlestick(
+            x=df["time"], open=df["open"], high=df["high"],
+            low=df["low"], close=df["close"],
+            name="가격", increasing_line_color="red", decreasing_line_color="blue"
+        ))
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], line=dict(color="orange", width=1), name="BB 상단"))
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], line=dict(color="teal", width=1), name="BB 하단"))
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], line=dict(color="gray", width=1, dash="dot"), name="BB 중앙"))
+        fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], line=dict(color="green", width=1), name="RSI(13)"), secondary_y=True)
+
+        for _, row in results.iterrows():
+            color = {"성공": "red", "실패": "blue", "중립": "green"}[row["결과"]]
+            fig.add_trace(go.Scatter(
+                x=[row["신호시간"]], y=[row["기준시가"]],
+                mode="markers", marker=dict(color=color, size=10, symbol="circle"),
+                name=f"신호 ({row['결과']})"
+            ))
+
+        fig.update_layout(
+            height=600, width=1000,
+            xaxis_rangeslider_visible=False,
+            margin=dict(l=40, r=40, t=40, b=40),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+        st.dataframe(results.sort_values("신호시간", ascending=False).reset_index(drop=True))
