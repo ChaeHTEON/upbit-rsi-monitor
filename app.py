@@ -257,8 +257,12 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         elif final_ret >= thr:
             result = "성공"
         elif final_ret > 0:
-            result = "중립"
-        else:  # final_ret <= 0 and > -thr
+            # 중립(이익) → 기준치의 60% 이상이면 성공 처리
+            if final_ret >= thr * 0.6:
+                result = "성공"
+            else:
+                result = "중립"
+        else:  # -thr < final_ret <= 0
             result = "실패"
 
         res.append({
@@ -378,6 +382,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
