@@ -56,14 +56,21 @@ with c4:
 
 c5, c6 = st.columns(2)
 with c5:
-    threshold_pct = st.slider("성공/실패 기준 값(%)", 1, 100, 3)
+    threshold_pct = st.slider(
+        "성공/실패 기준 값(%)",
+        min_value=0.1,
+        max_value=3.0,
+        value=1.0,   # 기본값 (원하면 0.5 등으로 변경 가능)
+        step=0.1,
+        help="기준 캔들 이후 N봉 내 +X% 이상 고가 도달 → 성공, -X% 이하 저가 도달 → 실패"
+    )
 with c6:
     rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락30)", "RSI ≥ 70 (급등70)"], index=0)
 
 # 안내
 st.caption(
     "- 기준 캔들: RSI(13) 조건(급락30 또는 급등70)을 만족한 시점의 **시가**를 기준가격으로 사용합니다.\n"
-    f"- 이후 N봉 내에 **+{threshold_pct}% 이상 고가 도달 → 성공**, **-{threshold_pct}% 이하 저가 도달 → 실패**, 그 외는 **중립**으로 분류합니다.\n"
+    f"- 이후 N봉 내에 **+{threshold_pct:.1f}% 이상 고가 도달 → 성공**, **-{threshold_pct:.1f}% 이하 저가 도달 → 실패**, 그 외는 **중립**으로 분류합니다.\n"
     "- 추가로 기준 시가 대비 **최대상승(%) / 최대하락(%)**과, (i+N)번째 **종가 기준 최종수익률(%)**을 제공합니다."
 )
 
@@ -246,3 +253,4 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
