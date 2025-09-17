@@ -204,13 +204,11 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     n = len(df)
     thr = thr_pct
 
-    # ✅ RSI 돌파 조건 적용
+    # ✅ RSI 조건 만족하는 모든 봉을 신호로 잡기
     if "≤" in rsi_side:
-        cond = (df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30)   # 하향 돌파
-        sig_idx = df.index[cond & df["RSI13"].notna()].tolist()
+        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
     else:
-        cond = (df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70)   # 상향 돌파
-        sig_idx = df.index[cond & df["RSI13"].notna()].tolist()
+        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
 
     for i in sig_idx:
         end = min(i + lookahead, n - 1)
@@ -266,6 +264,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     if not out.empty and "중복 제거" in dedup_mode:
         out = out.loc[out["결과"].shift() != out["결과"]]
     return out
+
 
 
 
@@ -416,6 +415,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
