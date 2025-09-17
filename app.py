@@ -410,7 +410,11 @@ try:
             tbl["최저수익률(%)"] = tbl["최저수익률(%)"].map(lambda v: f"{v:.1f}%")
         if "최고수익률(%)" in tbl.columns:
             tbl["최고수익률(%)"] = tbl["최고수익률(%)"].map(lambda v: f"{v:.1f}%")
-
+        
+        # ✅ 도달시간 컬럼 그대로 두되 None/-는 "-" 표시
+        if "도달시간" in tbl.columns:
+            tbl["도달시간"] = tbl["도달시간"].fillna("-")
+        
         # 결과 색상 강조
         def color_result(val):
             if val == "성공":
@@ -418,13 +422,15 @@ try:
             if val == "실패":
                 return "color:blue; font-weight:600;"
             return "color:green; font-weight:600;"
-
+        
         styled = tbl.style.applymap(color_result, subset=["결과"])
         st.dataframe(styled, use_container_width=True, hide_index=True)
+
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
