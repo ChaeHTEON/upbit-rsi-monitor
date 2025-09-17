@@ -198,92 +198,86 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
-def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb_cond: str,
-             dedup_mode: str) -> pd.DataFrame:
+def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
+             bb_cond: str, dedup_mode: str) -> pd.DataFrame:
+    """
+    시뮬레이션
+    - 신호 발생: RSI ≤ 30(급락) 또는 RSI ≥ 70(급등) 조건을 만족하는 모든 봉
+    - 기준가: 해당 봉의 저가(low)
+    - 수익률: 이후 N봉 종가 시퀀스로 최종/최저/최고 수익률 계산
+    - 중복 제거: 라디오가 "중복 제거 (연속 동일 결과 1개)"일 때만 적용
+    """
     res = []
     n = len(df)
-    thr = thr_pct
+    thr = float(thr_pct)
 
-    # RSI 조건에 맞는 index 추출
+    # 1) 신호 후보 인덱스
     if "≤" in rsi_side:
-        sig_idx = df.index[df["RSI13"] <= 30].tolist()
+        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
     else:
-        sig_idx = df.index[df["RSI13"] >= 70].tolist()
+        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
 
     for i in sig_idx:
         end = i + lookahead
         if end >= n:
             continue
 
-        # 볼린저밴드 조건 검사
+        # 2) 볼린저밴드 조건 검사
         if bb_cond != "없음":
             px  = float(df.at[i, "close"])
             up  = float(df.at[i, "BB_up"])  if pd.notna(df.at[i, "BB_up"])  else None
             lo  = float(df.at[i, "BB_low"]) if pd.notna(df.at[i, "BB_low"]) else None
             mid = float(df.at[i, "BB_mid"]) if pd.notna(df.at[i, "BB_mid"]) else None
             ok = True
-            if   bb_cond == "하한선 하향돌파": ok = (lo  is not None) and (px < lo)
-            elif bb_cond == "하한선 상향돌파": ok = (lo  is not None) and (px > lo)
-            elif bb_cond == "상한선 하향돌파": ok = (up  is not None) and (px < up)
-            elif bb_cond == "상한선 상향돌파": ok = (up  is not None) and (px > up)
+            if   bb_cond == "하한선 하향돌파": ok = (lo is not None) and (px < lo)
+            elif bb_cond == "하한선 상향돌파": ok = (lo is not None) and (px > lo)
+            elif bb_cond == "상한선 하향돌파": ok = (up is not None) and (px < up)
+            elif bb_cond == "상한선 상향돌파": ok = (up is not None) and (px > up)
             elif bb_cond == "하한선 중앙돌파": ok = (mid is not None) and (lo is not None) and (px > lo) and (px < mid)
             elif bb_cond == "상한선 중앙돌파": ok = (mid is not None) and (up is not None) and (px < up) and (px > mid)
             if not ok:
                 continue
 
-        # 기준가와 수익률 계산
-        base_open  = float(df.at[i, "open"])
-        final_close = float(df.at[end, "close"])
-        final_ret = (final_close / base_open - 1.0) * 100.0
-        min_ret = ((df.loc[i+1:end, "close"].min() / base_open - 1.0) * 100.0)
-        max_ret = ((df.loc[i+1:end, "close"].max() / base_open - 1.0) * 100.0)
+        # 3) 기준가 = 저가(low)
+        base_price = float(df.at[i, "low"])
 
-        # ✅ 성공 도달 시간 계산 (HH:MM 포맷)
-        reach_time = None
-        for j in range(i+1, end+1):
-            step_ret = (df.at[j, "close"] / base_open - 1.0) * 100.0
-            if step_ret >= thr:
-                diff = df.at[j, "time"] - df.at[i, "time"]
-                minutes = int(diff.total_seconds() // 60)
-                hours = minutes // 60
-                mins = minutes % 60
-                reach_time = f"{hours:02d}:{mins:02d}"
-                break
+        # 4) 이후 N봉 종가 시퀀스
+        closes = df.loc[i+1:end, "close"]
+        if closes.empty:
+            continue
 
-        # 판정
+        # 5) 수익률 계산
+        final_ret = (closes.iloc[-1] / base_price - 1.0) * 100.0
+        min_ret   = (closes.min() / base_price - 1.0) * 100.0
+        max_ret   = (closes.max() / base_price - 1.0) * 100.0
+
+        # 6) 판정
         if final_ret <= -thr:
             result = "실패"
         elif final_ret >= thr:
             result = "성공"
-            # ✅ 성공인데 reach_time이 없으면 최종 시점으로 보정
-            if reach_time is None:
-                diff = df.at[end, "time"] - df.at[i, "time"]
-                minutes = int(diff.total_seconds() // 60)
-                hours = minutes // 60
-                mins = minutes % 60
-                reach_time = f"{hours:02d}:{mins:02d}"
         elif final_ret > 0:
-            result = "중립"   # ✅ 0.3% 미만은 무조건 중립 처리
+            result = "중립"
         else:
             result = "실패"
 
-
-        # 결과 저장
         res.append({
             "신호시간": df.at[i, "time"],
-            "기준시가": int(round(base_open)),
+            "기준시가": int(round(base_price)),
             "RSI(13)": round(float(df.at[i, "RSI13"]), 1) if pd.notna(df.at[i, "RSI13"]) else None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "최종수익률(%)": round(final_ret, 1),
             "최저수익률(%)": round(min_ret, 1),
             "최고수익률(%)": round(max_ret, 1),
-            "도달시간": reach_time if reach_time else "-"   # ✅ HH:MM 형식
         })
 
     out = pd.DataFrame(res)
-    if not out.empty and "중복 제거" in dedup_mode:
+
+    # 7) dedup_mode가 "중복 제거"일 때만 병합
+    if not out.empty and dedup_mode.startswith("중복 제거"):
         out = out.loc[out["결과"].shift() != out["결과"]]
+
     return out
 
 # -----------------------------
@@ -433,6 +427,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
