@@ -411,10 +411,11 @@ try:
         if "최고수익률(%)" in tbl.columns:
             tbl["최고수익률(%)"] = tbl["최고수익률(%)"].map(lambda v: f"{v:.1f}%")
         
-        # ✅ 도달시간 컬럼 그대로 두되 None/-는 "-" 표시
+        # ✅ 도달시간 포맷 (HH:MM 그대로 표시, None은 "-")
         if "도달시간" in tbl.columns:
-            tbl["도달시간"] = tbl["도달시간"].fillna("-")
-        
+            tbl["도달시간"] = tbl["도달시간"].fillna("-").astype(str)
+
+      
         # 결과 색상 강조
         def color_result(val):
             if val == "성공":
@@ -431,6 +432,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
