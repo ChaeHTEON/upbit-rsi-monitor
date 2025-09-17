@@ -204,7 +204,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
     n = len(df)
     thr = float(thr_pct)
 
-    # RSI 조건에 맞는 봉 인덱스 추출
+    # RSI 조건 인덱스
     if "≤" in rsi_side:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
     else:
@@ -215,7 +215,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
         if end >= n:
             continue
 
-        # 볼린저밴드 조건 확인
+        # 볼린저 조건
         if bb_cond != "없음":
             px = float(df.at[i, "close"])
             up  = float(df.at[i, "BB_up"])  if pd.notna(df.at[i, "BB_up"])  else None
@@ -231,41 +231,34 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
             if not ok:
                 continue
 
-        # 기준가 = 저가(low)
         base_price = float(df.at[i, "low"])
         closes = df.loc[i+1:end, ["time", "close"]]
         if closes.empty:
             continue
 
-        # 성공/실패 기준가
         target_up = base_price * (1 + thr / 100)
         target_down = base_price * (1 - thr / 100)
 
-        # 도달 여부 확인
+        # 도달 여부
         hit_up = closes[closes["close"] >= target_up]
         hit_down = closes[closes["close"] <= target_down]
 
-        reach_time = None
         result = "중립"
+        reach_time = None  # 기본은 None
 
         if not hit_up.empty and not hit_down.empty:
-            # 둘 다 발생 → 먼저 발생한 쪽 선택
             if hit_up.iloc[0]["time"] < hit_down.iloc[0]["time"]:
                 result = "성공"
-                reach_time = hit_up.iloc[0]["time"].strftime("%H:%M:%S")
+                reach_time = hit_up.iloc[0]["time"].strftime("%H:%M")  # ✅ HH:MM
             else:
                 result = "실패"
-                reach_time = hit_down.iloc[0]["time"].strftime("%H:%M:%S")
         elif not hit_up.empty:
             result = "성공"
-            reach_time = hit_up.iloc[0]["time"].strftime("%H:%M:%S")
+            reach_time = hit_up.iloc[0]["time"].strftime("%H:%M")      # ✅ HH:MM
         elif not hit_down.empty:
             result = "실패"
-            reach_time = hit_down.iloc[0]["time"].strftime("%H:%M:%S")
         else:
-            # 기준 ±thr%에 도달 못했을 경우 마지막 봉 기준
             final_price = closes.iloc[-1]["close"]
-            reach_time = closes.iloc[-1]["time"].strftime("%H:%M:%S")
             if final_price > base_price:
                 result = "중립"
             else:
@@ -282,17 +275,15 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
             "RSI(13)": round(float(df.at[i, "RSI13"]), 1) if pd.notna(df.at[i, "RSI13"]) else None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
-            "도달시간": reach_time,  # ✅ 시간(HH:MM:SS)만 표시
+            "도달시간": reach_time,  # ✅ 성공일 경우만 HH:MM 표시
             "최종수익률(%)": round(final_ret, 1),
             "최저수익률(%)": round(min_ret, 1),
             "최고수익률(%)": round(max_ret, 1),
         })
 
     out = pd.DataFrame(res)
-
     if not out.empty and dedup_mode.startswith("중복 제거"):
         out = out.loc[out["결과"].shift() != out["결과"]]
-
     return out
 
 # -----------------------------
@@ -442,6 +433,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
