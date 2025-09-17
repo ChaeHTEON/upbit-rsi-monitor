@@ -1,60 +1,59 @@
-import requests
-import pandas as pd
-import pandas_ta as ta
 import streamlit as st
+import pandas as pd
+import requests
+import datetime
+import plotly.graph_objs as go
+import ta
 
-# 페이지 기본 설정
-st.set_page_config(page_title="Upbit RSI 실시간 모니터", layout="wide")
+# --- 업비트에서 캔들 데이터 불러오기 ---
+def get_ohlcv(market="KRW-BTC", interval="minute1", count=200):
+    url = f"https://api.upbit.com/v1/candles/{interval}"
+    querystring = {"market": market, "count": count}
+    headers = {"Accept": "application/json"}
+    res = requests.get(url, headers=headers).json()
+    df = pd.DataFrame(res)
+    df = df.rename(columns={
+        "candle_date_time_kst": "timestamp",
+        "trade_price": "close"
+    })
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df[["timestamp", "close"]]
+    df = df.sort_values("timestamp")
+    return df
+
+# --- RSI 계산 ---
+def add_rsi(df, period=14):
+    df["rsi"] = ta.momentum.RSIIndicator(df["close"], window=period).rsi()
+    return df
+
+# --- Streamlit UI ---
+st.set_page_config(page_title="Upbit RSI 모니터", layout="wide")
 st.title("📈 Upbit RSI 실시간 모니터")
 
 # 사용자 입력
-market = st.text_input("마켓 코드 입력 (예: KRW-BTC, KRW-ETH)", "KRW-BTC")
-interval = st.selectbox("봉 종류 선택", ["minutes/1", "minutes/5", "minutes/15", "minutes/30", "days"])
+market = st.text_input("코인 선택 (예: KRW-BTC)", "KRW-BTC")
+interval = st.selectbox("봉 종류 선택", ["minutes/1", "minutes/3", "minutes/5", "minutes/15", "minutes/30", "minutes/60", "days"], index=0)
 count = st.slider("캔들 개수", 50, 200, 100)
-refresh_sec = st.slider("자동 새로고침 간격(초)", 5, 60, 10)
-
-# 데이터 가져오기 함수
-@st.cache_data(ttl=60)
-def get_data(market, interval, count):
-    url = f"https://api.upbit.com/v1/candles/{interval}"
-    params = {"market": market, "count": count}
-    res = requests.get(url, params=params)
-    data = res.json()
-    df = pd.DataFrame(data)
-    df = df.rename(columns={
-        "opening_price": "open",
-        "high_price": "high",
-        "low_price": "low",
-        "trade_price": "close",
-        "candle_acc_trade_volume": "volume"
-    })
-    df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-    df = df.sort_values("timestamp").reset_index(drop=True)
-    df["rsi"] = ta.rsi(df["close"], length=14)
-    return df
 
 # 데이터 불러오기
-df = get_data(market, interval, count)
+try:
+    df = get_ohlcv(market, interval, count)
+    df = add_rsi(df)
 
-# 가격 차트
-st.subheader(f"{market} 가격 차트")
-st.line_chart(df.set_index("timestamp")[["close"]])
+    # 가격 차트
+    fig_price = go.Figure()
+    fig_price.add_trace(go.Scatter(x=df["timestamp"], y=df["close"], mode="lines", name="가격"))
+    fig_price.update_layout(title=f"{market} 가격 차트", xaxis_title="시간", yaxis_title="가격")
+    st.plotly_chart(fig_price, use_container_width=True)
 
-# RSI 차트
-st.subheader("RSI (14)")
-st.line_chart(df.set_index("timestamp")[["rsi"]])
+    # RSI 차트
+    fig_rsi = go.Figure()
+    fig_rsi.add_trace(go.Scatter(x=df["timestamp"], y=df["rsi"], mode="lines", name="RSI"))
+    fig_rsi.add_hline(y=70, line=dict(color="red", dash="dot"))
+    fig_rsi.add_hline(y=30, line=dict(color="green", dash="dot"))
+    fig_rsi.update_layout(title="RSI (14)", xaxis_title="시간", yaxis_title="RSI")
+    st.plotly_chart(fig_rsi, use_container_width=True)
 
-# 현재 RSI 값
-latest_rsi = df["rsi"].iloc[-1]
-st.metric("현재 RSI", round(latest_rsi, 2))
-
-# 경고 표시
-if latest_rsi < 30:
-    st.error("⚠️ RSI 30 이하: 과매도 구간 (반등 가능성 주의)")
-elif latest_rsi > 70:
-    st.warning("⚠️ RSI 70 이상: 과매수 구간 (조정 가능성 주의)")
-else:
-    st.info("📊 RSI 정상 범위")
-
-# 자동 새로고침
-st_autorefresh = st.experimental_rerun
+    st.dataframe(df.tail(20))
+except Exception as e:
+    st.error(f"데이터를 불러오는 중 오류 발생: {e}")
