@@ -255,10 +255,18 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             result = "실패"
         elif final_ret >= thr:
             result = "성공"
+            # ✅ 성공인데 reach_time이 계산 안 된 경우 → 최종 시점으로 설정
+            if reach_time is None:
+                diff = df.at[end, "time"] - df.at[i, "time"]
+                minutes = int(diff.total_seconds() // 60)
+                hours = minutes // 60
+                mins = minutes % 60
+                reach_time = f"{hours:02d}:{mins:02d}"
         elif final_ret > 0:
             result = "성공" if final_ret >= thr * 0.6 else "중립"
         else:
             result = "실패"
+
 
         # 결과 저장
         res.append({
@@ -418,4 +426,5 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
