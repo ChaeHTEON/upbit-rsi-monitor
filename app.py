@@ -228,7 +228,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         base_open  = float(df.at[i, "open"])
         final_close = float(df.at[end, "close"])
         final_ret = (final_close / base_open - 1.0) * 100.0
-        # 구간 내 최저/최고 수익률 (익절/손절 시뮬 도움용)
+        # 구간 내 최저/최고 수익률
         min_ret = ((df.loc[i+1:end, "close"].min() / base_open - 1.0) * 100.0)
         max_ret = ((df.loc[i+1:end, "close"].max() / base_open - 1.0) * 100.0)
         # 판정
@@ -289,69 +289,67 @@ try:
     m5.metric("승률", f"{winrate:.1f}%")
 
     # -----------------------------
-    # 가격 + RSI 함께 표시 (Plotly 기본 인터랙션 유지)
+    # 가격 + RSI 함께 표시 (가독성 + 접근성 개선)
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
 
-    # 캔들 (상승=빨강, 하락=파랑)
+    # 캔들 (상승=레드, 하락=블루)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"],
         low=df["low"], close=df["close"], name="가격",
-        increasing_line_color="red", decreasing_line_color="blue",
-        line=dict(width=1)
+        increasing_line_color="#E63946", decreasing_line_color="#457B9D",
+        line=dict(width=1.2)
     ))
 
     # 볼린저밴드 (상/중/하)
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_up"], mode="lines",
-        line=dict(color="orange", width=1.5, dash="dot"),
+        line=dict(color="#FFB703", width=1.5),
         name="BB 상단"
     ))
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_low"], mode="lines",
-        line=dict(color="purple", width=1.5, dash="dot"),
+        line=dict(color="#219EBC", width=1.5),
         name="BB 하단"
     ))
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_mid"], mode="lines",
-        line=dict(color="gray", width=1.2, dash="dash"),
+        line=dict(color="#8D99AE", width=1.2, dash="dot"),
         name="BB 중앙"
     ))
 
-    # 신호
+    # 신호 (circle, 색상 대비 강화)
     if total > 0:
-        for label, color, symbol in [("성공","red","triangle-up"),
-                                     ("실패","blue","triangle-down"),
-                                     ("중립","green","circle")]:
+        for label, color in [("성공","#06D6A0"), ("실패","#EF476F"), ("중립","#FFD166")]:
             sub = res[res["결과"] == label]
             if not sub.empty:
                 fig.add_trace(go.Scatter(
                     x=sub["신호시간"], y=sub["기준시가"], mode="markers",
                     name=f"신호 ({label})",
-                    marker=dict(size=9, color=color, symbol=symbol,
+                    marker=dict(size=10, color=color, symbol="circle",
                                 line=dict(width=1, color="black"))
                 ))
 
     # RSI → 보조 y축
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
-        line=dict(color="green", width=2),
+        line=dict(color="#2A9D8F", width=2), opacity=0.85,
         name="RSI(13)", yaxis="y2"
     ))
 
     # RSI 기준선
-    fig.add_hline(y=70, line_dash="dash", line_color="red",
-                  line_width=1.5, annotation_text="RSI 70",
+    fig.add_hline(y=70, line_dash="dash", line_color="#E63946",
+                  line_width=1.2, annotation_text="RSI 70",
                   annotation_position="top left", yref="y2")
-    fig.add_hline(y=30, line_dash="dash", line_color="blue",
-                  line_width=1.5, annotation_text="RSI 30",
+    fig.add_hline(y=30, line_dash="dash", line_color="#457B9D",
+                  line_width=1.2, annotation_text="RSI 30",
                   annotation_position="bottom left", yref="y2")
 
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         xaxis_rangeslider_visible=False,
         height=700,
-        legend_orientation="h", legend_y=-0.25,
+        legend_orientation="h", legend_y=1.05,
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
     )
@@ -367,8 +365,8 @@ try:
         tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
         tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%")
         tbl["최종수익률(%)"] = tbl["최종수익률(%)"].map(lambda v: f"{v:.1f}%")
-        tbl["최저수익률(%)"] = tbl["최저수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 추가
-        tbl["최고수익률(%)"] = tbl["최고수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 추가
+        tbl["최저수익률(%)"] = tbl["최저수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 유지
+        tbl["최고수익률(%)"] = tbl["최고수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 유지
 
         def color_result(val):
             if val == "성공": return 'color:red; font-weight:600;'
