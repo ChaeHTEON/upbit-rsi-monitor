@@ -4,6 +4,7 @@ import requests
 import plotly.graph_objs as go
 import ta
 from datetime import datetime, timedelta
+from plotly.subplots import make_subplots   # ✅ 추가
 
 # -----------------------------
 # 페이지/스타일
@@ -133,11 +134,10 @@ st.caption("※ 판정은 **최종(N번째 종가) 기준**입니다. (성공: �
 # 데이터 수집: 200봉 단위 자동 페이징 + 프로그레스
 # -----------------------------
 def estimate_calls(start_dt: datetime, end_dt: datetime, minutes_per_bar: int) -> int:
-    # 대략적인 캔들 수 추정 → 200봉 단위 호출 횟수 추정
     mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
     bars = max(1, mins // minutes_per_bar)
     calls = bars // 200 + 1
-    return min(calls, 5000)  # 안전상한
+    return min(calls, 5000)
 
 def fetch_upbit_paged(market_code: str, interval_key: str, start_dt: datetime, end_dt: datetime,
                       minutes_per_bar: int) -> pd.DataFrame:
@@ -172,17 +172,12 @@ def fetch_upbit_paged(market_code: str, interval_key: str, start_dt: datetime, e
             break
 
         to_time = last_ts - timedelta(seconds=1)
-
-        # 진행상태 업데이트
         done += 1
         progress.progress(min(1.0, done / max(1, calls_est)))
-
-        # 안전 차단
         if done > 5000:
             break
 
     progress.empty()
-
     if not all_data:
         return pd.DataFrame()
 
@@ -218,8 +213,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     res = []
     n = len(df)
     thr = thr_pct
-
-    # RSI 신호 인덱스
     if "≤" in rsi_side:
         sig_idx = df.index[df["RSI13"] <= 30].tolist()
     else:
@@ -227,15 +220,11 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
 
     for i in sig_idx:
         end = i + lookahead
-        if end >= n:
-            continue
-
-        # BB 조건 체크
+        if end >= n: continue
         if bb_cond != "없음":
             px = float(df.at[i, "close"])
             up = float(df.at[i, "BB_up"]) if pd.notna(df.at[i, "BB_up"]) else None
             lo = float(df.at[i, "BB_low"]) if pd.notna(df.at[i, "BB_low"]) else None
-
             ok = True
             if bb_cond == "하한선 하향돌파":
                 ok = (lo is not None) and (px < lo)
@@ -245,8 +234,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
                 ok = (up is not None) and (px < up)
             elif bb_cond == "상한선 상향돌파":
                 ok = (up is not None) and (px > up)
-            if not ok:
-                continue
+            if not ok: continue
 
         base_open = float(df.at[i, "open"])
         final_close = float(df.at[end, "close"])
@@ -257,12 +245,11 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         elif final_ret >= thr:
             result = "성공"
         elif final_ret > 0:
-            # 중립(이익) → 기준치의 60% 이상이면 성공 처리
             if final_ret >= thr * 0.6:
                 result = "성공"
             else:
                 result = "중립"
-        else:  # -thr < final_ret <= 0
+        else:
             result = "실패"
 
         res.append({
@@ -276,7 +263,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
 
     out = pd.DataFrame(res)
     if not out.empty and "중복 제거" in dedup_mode:
-        # 연속 동일 결과 제거
         out = out.loc[out["결과"].shift() != out["결과"]]
     return out
 
@@ -317,25 +303,31 @@ try:
     m4.metric("중립", f"{neuts}")
     m5.metric("승률", f"{winrate:.1f}%")
 
-    # 가격 차트
-    fig = go.Figure()
+    # -----------------------------
+    # 가격 + RSI 하나의 subplot
+    # -----------------------------
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True,
+        row_heights=[0.7, 0.3], vertical_spacing=0.05
+    )
+
+    # 가격 캔들
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"], name="가격"
-    ))
-    
-    # 📌 볼린저밴드 조건이 있을 경우 선 추가
+    ), row=1, col=1)
+
+    # 볼린저밴드
     if bb_cond != "없음":
         fig.add_trace(go.Scatter(
             x=df["time"], y=df["BB_up"], mode="lines",
-            line=dict(color="orange", dash="dot"),
-            name="BB 상단"
-        ))
+            line=dict(color="orange", dash="dot"), name="BB 상단"
+        ), row=1, col=1)
         fig.add_trace(go.Scatter(
             x=df["time"], y=df["BB_low"], mode="lines",
-            line=dict(color="purple", dash="dot"),
-            name="BB 하단"
-        ))
+            line=dict(color="purple", dash="dot"), name="BB 하단"
+        ), row=1, col=1)
 
+    # 신호
     if total > 0:
         for label, color, symbol in [("성공", "red", "triangle-up"),
                                      ("실패", "blue", "triangle-down"),
@@ -345,26 +337,24 @@ try:
                 fig.add_trace(go.Scatter(
                     x=sub["신호시간"], y=sub["기준시가"], mode="markers",
                     name=f"신호 ({label})",
-                    marker=dict(size=9, color=color, symbol=symbol, line=dict(width=1, color="black")),
-                    hovertemplate="신호시간=%{x}<br>기준시가=%{y:,}<extra></extra>"
-                ))
+                    marker=dict(size=9, color=color, symbol=symbol,
+                                line=dict(width=1, color="black"))
+                ), row=1, col=1)
+
+    # RSI
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)"
+    ), row=2, col=1)
+    fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="blue", row=2, col=1)
 
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        xaxis_title="시간", yaxis_title="가격",
-        xaxis_rangeslider_visible=False, height=540,
-        legend_orientation="h", legend_y=-0.15
+        xaxis_rangeslider_visible=False,
+        height=700,
+        legend_orientation="h", legend_y=-0.25
     )
     st.plotly_chart(fig, use_container_width=True)
-
-    # RSI 차트(동일 x축 연동)
-    fig_rsi = go.Figure()
-    fig_rsi.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)"))
-    fig_rsi.add_hline(y=70, line_dash="dash", line_color="red")
-    fig_rsi.add_hline(y=30, line_dash="dash", line_color="blue")
-    fig_rsi.update_layout(height=220, xaxis_title="시간", yaxis_title="RSI(13)")
-    fig_rsi.update_xaxes(matches="x")
-    st.plotly_chart(fig_rsi, use_container_width=True)
 
     # -----------------------------
     # 섹션: 신호 결과 표
@@ -386,18 +376,10 @@ try:
             return 'color:green; font-weight:600;'
 
         styled = (tbl.style
-                  .applymap(color_result, subset=["결과"])
-                  )
+                  .applymap(color_result, subset=["결과"]))
         st.dataframe(styled, use_container_width=True, hide_index=True)
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
-
 except Exception as e:
     st.error(f"오류: {e}")
-
-
-
-
-
-
