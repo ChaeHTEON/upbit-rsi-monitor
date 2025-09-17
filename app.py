@@ -203,13 +203,19 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     res = []
     n = len(df)
     thr = thr_pct
+
+    # RSI 조건에 맞는 index 추출
     if "≤" in rsi_side:
         sig_idx = df.index[df["RSI13"] <= 30].tolist()
     else:
         sig_idx = df.index[df["RSI13"] >= 70].tolist()
+
     for i in sig_idx:
         end = i + lookahead
-        if end >= n: continue
+        if end >= n:
+            continue
+
+        # 볼린저밴드 조건 검사
         if bb_cond != "없음":
             px  = float(df.at[i, "close"])
             up  = float(df.at[i, "BB_up"])  if pd.notna(df.at[i, "BB_up"])  else None
@@ -222,18 +228,39 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             elif bb_cond == "상한선 상향돌파": ok = (up  is not None) and (px > up)
             elif bb_cond == "하한선 중앙돌파": ok = (mid is not None) and (lo is not None) and (px > lo) and (px < mid)
             elif bb_cond == "상한선 중앙돌파": ok = (mid is not None) and (up is not None) and (px < up) and (px > mid)
-            if not ok: continue
+            if not ok:
+                continue
+
+        # 기준가와 수익률 계산
         base_open  = float(df.at[i, "open"])
         final_close = float(df.at[end, "close"])
         final_ret = (final_close / base_open - 1.0) * 100.0
         min_ret = ((df.loc[i+1:end, "close"].min() / base_open - 1.0) * 100.0)
         max_ret = ((df.loc[i+1:end, "close"].max() / base_open - 1.0) * 100.0)
-        if final_ret <= -thr: result = "실패"
-        elif final_ret >= thr: result = "성공"
+
+        # ✅ 성공 도달 시간 계산 (HH:MM 포맷)
+        reach_time = None
+        for j in range(i+1, end+1):
+            step_ret = (df.at[j, "close"] / base_open - 1.0) * 100.0
+            if step_ret >= thr:
+                diff = df.at[j, "time"] - df.at[i, "time"]
+                minutes = int(diff.total_seconds() // 60)
+                hours = minutes // 60
+                mins = minutes % 60
+                reach_time = f"{hours:02d}:{mins:02d}"
+                break
+
+        # 판정
+        if final_ret <= -thr:
+            result = "실패"
+        elif final_ret >= thr:
+            result = "성공"
         elif final_ret > 0:
             result = "성공" if final_ret >= thr * 0.6 else "중립"
         else:
             result = "실패"
+
+        # 결과 저장
         res.append({
             "신호시간": df.at[i, "time"],
             "기준시가": int(round(base_open)),
@@ -243,7 +270,9 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             "최종수익률(%)": round(final_ret, 1),
             "최저수익률(%)": round(min_ret, 1),
             "최고수익률(%)": round(max_ret, 1),
+            "도달시간": reach_time if reach_time else "-"   # ✅ HH:MM 형식
         })
+
     out = pd.DataFrame(res)
     if not out.empty and "중복 제거" in dedup_mode:
         out = out.loc[out["결과"].shift() != out["결과"]]
@@ -389,3 +418,4 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
