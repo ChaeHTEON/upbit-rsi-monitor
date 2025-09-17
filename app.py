@@ -204,18 +204,20 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     n = len(df)
     thr = thr_pct
 
-    # ✅ NaN 제거 + 조건 필터 강화
+    # ✅ RSI 돌파 조건 적용
     if "≤" in rsi_side:
-        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
+        cond = (df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30)   # 하향 돌파
+        sig_idx = df.index[cond & df["RSI13"].notna()].tolist()
     else:
-        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
+        cond = (df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70)   # 상향 돌파
+        sig_idx = df.index[cond & df["RSI13"].notna()].tolist()
 
     for i in sig_idx:
-        end = min(i + lookahead, n - 1)   # ✅ 끝부분도 신호 잡히도록 수정
+        end = min(i + lookahead, n - 1)
 
         # 볼린저밴드 조건 검사
         if bb_cond != "없음":
-            px  = float(df.at[i, "close"])   # ✅ 종가 기준
+            px  = float(df.at[i, "close"])
             up  = float(df.at[i, "BB_up"])  if pd.notna(df.at[i, "BB_up"])  else None
             lo  = float(df.at[i, "BB_low"]) if pd.notna(df.at[i, "BB_low"]) else None
             mid = float(df.at[i, "BB_mid"]) if pd.notna(df.at[i, "BB_mid"]) else None
@@ -229,8 +231,8 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             if not ok:
                 continue
 
-        # 기준가 = 종가로 변경
-        base_price = float(df.at[i, "close"])
+        # ✅ 기준가 = 저가(low) 기준
+        base_price = float(df.at[i, "low"])
 
         # 수익률 계산
         final_close = float(df.at[end, "close"])
@@ -264,6 +266,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     if not out.empty and "중복 제거" in dedup_mode:
         out = out.loc[out["결과"].shift() != out["결과"]]
     return out
+
 
 
 
@@ -413,6 +416,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
