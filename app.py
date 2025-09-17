@@ -85,9 +85,9 @@ with c1:
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
-    end_date = st.date_input("종료 날짜", value=datetime.today())
     default_start = datetime.today() - timedelta(days=7)
     start_date = st.date_input("시작 날짜", value=default_start)
+    end_date = st.date_input("종료 날짜", value=datetime.today())
 
 # -----------------------------
 # 섹션: 조건 설정
@@ -302,7 +302,7 @@ try:
     wins  = int((res["결과"] == "성공").sum()) if total else 0
     fails = int((res["결과"] == "실패").sum()) if total else 0
     neuts = int((res["결과"] == "중립").sum()) if total else 0
-    winrate = (wins / total * 100.0) if total else 0.0
+    winrate = ((wins + neuts) / total * 100.0) if total else 0.0
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("신호 수", f"{total}")
@@ -355,7 +355,7 @@ try:
     if total > 0:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
-        tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+        tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
         tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%")
         tbl["최종수익률(%)"] = tbl["최종수익률(%)"].map(lambda v: f"{v:.1f}%")
 
@@ -373,9 +373,7 @@ try:
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
-    # 새로고침
-    if st.button("🔄 새로고침"):
-        st.rerun()
 
 except Exception as e:
     st.error(f"오류: {e}")
+
