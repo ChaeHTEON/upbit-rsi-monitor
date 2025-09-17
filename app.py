@@ -334,7 +334,7 @@ try:
         c4.metric("중립", f"{neu}")
         c5.metric("승률", f"{win:.1f}%")
         c6.metric("총 변동폭 합(%)", f"{range_sum:.1f}%")
-        c7.metric("최종수익률 합(성/실)", f"{final_succ:.1f}% / {final_fail:.1f}%")
+        c7.metric("최종수익률 합계", f"{final_succ:.1f}% / {final_fail:.1f}%")
         st.markdown("---")
 
     # 이후 차트/테이블은 기존대로, 선택된 dup_mode 결과만 사용
@@ -453,6 +453,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
