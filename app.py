@@ -4,7 +4,7 @@ import requests
 import plotly.graph_objs as go
 import ta
 from datetime import datetime, timedelta
-from plotly.subplots import make_subplots   # ✅ 추가
+from plotly.subplots import make_subplots   # ✅ subplot 사용
 
 # -----------------------------
 # 페이지/스타일
@@ -39,9 +39,8 @@ def get_upbit_krw_markets():
             sym = it["market"][4:]
             label = f'{it["korean_name"]} ({sym}) — {it["market"]}'
             rows.append((label, it["market"]))
-    # BTC가 기본으로 위쪽에 오도록 정렬 tweak
     rows.sort(key=lambda x: (x[1] != "KRW-BTC", x[1]))
-    return rows  # list of (label, market_code)
+    return rows
 
 MARKET_LIST = get_upbit_krw_markets()
 default_idx = 0
@@ -81,12 +80,12 @@ with c1:
         "종목 선택",
         MARKET_LIST,
         index=default_idx,
-        format_func=lambda x: x[0]  # label만 보이게
+        format_func=lambda x: x[0]
     )
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
-    default_start = datetime.today() - timedelta(days=1)   # 1일 전
+    default_start = datetime.today() - timedelta(days=1)
     start_date = st.date_input("시작 날짜", value=default_start)
     end_date = st.date_input("종료 날짜", value=datetime.today())
 
@@ -110,13 +109,13 @@ with c7:
         ["없음", "하한선 하향돌파", "하한선 상향돌파", "상한선 하향돌파", "상한선 상향돌파"],
         index=0
     )
+with c8:
+    max_bars = st.slider("표시할 최대 봉 개수", 50, 200, 100)   # ✅ 봉 개수 제한 옵션
 
-# 측정 N → 총합 시간 표기
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 total_minutes = lookahead * minutes_per_bar
 st.caption(f"측정 범위: **{lookahead} ({total_minutes}분)**  · 봉 종류: **{tf_label}**")
 
-# BB 선택 강조 요약 라인
 if "상향" in bb_cond:
     bb_note = f'<span class="success">볼린저밴드 {bb_cond}</span>'
 elif "하향" in bb_cond:
@@ -128,10 +127,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.caption("※ 판정은 **최종(N번째 종가) 기준**입니다. (성공: 기준 초과, 실패: 기준 이하, 중립: 사이값)")
+st.caption("※ 판정은 최종(N번째 종가) 기준입니다.")
 
 # -----------------------------
-# 데이터 수집: 200봉 단위 자동 페이징 + 프로그레스
+# 데이터 수집
 # -----------------------------
 def estimate_calls(start_dt: datetime, end_dt: datetime, minutes_per_bar: int) -> int:
     mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
@@ -146,41 +145,31 @@ def fetch_upbit_paged(market_code: str, interval_key: str, start_dt: datetime, e
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
         url = f"https://api.upbit.com/v1/candles/{interval_key}"
-
     all_data = []
     to_time = end_dt
     calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
     progress = st.progress(0.0)
     done = 0
-
     while True:
-        params = {
-            "market": market_code,
-            "count": 200,
-            "to": to_time.strftime("%Y-%m-%d %H:%M:%S")
-        }
+        params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
         r = requests.get(url, params=params, headers={"Accept":"application/json"})
         if r.status_code != 200:
             raise RuntimeError(f"Upbit API 오류: {r.text}")
         batch = r.json()
         if not batch:
             break
-
         all_data.extend(batch)
         last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
         if last_ts <= start_dt:
             break
-
         to_time = last_ts - timedelta(seconds=1)
         done += 1
         progress.progress(min(1.0, done / max(1, calls_est)))
         if done > 5000:
             break
-
     progress.empty()
     if not all_data:
         return pd.DataFrame()
-
     df = pd.DataFrame(all_data)
     df = df.rename(columns={
         "candle_date_time_kst":"time",
@@ -195,7 +184,7 @@ def fetch_upbit_paged(market_code: str, interval_key: str, start_dt: datetime, e
     return df[df["time"].between(start_dt, end_dt)]
 
 # -----------------------------
-# 지표 추가 (RSI, BB)
+# 지표 추가
 # -----------------------------
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -206,7 +195,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 # -----------------------------
-# 시뮬레이션 (최종 종가 기준 판정)
+# 시뮬레이션
 # -----------------------------
 def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb_cond: str,
              dedup_mode: str) -> pd.DataFrame:
@@ -217,7 +206,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         sig_idx = df.index[df["RSI13"] <= 30].tolist()
     else:
         sig_idx = df.index[df["RSI13"] >= 70].tolist()
-
     for i in sig_idx:
         end = i + lookahead
         if end >= n: continue
@@ -226,32 +214,20 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             up = float(df.at[i, "BB_up"]) if pd.notna(df.at[i, "BB_up"]) else None
             lo = float(df.at[i, "BB_low"]) if pd.notna(df.at[i, "BB_low"]) else None
             ok = True
-            if bb_cond == "하한선 하향돌파":
-                ok = (lo is not None) and (px < lo)
-            elif bb_cond == "하한선 상향돌파":
-                ok = (lo is not None) and (px > lo)
-            elif bb_cond == "상한선 하향돌파":
-                ok = (up is not None) and (px < up)
-            elif bb_cond == "상한선 상향돌파":
-                ok = (up is not None) and (px > up)
+            if bb_cond == "하한선 하향돌파": ok = (lo is not None) and (px < lo)
+            elif bb_cond == "하한선 상향돌파": ok = (lo is not None) and (px > lo)
+            elif bb_cond == "상한선 하향돌파": ok = (up is not None) and (px < up)
+            elif bb_cond == "상한선 상향돌파": ok = (up is not None) and (px > up)
             if not ok: continue
-
         base_open = float(df.at[i, "open"])
         final_close = float(df.at[end, "close"])
         final_ret = (final_close / base_open - 1.0) * 100.0
-
-        if final_ret <= -thr:
-            result = "실패"
-        elif final_ret >= thr:
-            result = "성공"
+        if final_ret <= -thr: result = "실패"
+        elif final_ret >= thr: result = "성공"
         elif final_ret > 0:
-            if final_ret >= thr * 0.6:
-                result = "성공"
-            else:
-                result = "중립"
-        else:
-            result = "실패"
-
+            if final_ret >= thr * 0.6: result = "성공"
+            else: result = "중립"
+        else: result = "실패"
         res.append({
             "신호시간": df.at[i, "time"],
             "기준시가": int(round(base_open)),
@@ -260,7 +236,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             "결과": result,
             "최종수익률(%)": round(final_ret, 1),
         })
-
     out = pd.DataFrame(res)
     if not out.empty and "중복 제거" in dedup_mode:
         out = out.loc[out["결과"].shift() != out["결과"]]
@@ -271,31 +246,30 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
 # -----------------------------
 try:
     if start_date > end_date:
-        st.error("시작 날짜가 종료 날짜보다 이후입니다. 다시 선택해 주세요.")
+        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
         st.stop()
 
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
-
     df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty:
-        st.error("데이터가 없습니다. 기간을 변경해 보세요.")
+        st.error("데이터가 없습니다.")
         st.stop()
 
     df = add_indicators(df)
+    if len(df) > max_bars:   # ✅ 봉 개수 제한
+        df = df.iloc[-max_bars:].reset_index(drop=True)
     res = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, dup_mode)
 
     # -----------------------------
-    # 섹션: 요약 & 차트
+    # 요약 & 차트
     # -----------------------------
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
-
     total = len(res)
     wins  = int((res["결과"] == "성공").sum()) if total else 0
     fails = int((res["결과"] == "실패").sum()) if total else 0
     neuts = int((res["결과"] == "중립").sum()) if total else 0
     winrate = ((wins + neuts) / total * 100.0) if total else 0.0
-
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("신호 수", f"{total}")
     m2.metric("성공", f"{wins}")
@@ -304,79 +278,57 @@ try:
     m5.metric("승률", f"{winrate:.1f}%")
 
     # -----------------------------
-    # 가격 + RSI 하나의 subplot
+    # 가격 + RSI 함께 표시 (RSI는 오른쪽 축)
     # -----------------------------
-    fig = make_subplots(
-        rows=2, cols=1, shared_xaxes=True,
-        row_heights=[0.7, 0.3], vertical_spacing=0.05
-    )
-
-    # 가격 캔들
+    fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"], name="가격"
-    ), row=1, col=1)
-
-    # 볼린저밴드
+    ))
     if bb_cond != "없음":
         fig.add_trace(go.Scatter(
-            x=df["time"], y=df["BB_up"], mode="lines",
-            line=dict(color="orange", dash="dot"), name="BB 상단"
-        ), row=1, col=1)
+            x=df["time"], y=df["BB_up"], mode="lines", line=dict(color="orange", dash="dot"), name="BB 상단"
+        ))
         fig.add_trace(go.Scatter(
-            x=df["time"], y=df["BB_low"], mode="lines",
-            line=dict(color="purple", dash="dot"), name="BB 하단"
-        ), row=1, col=1)
-
-    # 신호
+            x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="purple", dash="dot"), name="BB 하단"
+        ))
     if total > 0:
-        for label, color, symbol in [("성공", "red", "triangle-up"),
-                                     ("실패", "blue", "triangle-down"),
-                                     ("중립", "green", "circle")]:
+        for label, color, symbol in [("성공","red","triangle-up"),("실패","blue","triangle-down"),("중립","green","circle")]:
             sub = res[res["결과"] == label]
             if not sub.empty:
                 fig.add_trace(go.Scatter(
                     x=sub["신호시간"], y=sub["기준시가"], mode="markers",
                     name=f"신호 ({label})",
-                    marker=dict(size=9, color=color, symbol=symbol,
-                                line=dict(width=1, color="black"))
-                ), row=1, col=1)
-
-    # RSI
+                    marker=dict(size=9, color=color, symbol=symbol, line=dict(width=1, color="black"))
+                ))
+    # RSI → 보조 y축
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)"
-    ), row=2, col=1)
-    fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-    fig.add_hline(y=30, line_dash="dash", line_color="blue", row=2, col=1)
-
+        x=df["time"], y=df["RSI13"], mode="lines", line=dict(color="green"), name="RSI(13)", yaxis="y2"
+    ))
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         xaxis_rangeslider_visible=False,
         height=700,
-        legend_orientation="h", legend_y=-0.25
+        legend_orientation="h", legend_y=-0.25,
+        yaxis=dict(title="가격"),
+        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
     )
     st.plotly_chart(fig, use_container_width=True)
 
     # -----------------------------
-    # 섹션: 신호 결과 표
+    # 신호 결과 표
     # -----------------------------
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-
     if total > 0:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
         tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
         tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%")
         tbl["최종수익률(%)"] = tbl["최종수익률(%)"].map(lambda v: f"{v:.1f}%")
-
         def color_result(val):
-            if val == "성공":
-                return 'color:red; font-weight:600;'
-            if val == "실패":
-                return 'color:blue; font-weight:600;'
+            if val == "성공": return 'color:red; font-weight:600;'
+            if val == "실패": return 'color:blue; font-weight:600;'
             return 'color:green; font-weight:600;'
-
-        styled = (tbl.style
-                  .applymap(color_result, subset=["결과"]))
+        styled = (tbl.style.applymap(color_result, subset=["결과"]))
         st.dataframe(styled, use_container_width=True, hide_index=True)
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
