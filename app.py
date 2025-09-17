@@ -367,35 +367,17 @@ try:
         tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
         tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%")
         tbl["최종수익률(%)"] = tbl["최종수익률(%)"].map(lambda v: f"{v:.1f}%")
-        if "최저수익률(%)" in tbl.columns:
-            tbl["최저수익률(%)"] = tbl["최저수익률(%)"].map(lambda v: f"{v:.1f}%")
-        if "최고수익률(%)" in tbl.columns:
-            tbl["최고수익률(%)"] = tbl["최고수익률(%)"].map(lambda v: f"{v:.1f}%")
-    
+        tbl["최저수익률(%)"] = tbl["최저수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 추가
+        tbl["최고수익률(%)"] = tbl["최고수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 추가
+
         def color_result(val):
             if val == "성공": return 'color:red; font-weight:600;'
             if val == "실패": return 'color:blue; font-weight:600;'
             return 'color:green; font-weight:600;'
-    
-    # ✅ HTML 테이블로 변환 + 중앙정렬
-    tbl_html = tbl.to_html(index=False, justify="center")
-    
-    # 중앙정렬 CSS 추가
-    tbl_html = tbl_html.replace("<th", "<th style='text-align:center;'")
-    tbl_html = tbl_html.replace("<td", "<td style='text-align:center;'")
-    
-    # 결과 색상 강조
-    for label, css in [("성공", "color:red; font-weight:600;"),
-                       ("실패", "color:blue; font-weight:600;"),
-                       ("중립", "color:green; font-weight:600;")]:
-        tbl_html = tbl_html.replace(f">{label}<", f" style='{css}'>{label}<")
-
-st.markdown(tbl_html, unsafe_allow_html=True)
+        styled = (tbl.style.applymap(color_result, subset=["결과"]))
+        st.dataframe(styled, use_container_width=True, hide_index=True)
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
 except Exception as e:
     st.error(f"오류: {e}")
-
-
-
