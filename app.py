@@ -102,7 +102,7 @@ with c5:
 with c6:
     rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
 
-c7, c8 = st.columns(2)
+c7 = st.container()
 with c7:
     bb_cond = st.selectbox(
         "볼린저밴드 조건",
@@ -110,17 +110,6 @@ with c7:
          "상한선 하향돌파", "상한선 상향돌파",
          "하한선 중앙돌파", "상한선 중앙돌파"],  # ✅ 중앙선 조건 추가
         index=0
-    )
-
-    # 차트 레이아웃에서 화면 비율 고정
-    fig.update_layout(
-        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        xaxis_rangeslider_visible=False,
-        height=600,   # ✅ 원하는 세로 비율 (600~650px 추천)
-        autosize=False,
-        legend_orientation="h", legend_y=1.05,
-        yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
     )
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
@@ -237,10 +226,8 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         base_open  = float(df.at[i, "open"])
         final_close = float(df.at[end, "close"])
         final_ret = (final_close / base_open - 1.0) * 100.0
-        # 구간 내 최저/최고 수익률
         min_ret = ((df.loc[i+1:end, "close"].min() / base_open - 1.0) * 100.0)
         max_ret = ((df.loc[i+1:end, "close"].max() / base_open - 1.0) * 100.0)
-        # 판정
         if final_ret <= -thr: result = "실패"
         elif final_ret >= thr: result = "성공"
         elif final_ret > 0:
@@ -254,8 +241,8 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "최종수익률(%)": round(final_ret, 1),
-            "최저수익률(%)": round(min_ret, 1),   # ✅ 추가
-            "최고수익률(%)": round(max_ret, 1),   # ✅ 추가
+            "최저수익률(%)": round(min_ret, 1),
+            "최고수익률(%)": round(max_ret, 1),
         })
     out = pd.DataFrame(res)
     if not out.empty and "중복 제거" in dedup_mode:
@@ -278,7 +265,6 @@ try:
         st.stop()
 
     df = add_indicators(df)
-    # ✅ max_bars는 UI 체크용만 유지. 실제 시뮬레이션/차트는 전체 기간 데이터 사용
     res = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, dup_mode)
 
     # -----------------------------
@@ -298,11 +284,11 @@ try:
     m5.metric("승률", f"{winrate:.1f}%")
 
     # -----------------------------
-    # 가격 + RSI 함께 표시 (가독성 + 접근성 개선)
+    # 가격 + RSI 함께 표시 (가독성 + 고정 비율)
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
 
-    # 캔들 (상승=레드, 하락=블루)
+    # 캔들
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"],
         low=df["low"], close=df["close"], name="가격",
@@ -310,7 +296,7 @@ try:
         line=dict(width=1.2)
     ))
 
-    # 볼린저밴드 (상/중/하)
+    # 볼린저밴드
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_up"], mode="lines",
         line=dict(color="#FFB703", width=1.5),
@@ -327,7 +313,7 @@ try:
         name="BB 중앙"
     ))
 
-    # 신호 (circle, 색상 대비 강화)
+    # 신호
     if total > 0:
         for label, color in [("성공","#06D6A0"), ("실패","#EF476F"), ("중립","#FFD166")]:
             sub = res[res["결과"] == label]
@@ -339,7 +325,7 @@ try:
                                 line=dict(width=1, color="black"))
                 ))
 
-    # RSI → 보조 y축
+    # RSI
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
         line=dict(color="#2A9D8F", width=2), opacity=0.85,
@@ -354,14 +340,18 @@ try:
                   line_width=1.2, annotation_text="RSI 30",
                   annotation_position="bottom left", yref="y2")
 
+    # ✅ 차트 세로 비율 고정
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         xaxis_rangeslider_visible=False,
-        height=700,
+        height=600,
+        autosize=False,
         legend_orientation="h", legend_y=1.05,
+        margin=dict(l=60, r=40, t=60, b=40),
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
     )
+
     st.plotly_chart(fig, use_container_width=True)
 
     # -----------------------------
@@ -371,21 +361,4 @@ try:
     if total > 0:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
-        tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%")
-        tbl["최종수익률(%)"] = tbl["최종수익률(%)"].map(lambda v: f"{v:.1f}%")
-        tbl["최저수익률(%)"] = tbl["최저수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 유지
-        tbl["최고수익률(%)"] = tbl["최고수익률(%)"].map(lambda v: f"{v:.1f}%")  # ✅ 유지
-
-        def color_result(val):
-            if val == "성공": return 'color:red; font-weight:600;'
-            if val == "실패": return 'color:blue; font-weight:600;'
-            return 'color:green; font-weight:600;'
-        styled = (tbl.style.applymap(color_result, subset=["결과"]))
-        st.dataframe(styled, use_container_width=True, hide_index=True)
-    else:
-        st.info("조건을 만족하는 신호가 없습니다.")
-
-except Exception as e:
-    st.error(f"오류: {e}")
-
+        tbl["
