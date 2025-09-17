@@ -198,8 +198,14 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
-def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb_cond: str,
-             dedup_mode: str) -> pd.DataFrame:
+ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
+             bb_cond: str, dedup_mode: str) -> pd.DataFrame:
+    """
+    시뮬레이션 함수
+    - RSI 조건: RSI ≤ 30 또는 RSI ≥ 70
+    - 신호 기준가: 저가(low)
+    - 이후 N봉 동안 수익률 계산: 종가 기준 + 고가/저가 활용
+    """
     res = []
     n = len(df)
     thr = thr_pct
@@ -231,14 +237,18 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             if not ok:
                 continue
 
-        # ✅ 기준가 = 저가(low)
+        # ✅ 신호 기준가 = 저가(low)
         base_price = float(df.at[i, "low"])
 
+        # 이후 구간 종가 데이터
+        closes = df.loc[i+1:end, "close"]
+        if closes.empty:
+            continue
+
         # 수익률 계산
-        final_close = float(df.at[end, "close"])
-        final_ret = (final_close / base_price - 1.0) * 100.0
-        min_ret = ((df.loc[i+1:end, "close"].min() / base_price - 1.0) * 100.0)
-        max_ret = ((df.loc[i+1:end, "close"].max() / base_price - 1.0) * 100.0)
+        final_ret = (closes.iloc[-1] / base_price - 1.0) * 100.0
+        min_ret   = (closes.min()      / base_price - 1.0) * 100.0
+        max_ret   = (closes.max()      / base_price - 1.0) * 100.0
 
         # 판정
         if final_ret <= -thr:
@@ -250,6 +260,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         else:
             result = "실패"
 
+        # 결과 저장
         res.append({
             "신호시간": df.at[i, "time"],
             "기준시가": int(round(base_price)),
@@ -268,6 +279,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
         out = out.loc[out["결과"].shift() != out["결과"]]
 
     return out
+
 
 
 
