@@ -106,11 +106,13 @@ c7, c8 = st.columns(2)
 with c7:
     bb_cond = st.selectbox(
         "볼린저밴드 조건",
-        ["없음", "하한선 하향돌파", "하한선 상향돌파", "상한선 하향돌파", "상한선 상향돌파"],
+        ["없음", "하한선 하향돌파", "하한선 상향돌파",
+         "상한선 하향돌파", "상한선 상향돌파",
+         "하한선 중앙돌파", "상한선 중앙돌파"],  # ✅ 중앙선 조건 추가
         index=0
     )
 with c8:
-    max_bars = st.slider("표시할 최대 봉 개수", 50, 200, 100)   # ✅ 봉 개수 제한 옵션
+    max_bars = st.slider("표시할 최대 봉 개수", 50, 200, 100)   # ✅ 단순 UI 체크용 (실제 시뮬레이션에는 영향 없음)
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 total_minutes = lookahead * minutes_per_bar
@@ -192,6 +194,7 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     bb = ta.volatility.BollingerBands(close=out["close"], window=30, window_dev=2)
     out["BB_up"] = bb.bollinger_hband()
     out["BB_low"] = bb.bollinger_lband()
+    out["BB_mid"] = bb.bollinger_mavg()   # ✅ 중앙선 추가
     return out
 
 # -----------------------------
@@ -213,15 +216,20 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             px = float(df.at[i, "close"])
             up = float(df.at[i, "BB_up"]) if pd.notna(df.at[i, "BB_up"]) else None
             lo = float(df.at[i, "BB_low"]) if pd.notna(df.at[i, "BB_low"]) else None
+            mid = float(df.at[i, "BB_mid"]) if pd.notna(df.at[i, "BB_mid"]) else None
             ok = True
             if bb_cond == "하한선 하향돌파": ok = (lo is not None) and (px < lo)
             elif bb_cond == "하한선 상향돌파": ok = (lo is not None) and (px > lo)
             elif bb_cond == "상한선 하향돌파": ok = (up is not None) and (px < up)
             elif bb_cond == "상한선 상향돌파": ok = (up is not None) and (px > up)
+            elif bb_cond == "하한선 중앙돌파": ok = (mid is not None) and (px > lo) and (px < mid)
+            elif bb_cond == "상한선 중앙돌파": ok = (mid is not None) and (px < up) and (px > mid)
             if not ok: continue
         base_open = float(df.at[i, "open"])
         final_close = float(df.at[end, "close"])
         final_ret = (final_close / base_open - 1.0) * 100.0
+        min_ret = ((df.loc[i+1:end, "close"].min() / base_open - 1.0) * 100.0)
+        max_ret = ((df.loc[i+1:end, "close"].max() / base_open - 1.0) * 100.0)
         if final_ret <= -thr: result = "실패"
         elif final_ret >= thr: result = "성공"
         elif final_ret > 0:
@@ -235,6 +243,8 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "최종수익률(%)": round(final_ret, 1),
+            "최저수익률(%)": round(min_ret, 1),   # ✅ 추가
+            "최고수익률(%)": round(max_ret, 1),   # ✅ 추가
         })
     out = pd.DataFrame(res)
     if not out.empty and "중복 제거" in dedup_mode:
@@ -257,8 +267,6 @@ try:
         st.stop()
 
     df = add_indicators(df)
-    if len(df) > max_bars:
-        df = df.iloc[-max_bars:].reset_index(drop=True)
     res = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, dup_mode)
 
     # -----------------------------
@@ -278,11 +286,11 @@ try:
     m5.metric("승률", f"{winrate:.1f}%")
 
     # -----------------------------
-    # 가격 + RSI 함께 표시 (가독성 강화)
+    # 가격 + RSI 함께 표시
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
 
-    # 캔들 (상승=빨강, 하락=파랑)
+    # 캔들
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"],
         low=df["low"], close=df["close"], name="가격",
@@ -290,18 +298,22 @@ try:
         line=dict(width=1)
     ))
 
-    # 볼린저밴드 (선 굵기 1.5)
-    if bb_cond != "없음":
-        fig.add_trace(go.Scatter(
-            x=df["time"], y=df["BB_up"], mode="lines",
-            line=dict(color="orange", width=1.5, dash="dot"),
-            name="BB 상단"
-        ))
-        fig.add_trace(go.Scatter(
-            x=df["time"], y=df["BB_low"], mode="lines",
-            line=dict(color="purple", width=1.5, dash="dot"),
-            name="BB 하단"
-        ))
+    # 볼린저밴드
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_up"], mode="lines",
+        line=dict(color="orange", width=1.5, dash="dot"),
+        name="BB 상단"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_low"], mode="lines",
+        line=dict(color="purple", width=1.5, dash="dot"),
+        name="BB 하단"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_mid"], mode="lines",    # ✅ 중앙선 표시
+        line=dict(color="gray", width=1.2, dash="dash"),
+        name="BB 중앙"
+    ))
 
     # 신호
     if total > 0:
@@ -317,14 +329,13 @@ try:
                                 line=dict(width=1, color="black"))
                 ))
 
-    # RSI → 보조 y축 (굵기 2)
+    # RSI
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
         line=dict(color="green", width=2),
         name="RSI(13)", yaxis="y2"
     ))
 
-    # RSI 기준선 (30, 70) → 밑줄 표시
     fig.add_hline(y=70, line_dash="dash", line_color="red",
                   line_width=1.5, annotation_text="RSI 70",
                   annotation_position="top left", yref="y2")
@@ -339,28 +350,4 @@ try:
         legend_orientation="h", legend_y=-0.25,
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False,
-                    title="RSI(13)", range=[0,100])
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # -----------------------------
-    # 신호 결과 표
-    # -----------------------------
-    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    if total > 0:
-        tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-        tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
-        tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%")
-        tbl["최종수익률(%)"] = tbl["최종수익률(%)"].map(lambda v: f"{v:.1f}%")
-        def color_result(val):
-            if val == "성공": return 'color:red; font-weight:600;'
-            if val == "실패": return 'color:blue; font-weight:600;'
-            return 'color:green; font-weight:600;'
-        styled = (tbl.style.applymap(color_result, subset=["결과"]))
-        st.dataframe(styled, use_container_width=True, hide_index=True)
-    else:
-        st.info("조건을 만족하는 신호가 없습니다.")
-
-except Exception as e:
-    st.error(f"오류: {e}")
+                    title="RSI(13)", range=[
