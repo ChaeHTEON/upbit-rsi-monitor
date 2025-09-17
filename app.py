@@ -111,8 +111,17 @@ with c7:
          "하한선 중앙돌파", "상한선 중앙돌파"],  # ✅ 중앙선 조건 추가
         index=0
     )
-with c8:
-    max_bars = st.slider("표시할 최대 봉 개수", 50, 200, 100)   # ✅ UI 체크용 (시뮬레이션 비영향)
+
+    # 차트 레이아웃에서 화면 비율 고정
+    fig.update_layout(
+        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+        xaxis_rangeslider_visible=False,
+        height=600,   # ✅ 원하는 세로 비율 (600~650px 추천)
+        autosize=False,
+        legend_orientation="h", legend_y=1.05,
+        yaxis=dict(title="가격"),
+        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
+    )
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 total_minutes = lookahead * minutes_per_bar
@@ -379,3 +388,4 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
