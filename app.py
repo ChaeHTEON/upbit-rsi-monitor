@@ -60,9 +60,8 @@ with c5:
         "성공/실패 기준 값(%)",
         min_value=0.1,
         max_value=3.0,
-        value=1.0,   # 기본값 (원하면 0.5 등으로 변경 가능)
-        step=0.1,
-        help="기준 캔들 이후 N봉 내 +X% 이상 고가 도달 → 성공, -X% 이하 저가 도달 → 실패"
+        value=1.0,
+        step=0.1
     )
 with c6:
     rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락30)", "RSI ≥ 70 (급등70)"], index=0)
@@ -71,6 +70,7 @@ with c6:
 st.caption(
     "- 기준 캔들: RSI(13) 조건(급락30 또는 급등70)을 만족한 시점의 **시가**를 기준가격으로 사용합니다.\n"
     f"- 이후 N봉 내에 **+{threshold_pct:.1f}% 이상 고가 도달 → 성공**, **-{threshold_pct:.1f}% 이하 저가 도달 → 실패**, 그 외는 **중립**으로 분류합니다.\n"
+    "- 단, 핵심 조건이 모두 미충족 시 최종 수익률 < 0 → 실패, ≥ 0 → 중립으로 판정합니다.\n"
     "- 추가로 기준 시가 대비 **최대상승(%) / 최대하락(%)**과, (i+N)번째 **종가 기준 최종수익률(%)**을 제공합니다."
 )
 
@@ -94,7 +94,6 @@ def fetch_upbit(market_code: str, tf_label: str, count: int) -> pd.DataFrame:
         raise RuntimeError(data["error"]["message"])
 
     df = pd.DataFrame(data)
-    # 컬럼 표준화
     df = df.rename(columns={
         "candle_date_time_kst": "time",
         "opening_price": "open",
@@ -103,7 +102,6 @@ def fetch_upbit(market_code: str, tf_label: str, count: int) -> pd.DataFrame:
         "trade_price": "close",
         "candle_acc_trade_volume": "volume"
     })
-    # 최신→과거로 오므로 시간 오름차순으로
     df["time"] = pd.to_datetime(df["time"])
     df = df[["time", "open", "high", "low", "close", "volume"]].sort_values("time").reset_index(drop=True)
     return df
@@ -124,14 +122,14 @@ def simulate(df: pd.DataFrame, side: str, lookahead: int, thr_pct: float) -> pd.
     n = len(df)
     thr = thr_pct / 100.0
 
-    if "≤" in side:  # 급락30
+    if "≤" in side:
         sig_idx = df.index[df["RSI13"] <= 30].tolist()
-    else:           # 급등70
+    else:
         sig_idx = df.index[df["RSI13"] >= 70].tolist()
 
     for i in sig_idx:
         end = i + lookahead
-        if end >= n:  # 미래 캔들이 충분하지 않으면 제외
+        if end >= n:
             continue
 
         base_open = float(df.at[i, "open"])
@@ -145,7 +143,12 @@ def simulate(df: pd.DataFrame, side: str, lookahead: int, thr_pct: float) -> pd.
         hit_up = (win_high >= target_up)
         hit_dn = (win_low  <= target_dn)
 
-        # 동시충족 시 순서를 알 수 없어 '중립' 처리 (캔들 데이터만으로 도달순서 특정 불가)
+        final_close = float(df.at[end, "close"])
+        final_ret = (final_close / base_open - 1.0) * 100.0
+        max_runup  = (win_high / base_open - 1.0) * 100.0
+        max_drawdn = (win_low  / base_open - 1.0) * 100.0
+
+        # 성공/실패/중립 판정
         if hit_up and not hit_dn:
             result = "성공"
         elif hit_dn and not hit_up:
@@ -153,12 +156,11 @@ def simulate(df: pd.DataFrame, side: str, lookahead: int, thr_pct: float) -> pd.
         elif hit_up and hit_dn:
             result = "중립"
         else:
-            result = "중립"
-
-        final_close = float(df.at[end, "close"])
-        final_ret = (final_close / base_open - 1.0) * 100.0
-        max_runup  = (win_high / base_open - 1.0) * 100.0
-        max_drawdn = (win_low  / base_open - 1.0) * 100.0  # 보통 음수
+            # 핵심 조건 불충족 → 최종 수익률 기준
+            if final_ret < 0:
+                result = "실패"
+            else:
+                result = "중립"
 
         out.append({
             "신호시간": df.at[i, "time"],
@@ -168,9 +170,9 @@ def simulate(df: pd.DataFrame, side: str, lookahead: int, thr_pct: float) -> pd.
             "측정캔들수": lookahead,
             "성공기준(%)": thr_pct,
             "결과": result,
-            "최종수익률(%)": round(final_ret, 3),
-            "최대상승(%)": round(max_runup, 3),
-            "최대하락(%)": round(max_drawdn, 3),
+            "최종수익률(%)": round(final_ret, 1),
+            "최대상승(%)": round(max_runup, 1),
+            "최대하락(%)": round(max_drawdn, 1),
         })
 
     return pd.DataFrame(out)
@@ -198,7 +200,7 @@ try:
     m3.metric("실패", f"{fails}")
     m4.metric("중립", f"{neuts}")
     m5.metric("승률", f"{winrate:.2f}%")
-    st.caption(f"참고: (i+{lookahead}) 종가 기준 평균 수익률 = {avg_final:.3f}%")
+    st.caption(f"참고: (i+{lookahead}) 종가 기준 평균 수익률 = {avg_final:.1f}%")
 
     # 가격 차트 + 신호 마커
     fig = go.Figure()
@@ -212,9 +214,9 @@ try:
             df[["time", "open"]],
             left_on="신호시간", right_on="time", how="left"
         )
-        for label, color, symbol in [("성공", "green", "triangle-up"),
-                                     ("실패", "red", "triangle-down"),
-                                     ("중립", "orange", "circle")]:
+        for label, color, symbol in [("성공", "red", "triangle-up"),
+                                     ("실패", "blue", "triangle-down"),
+                                     ("중립", "green", "circle")]:
             sub = merged[merged["결과"] == label]
             if not sub.empty:
                 fig.add_trace(go.Scatter(
@@ -231,26 +233,40 @@ try:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # RSI 보조
-    with st.expander("RSI(13) 보조지표 보기"):
-        fig_rsi = go.Figure()
-        fig_rsi.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)"))
-        fig_rsi.add_hline(y=70, line_dash="dash", line_color="red")
-        fig_rsi.add_hline(y=30, line_dash="dash", line_color="blue")
-        fig_rsi.update_layout(height=280, xaxis_title="시간", yaxis_title="RSI(13)")
-        st.plotly_chart(fig_rsi, use_container_width=True)
+    # RSI 차트 항상 표시
+    fig_rsi = go.Figure()
+    fig_rsi.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)"))
+    fig_rsi.add_hline(y=70, line_dash="dash", line_color="red")
+    fig_rsi.add_hline(y=30, line_dash="dash", line_color="blue")
+    fig_rsi.update_layout(height=280, xaxis_title="시간", yaxis_title="RSI(13)")
+    st.plotly_chart(fig_rsi, use_container_width=True)
 
     # 결과 표
     st.subheader("신호 결과 (최신 순)")
     if total > 0:
-        st.dataframe(res.sort_values("신호시간", ascending=False).reset_index(drop=True), use_container_width=True, hide_index=True)
-    else:
-        st.info("현재 조건을 만족하는 신호가 없습니다. 옵션(캔들 수/측정 N/기준 %)을 조절해 보세요.")
+        table = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+        pct_cols = ["최종수익률(%)", "최대상승(%)", "최대하락(%)"]
 
-    # 수동 새로고침 (안정적)
+        def color_result(series):
+            return [
+                "color: red" if v == "성공" else
+                "color: blue" if v == "실패" else
+                "color: green"
+                for v in series
+            ]
+
+        styled = (
+            table.style
+            .format({c: "{:.1f}%".format for c in pct_cols})
+            .map(color_result, subset=["결과"])
+        )
+        st.dataframe(styled, use_container_width=True, hide_index=True)
+    else:
+        st.info("현재 조건을 만족하는 신호가 없습니다. 옵션을 조절해 보세요.")
+
+    # 수동 새로고침 버튼
     if st.button("🔄 새로고침"):
         st.rerun()
 
 except Exception as e:
     st.error(f"오류: {e}")
-
