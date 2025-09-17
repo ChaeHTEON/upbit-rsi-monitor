@@ -374,10 +374,19 @@ try:
             if val == "성공": return 'color:red; font-weight:600;'
             if val == "실패": return 'color:blue; font-weight:600;'
             return 'color:green; font-weight:600;'
-        styled = (tbl.style.applymap(color_result, subset=["결과"]))
-        st.dataframe(styled, use_container_width=True, hide_index=True)
+    styled = (
+        tbl.style
+           .applymap(color_result, subset=["결과"])
+           .set_table_styles([{
+               "selector": "th",
+               "props": [("text-align", "center")]
+           }])
+           .set_properties(**{"text-align": "center"})   # ✅ 중앙 정렬 추가
+    )
+    st.dataframe(styled, use_container_width=True, hide_index=True)
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
 except Exception as e:
     st.error(f"오류: {e}")
+
