@@ -85,7 +85,7 @@ with c1:
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
-    default_start = datetime.today() - timedelta(days=7)
+    default_start = datetime.today() - timedelta(days=1)   # 1일 전
     start_date = st.date_input("시작 날짜", value=default_start)
     end_date = st.date_input("종료 날짜", value=datetime.today())
 
@@ -395,6 +395,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
