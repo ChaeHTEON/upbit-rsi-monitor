@@ -322,6 +322,19 @@ try:
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"], name="가격"
     ))
+    
+    # 📌 볼린저밴드 조건이 있을 경우 선 추가
+    if bb_cond != "없음":
+        fig.add_trace(go.Scatter(
+            x=df["time"], y=df["BB_up"], mode="lines",
+            line=dict(color="orange", dash="dot"),
+            name="BB 상단"
+        ))
+        fig.add_trace(go.Scatter(
+            x=df["time"], y=df["BB_low"], mode="lines",
+            line=dict(color="purple", dash="dot"),
+            name="BB 하단"
+        ))
 
     if total > 0:
         for label, color, symbol in [("성공", "red", "triangle-up"),
@@ -382,6 +395,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
