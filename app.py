@@ -421,12 +421,3 @@ try:
 except Exception as e:
     st.error(f"오류: {e}")
 
-
-
-
-
-
-
-
-
-
