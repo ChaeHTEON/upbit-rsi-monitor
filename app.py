@@ -308,17 +308,37 @@ try:
     # 요약 & 차트
     # -----------------------------
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
-    total = len(res)
-    wins  = int((res["결과"] == "성공").sum()) if total else 0
-    fails = int((res["결과"] == "실패").sum()) if total else 0
-    neuts = int((res["결과"] == "중립").sum()) if total else 0
-    winrate = ((wins + neuts) / total * 100.0) if total else 0.0
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("신호 수", f"{total}")
-    m2.metric("성공", f"{wins}")
-    m3.metric("실패", f"{fails}")
-    m4.metric("중립", f"{neuts}")
-    m5.metric("승률", f"{winrate:.1f}%")
+
+    def _summarize(df: pd.DataFrame):
+        total = len(df)
+        succ = int((df["결과"] == "성공").sum())
+        fail = int((df["결과"] == "실패").sum())
+        neu  = int((df["결과"] == "중립").sum())
+        win  = (succ / total * 100.0) if total > 0 else 0.0
+        range_sum = float((df["최고수익률(%)"] - df["최저수익률(%)"]).sum()) if total > 0 else 0.0
+        final_succ = float(df.loc[df["결과"] == "성공", "최종수익률(%)"].sum()) if total > 0 else 0.0
+        final_fail = float(df.loc[df["결과"] == "실패", "최종수익률(%)"].sum()) if total > 0 else 0.0
+        return total, succ, fail, neu, win, range_sum, final_succ, final_fail
+
+    # 두 모드 결과를 항상 계산
+    res_all   = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 포함 (연속 신호 모두)")
+    res_dedup = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 제거 (연속 동일 결과 1개)")
+
+    for label, data in [("중복 포함 (연속 신호 모두)", res_all), ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
+        total, succ, fail, neu, win, range_sum, final_succ, final_fail = _summarize(data)
+        st.markdown(f"**{label}**")
+        c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
+        c1.metric("신호 수", f"{total}")
+        c2.metric("성공", f"{succ}")
+        c3.metric("실패", f"{fail}")
+        c4.metric("중립", f"{neu}")
+        c5.metric("승률", f"{win:.1f}%")
+        c6.metric("총 변동폭 합(%)", f"{range_sum:.1f}%")
+        c7.metric("최종수익률 합(성/실)", f"{final_succ:.1f}% / {final_fail:.1f}%")
+        st.markdown("---")
+
+    # 이후 차트/테이블은 기존대로, 선택된 dup_mode 결과만 사용
+    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # -----------------------------
     # -----------------------------
@@ -433,6 +453,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
