@@ -21,7 +21,7 @@ st.markdown("""
 st.title("📈 Upbit RSI(13) 시뮬레이터")
 
 # -----------------------------
-# 옵션 (요구사항 반영)
+# 옵션
 # -----------------------------
 MARKETS = {
     "비트 (BTC)": "KRW-BTC",
@@ -68,10 +68,10 @@ with c6:
 
 # 안내
 st.caption(
-    "- 기준 캔들: RSI(13) 조건(급락30 또는 급등70)을 만족한 시점의 **시가**를 기준가격으로 사용합니다.\n"
-    f"- 이후 N봉 내에 **+{threshold_pct:.1f}% 이상 고가 도달 → 성공**, **-{threshold_pct:.1f}% 이하 저가 도달 → 실패**, 그 외는 **중립**으로 분류합니다.\n"
-    "- 단, 핵심 조건이 모두 미충족 시 최종 수익률 < 0 → 실패, ≥ 0 → 중립으로 판정합니다.\n"
-    "- 추가로 기준 시가 대비 **최대상승(%) / 최대하락(%)**과, (i+N)번째 **종가 기준 최종수익률(%)**을 제공합니다."
+    "- 기준 캔들: RSI(13) 조건을 만족한 시점의 **시가**를 기준으로 합니다.\n"
+    f"- 이후 N봉 내에 **+{threshold_pct:.1f}% 이상 고가 도달 → 성공**, **-{threshold_pct:.1f}% 이하 저가 도달 → 실패**, "
+    "조건 미충족 시 최종 수익률 < 0 → 실패, ≥ 0 → 중립으로 분류합니다.\n"
+    "- 추가로 기준 시가 대비 최대상승/최대하락, (i+N) 종가 기준 최종수익률을 제공합니다."
 )
 
 # -----------------------------
@@ -90,9 +90,6 @@ def fetch_upbit(market_code: str, tf_label: str, count: int) -> pd.DataFrame:
     if r.status_code != 200:
         raise RuntimeError(f"Upbit API 오류: {r.text}")
     data = r.json()
-    if isinstance(data, dict) and data.get("error"):
-        raise RuntimeError(data["error"]["message"])
-
     df = pd.DataFrame(data)
     df = df.rename(columns={
         "candle_date_time_kst": "time",
@@ -146,7 +143,7 @@ def simulate(df: pd.DataFrame, side: str, lookahead: int, thr_pct: float) -> pd.
         final_close = float(df.at[end, "close"])
         final_ret = (final_close / base_open - 1.0) * 100.0
         max_runup  = (win_high / base_open - 1.0) * 100.0
-        max_drawdn = (win_low  / base_open - 1.0) * 100.0
+        max_drawdn = (win_low / base_open - 1.0) * 100.0
 
         # 성공/실패/중립 판정
         if hit_up and not hit_dn:
@@ -156,7 +153,6 @@ def simulate(df: pd.DataFrame, side: str, lookahead: int, thr_pct: float) -> pd.
         elif hit_up and hit_dn:
             result = "중립"
         else:
-            # 핵심 조건 불충족 → 최종 수익률 기준
             if final_ret < 0:
                 result = "실패"
             else:
@@ -202,7 +198,7 @@ try:
     m5.metric("승률", f"{winrate:.2f}%")
     st.caption(f"참고: (i+{lookahead}) 종가 기준 평균 수익률 = {avg_final:.1f}%")
 
-    # 가격 차트 + 신호 마커
+    # 가격 차트
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"], name="가격"
@@ -246,25 +242,28 @@ try:
     if total > 0:
         table = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
         pct_cols = ["최종수익률(%)", "최대상승(%)", "최대하락(%)"]
+        for c in pct_cols:
+            table[c] = pd.to_numeric(table[c], errors="coerce")
 
-        def color_result(series):
-            return [
-                "color: red" if v == "성공" else
-                "color: blue" if v == "실패" else
-                "color: green"
-                for v in series
-            ]
+        def color_result(v):
+            if v == "성공":
+                return "color: red; font-weight: 700;"
+            elif v == "실패":
+                return "color: blue; font-weight: 700;"
+            elif v == "중립":
+                return "color: green; font-weight: 700;"
+            return ""
 
-        styled = (
+        styler = (
             table.style
-            .format({c: "{:.1f}%".format for c in pct_cols})
-            .map(color_result, subset=["결과"])
+            .applymap(color_result, subset=["결과"])
+            .format({c: "{:.1f}%" for c in pct_cols})
+            .hide(axis="index")
         )
-        st.dataframe(styled, use_container_width=True, hide_index=True)
+        st.write(styler)
     else:
         st.info("현재 조건을 만족하는 신호가 없습니다. 옵션을 조절해 보세요.")
 
-    # 수동 새로고침 버튼
     if st.button("🔄 새로고침"):
         st.rerun()
 
