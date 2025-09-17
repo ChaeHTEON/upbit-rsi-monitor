@@ -200,18 +200,11 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 # -----------------------------
 def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
              bb_cond: str, dedup_mode: str) -> pd.DataFrame:
-    """
-    시뮬레이션
-    - 신호 발생: RSI ≤ 30(급락) 또는 RSI ≥ 70(급등) 조건을 만족하는 모든 봉
-    - 기준가: 해당 봉의 저가(low)
-    - 수익률: 이후 N봉 종가 시퀀스로 최종/최저/최고 수익률 계산
-    - 중복 제거: 라디오가 "중복 제거 (연속 동일 결과 1개)"일 때만 적용
-    """
     res = []
     n = len(df)
     thr = float(thr_pct)
 
-    # 1) 신호 후보 인덱스
+    # RSI 조건에 맞는 봉 인덱스 추출
     if "≤" in rsi_side:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
     else:
@@ -222,9 +215,9 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
         if end >= n:
             continue
 
-        # 2) 볼린저밴드 조건 검사
+        # 볼린저밴드 조건 확인
         if bb_cond != "없음":
-            px  = float(df.at[i, "close"])
+            px = float(df.at[i, "close"])
             up  = float(df.at[i, "BB_up"])  if pd.notna(df.at[i, "BB_up"])  else None
             lo  = float(df.at[i, "BB_low"]) if pd.notna(df.at[i, "BB_low"]) else None
             mid = float(df.at[i, "BB_mid"]) if pd.notna(df.at[i, "BB_mid"]) else None
@@ -238,28 +231,50 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
             if not ok:
                 continue
 
-        # 3) 기준가 = 저가(low)
+        # 기준가 = 저가(low)
         base_price = float(df.at[i, "low"])
-
-        # 4) 이후 N봉 종가 시퀀스
-        closes = df.loc[i+1:end, "close"]
+        closes = df.loc[i+1:end, ["time", "close"]]
         if closes.empty:
             continue
 
-        # 5) 수익률 계산
-        final_ret = (closes.iloc[-1] / base_price - 1.0) * 100.0
-        min_ret   = (closes.min() / base_price - 1.0) * 100.0
-        max_ret   = (closes.max() / base_price - 1.0) * 100.0
+        # 성공/실패 기준가
+        target_up = base_price * (1 + thr / 100)
+        target_down = base_price * (1 - thr / 100)
 
-        # 6) 판정
-        if final_ret <= -thr:
-            result = "실패"
-        elif final_ret >= thr:
+        # 도달 여부 확인
+        hit_up = closes[closes["close"] >= target_up]
+        hit_down = closes[closes["close"] <= target_down]
+
+        reach_time = None
+        result = "중립"
+
+        if not hit_up.empty and not hit_down.empty:
+            # 둘 다 발생 → 먼저 발생한 쪽 선택
+            if hit_up.iloc[0]["time"] < hit_down.iloc[0]["time"]:
+                result = "성공"
+                reach_time = hit_up.iloc[0]["time"].strftime("%H:%M:%S")
+            else:
+                result = "실패"
+                reach_time = hit_down.iloc[0]["time"].strftime("%H:%M:%S")
+        elif not hit_up.empty:
             result = "성공"
-        elif final_ret > 0:
-            result = "중립"
-        else:
+            reach_time = hit_up.iloc[0]["time"].strftime("%H:%M:%S")
+        elif not hit_down.empty:
             result = "실패"
+            reach_time = hit_down.iloc[0]["time"].strftime("%H:%M:%S")
+        else:
+            # 기준 ±thr%에 도달 못했을 경우 마지막 봉 기준
+            final_price = closes.iloc[-1]["close"]
+            reach_time = closes.iloc[-1]["time"].strftime("%H:%M:%S")
+            if final_price > base_price:
+                result = "중립"
+            else:
+                result = "실패"
+
+        # 수익률 계산
+        final_ret = (closes.iloc[-1]["close"] / base_price - 1.0) * 100.0
+        min_ret   = (closes["close"].min() / base_price - 1.0) * 100.0
+        max_ret   = (closes["close"].max() / base_price - 1.0) * 100.0
 
         res.append({
             "신호시간": df.at[i, "time"],
@@ -267,6 +282,7 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
             "RSI(13)": round(float(df.at[i, "RSI13"]), 1) if pd.notna(df.at[i, "RSI13"]) else None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
+            "도달시간": reach_time,  # ✅ 시간(HH:MM:SS)만 표시
             "최종수익률(%)": round(final_ret, 1),
             "최저수익률(%)": round(min_ret, 1),
             "최고수익률(%)": round(max_ret, 1),
@@ -274,7 +290,6 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
 
     out = pd.DataFrame(res)
 
-    # 7) dedup_mode가 "중복 제거"일 때만 병합
     if not out.empty and dedup_mode.startswith("중복 제거"):
         out = out.loc[out["결과"].shift() != out["결과"]]
 
@@ -427,6 +442,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
