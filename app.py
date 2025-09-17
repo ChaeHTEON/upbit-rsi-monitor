@@ -204,11 +204,11 @@ def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float, bb
     n = len(df)
     thr = thr_pct
 
-# ✅ NaN 제거 + 조건 필터 강화
-if "≤" in rsi_side:
-    sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
-else:
-    sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
+    # ✅ NaN 제거 + 조건 필터 강화
+    if "≤" in rsi_side:
+        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
+    else:
+        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
 
     for i in sig_idx:
         end = i + lookahead
@@ -255,7 +255,6 @@ else:
             result = "실패"
         elif final_ret >= thr:
             result = "성공"
-            # ✅ 성공인데 reach_time이 없으면 최종 시점으로 보정
             if reach_time is None:
                 diff = df.at[end, "time"] - df.at[i, "time"]
                 minutes = int(diff.total_seconds() // 60)
@@ -263,10 +262,9 @@ else:
                 mins = minutes % 60
                 reach_time = f"{hours:02d}:{mins:02d}"
         elif final_ret > 0:
-            result = "중립"   # ✅ 0.3% 미만은 무조건 중립 처리
+            result = "중립"
         else:
             result = "실패"
-
 
         # 결과 저장
         res.append({
@@ -278,13 +276,14 @@ else:
             "최종수익률(%)": round(final_ret, 1),
             "최저수익률(%)": round(min_ret, 1),
             "최고수익률(%)": round(max_ret, 1),
-            "도달시간": reach_time if reach_time else "-"   # ✅ HH:MM 형식
+            "도달시간": reach_time if reach_time else "-"
         })
 
     out = pd.DataFrame(res)
     if not out.empty and "중복 제거" in dedup_mode:
         out = out.loc[out["결과"].shift() != out["결과"]]
     return out
+
 
 # -----------------------------
 # 실행
@@ -432,6 +431,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
