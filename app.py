@@ -201,16 +201,17 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
  def simulate(df: pd.DataFrame, rsi_side: str, lookahead: int, thr_pct: float,
              bb_cond: str, dedup_mode: str) -> pd.DataFrame:
     """
-    시뮬레이션 함수
-    - RSI 조건: RSI ≤ 30 또는 RSI ≥ 70
-    - 신호 기준가: 저가(low)
-    - 이후 N봉 동안 수익률 계산: 종가 기준 + 고가/저가 활용
+    시뮬레이션
+    - 신호 발생: RSI ≤ 30(급락) 또는 RSI ≥ 70(급등) 조건을 만족하는 모든 봉
+    - 기준가: 해당 봉의 저가(low)
+    - 수익률: 이후 N봉 종가 시퀀스로 최종/최저/최고 수익률 계산
+    - 중복 제거: 라디오가 "중복 제거 (연속 동일 결과 1개)"일 때만 적용
     """
     res = []
     n = len(df)
-    thr = thr_pct
+    thr = float(thr_pct)
 
-    # ✅ RSI 조건 만족하는 모든 봉 신호 후보
+    # 1) 신호 후보 인덱스: RSI 조건을 만족하는 모든 봉
     if "≤" in rsi_side:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
     else:
@@ -219,9 +220,10 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
     for i in sig_idx:
         end = i + lookahead
         if end >= n:
+            # lookahead 끝이 데이터 범위 밖이면 스킵
             continue
 
-        # 볼린저밴드 조건 검사
+        # 2) 볼린저밴드 추가 조건(없음이면 통과)
         if bb_cond != "없음":
             px  = float(df.at[i, "close"])
             up  = float(df.at[i, "BB_up"])  if pd.notna(df.at[i, "BB_up"])  else None
@@ -237,20 +239,20 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
             if not ok:
                 continue
 
-        # ✅ 신호 기준가 = 저가(low)
+        # 3) 기준가 = 저가(low)
         base_price = float(df.at[i, "low"])
 
-        # 이후 구간 종가 데이터
-        closes = df.loc[i+1:end, "close"]
+        # 4) 이후 N봉 종가 시퀀스
+        closes = df.loc[i + 1:end, "close"]
         if closes.empty:
             continue
 
-        # 수익률 계산
+        # 5) 수익률 계산
         final_ret = (closes.iloc[-1] / base_price - 1.0) * 100.0
         min_ret   = (closes.min()      / base_price - 1.0) * 100.0
         max_ret   = (closes.max()      / base_price - 1.0) * 100.0
 
-        # 판정
+        # 6) 판정
         if final_ret <= -thr:
             result = "실패"
         elif final_ret >= thr:
@@ -260,7 +262,6 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
         else:
             result = "실패"
 
-        # 결과 저장
         res.append({
             "신호시간": df.at[i, "time"],
             "기준시가": int(round(base_price)),
@@ -274,16 +275,11 @@ def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     out = pd.DataFrame(res)
 
-    # ✅ dedup_mode 정확히 "중복 제거"일 때만 적용
+    # 7) 중복 제거 모드일 때만 병합
     if not out.empty and dedup_mode.startswith("중복 제거"):
         out = out.loc[out["결과"].shift() != out["결과"]]
 
     return out
-
-
-
-
-
 
 
 # -----------------------------
@@ -432,6 +428,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
