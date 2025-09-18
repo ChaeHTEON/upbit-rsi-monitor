@@ -129,7 +129,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
-        url = f"https://api.upbit.com/v1/candles/{interval_key}"
+        url = f"https://api/upbit.com/v1/candles/{interval_key}"
 
     # 👉 모든 봉에서 기간만큼 충분히 페이징 (일봉 특수처리 제거)
     calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
@@ -212,26 +212,21 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         closes=df.loc[i+1:end,["time","close"]]
         if closes.empty: continue
 
-        up_t,down_t=base*(1+thr/100), base*(1-thr/100)
-        hit_up = closes[closes["close"]>=up_t]
-        hit_dn = closes[closes["close"]<=down_t]
-
-        result="중립"; reach_min=None
-        if not hit_up.empty and not hit_dn.empty:
-            if hit_up.iloc[0]["time"]<hit_dn.iloc[0]["time"]:
-                reach_min=int((hit_up.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60); result="성공"
-            else:
-                result="실패"
-        elif not hit_up.empty:
-            reach_min=int((hit_up.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60); result="성공"
-        elif not hit_dn.empty:
-            result="실패"
-        else:
-            result="중립" if closes.iloc[-1]["close"]>base else "실패"
-
         final_ret=(closes.iloc[-1]["close"]/base-1)*100.0
         min_ret=(closes["close"].min()/base-1)*100.0
         max_ret=(closes["close"].max()/base-1)*100.0
+
+        # 👉 결과 판정 로직 수정 (최고/최저 수익률 기준)
+        result="중립"; reach_min=None
+        if max_ret >= thr:
+            first_hit = closes[closes["close"] >= base*(1+thr/100)]
+            if not first_hit.empty:
+                reach_min = int((first_hit.iloc[0]["time"] - df.at[i,"time"]).total_seconds() // 60)
+            result = "성공"
+        elif min_ret <= -thr:
+            result = "실패"
+        else:
+            result = "중립"
 
         res.append({
             "신호시간": df.at[i,"time"],
