@@ -216,18 +216,17 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         min_ret=(closes["close"].min()/base-1)*100.0
         max_ret=(closes["close"].max()/base-1)*100.0
 
-        # 👉 결과 판정 로직 수정 (최고수익률 / 최종수익률 기준)
+        # 👉 결과 판정 로직 수정 (성공기준 포함 처리)
         result="중립"; reach_min=None
-        if max_ret >= thr:
+        if max_ret >= thr:  # 기준 이상 도달 → 성공
             first_hit = closes[closes["close"] >= base*(1+thr/100)]
             if not first_hit.empty:
                 reach_min = int((first_hit.iloc[0]["time"] - df.at[i,"time"]).total_seconds() // 60)
             result = "성공"
-        else:
-            if final_ret < 0:
-                result = "실패"
-            else:
-                result = "중립"
+        elif final_ret < 0:  # 성공 미달 & 최종 수익률 음수 → 실패
+            result = "실패"
+        else:                # 성공 미달 & 최종 수익률 0 이상 → 중립
+            result = "중립"
 
         # 👉 최종/최저/최고 수익률 표시 로직 보정
         def fmt_ret(val):
@@ -368,5 +367,6 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
