@@ -227,10 +227,14 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
     n=len(df); thr=float(thr_pct)
 
     # RSI 방향 트리거
-    if "≤" in rsi_side:
+    if rsi_side == "없음":
+        sig_idx = df.index[df["RSI13"].notna()].tolist()
+    elif "≤" in rsi_side:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
-    else:
+    elif "≥" in rsi_side:
         sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
+    else:
+        sig_idx = []
 
     for i in sig_idx:
         end=i+lookahead
@@ -505,6 +509,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
