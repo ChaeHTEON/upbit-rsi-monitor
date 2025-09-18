@@ -6,6 +6,8 @@ from requests.adapters import HTTPAdapter, Retry
 import plotly.graph_objs as go
 import ta
 from datetime import datetime, timedelta
+import locale
+locale.setlocale(locale.LC_TIME, "ko_KR.UTF-8")
 from plotly.subplots import make_subplots
 
 # -----------------------------
@@ -452,11 +454,16 @@ try:
                   annotation_text="RSI 30", annotation_position="bottom left", yref="y2")
 
     fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-                      xaxis_rangeslider_visible=False, height=600, autosize=False,
+                      xaxis=dict(
+                          rangeslider=dict(visible=False),
+                          tickformat="%m/%d (%a)"  # 한국어 월/요일 표시
+                      ),
+                      height=600, autosize=False,
                       legend_orientation="h", legend_y=1.05,
                       margin=dict(l=60, r=40, t=60, b=40),
                       yaxis=dict(title="가격"),
                       yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100]))
+
     st.plotly_chart(fig, use_container_width=True)
 
     # ---- 신호 결과 (최신 순) ----
@@ -489,6 +496,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
