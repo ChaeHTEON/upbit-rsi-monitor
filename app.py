@@ -240,7 +240,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         end=i+lookahead
         if end>=n: continue
 
-        # 볼린저 조건 체크 (low/high 반영: 터치만 해도 신호)
+        # 볼린저 조건 체크 (cross 이벤트 반영)
         if bb_cond!="없음":
             px = float(df.at[i, "close"])
             hi = float(df.at[i, "high"])
@@ -249,17 +249,33 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
 
             ok = True
             if bb_cond == "하한선 하향돌파":
-                # 저가가 하한선에 닿거나 하회하면 도달로 간주
-                ok = pd.notna(lo) and lo_px <= lo
+                if pd.notna(lo) and i > 0:
+                    prev_close = float(df.at[i-1, "close"])
+                    # 이전에는 위, 현재는 아래 → 하향 돌파
+                    ok = prev_close >= lo and px < lo
+                else:
+                    ok = False
             elif bb_cond == "하한선 상향돌파":
-                # 종가가 하한선 위에 있으면 도달로 간주
-                ok = pd.notna(lo) and px > lo
+                if pd.notna(lo) and i > 0:
+                    prev_close = float(df.at[i-1, "close"])
+                    # 이전에는 아래, 현재는 위 → 상향 돌파
+                    ok = prev_close <= lo and px > lo
+                else:
+                    ok = False
             elif bb_cond == "상한선 하향돌파":
-                # 종가가 상한선 아래면 도달로 간주
-                ok = pd.notna(up) and px < up
+                if pd.notna(up) and i > 0:
+                    prev_close = float(df.at[i-1, "close"])
+                    # 이전에는 위, 현재는 아래 → 하향 돌파
+                    ok = prev_close >= up and px < up
+                else:
+                    ok = False
             elif bb_cond == "상한선 상향돌파":
-                # 고가가 상한선을 터치/상회하면 도달로 간주
-                ok = pd.notna(up) and hi >= up
+                if pd.notna(up) and i > 0:
+                    prev_close = float(df.at[i-1, "close"])
+                    # 이전에는 아래, 현재는 위 → 상향 돌파
+                    ok = prev_close <= up and px > up
+                else:
+                    ok = False
             elif bb_cond == "하한선 중앙돌파":
                 ok = pd.notna(lo) and pd.notna(mid) and (lo < px < mid)
             elif bb_cond == "상한선 중앙돌파":
@@ -525,6 +541,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
