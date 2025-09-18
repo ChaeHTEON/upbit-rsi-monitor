@@ -235,9 +235,13 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         # NaN 여부 무시 → 모든 봉을 후보로 포함
         sig_idx = df.index.tolist()
     elif rsi_side == "RSI ≤ 30 (급락)":
-        sig_idx = df.index[df["RSI13"] <= 30].tolist()
+        sig_idx = df.index[
+            (df["RSI13"] <= 30) | ((df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30))
+        ].tolist()
     elif rsi_side == "RSI ≥ 70 (급등)":
-        sig_idx = df.index[df["RSI13"] >= 70].tolist()
+        sig_idx = df.index[
+            (df["RSI13"] >= 70) | ((df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70))
+        ].tolist()
     else:
         sig_idx = []
 
@@ -546,6 +550,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
