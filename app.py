@@ -192,11 +192,11 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         if not hit_up.empty and not hit_down.empty:
             if hit_up.iloc[0]["time"]<hit_down.iloc[0]["time"]:
                 minutes_diff=int((hit_up.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60)
-                result,reach_time="성공",f"{minutes_diff}분"
+                result,reach_time="성공",hit_up.iloc[0]["time"].strftime("%H:%M")
             else: result="실패"
         elif not hit_up.empty:
             minutes_diff=int((hit_up.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60)
-            result,reach_time="성공",f"{minutes_diff}분"
+            result,reach_time="성공",hit_up.iloc[0]["time"].strftime("%H:%M")
         elif not hit_down.empty: result="실패"
         else:
             final_price=closes.iloc[-1]["close"]
@@ -204,8 +204,11 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         final_ret=(closes.iloc[-1]["close"]/base_price-1)*100.0
         min_ret=(closes["close"].min()/base_price-1)*100.0
         max_ret=(closes["close"].max()/base_price-1)*100.0
-        res.append({"신호시간":df.at[i,"time"],"기준시가":int(round(base_price)),"RSI(13)":round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
-                    "성공기준(%)":round(thr,1),"결과":result,"도달시간":reach_time,
+        res.append({"신호시간":df.at[i,"time"].strftime("%Y-%m-%d %H:%M"),
+                    "기준시가":int(round(base_price)),
+                    "RSI(13)":round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
+                    "성공기준(%)":round(thr,1),"결과":result,
+                    "도달시간":reach_time,
                     "최종수익률(%)":round(final_ret,1),"최저수익률(%)":round(min_ret,1),"최고수익률(%)":round(max_ret,1)})
     cols=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
     out=pd.DataFrame(res,columns=cols)
@@ -255,21 +258,19 @@ try:
             if not sub.empty:
                 fig.add_trace(go.Scatter(x=sub["신호시간"],y=sub["기준시가"],mode="markers",name=f"신호 ({_label})",
                                          marker=dict(size=10,color=_color,symbol="circle",line=dict(width=1,color="black"))))
-
-    # === RSI(13) 네온 + 점선 효과 적용 ===
-    # Glow layer
-    fig.add_trace(go.Scatter(
-        x=df["time"], y=df["RSI13"], mode="lines",
-        line=dict(color="rgba(42,157,143,0.3)", width=6),
-        opacity=0.6, name="RSI Glow", yaxis="y2", showlegend=False
-    ))
-    # Main line (dot + neon style)
-    fig.add_trace(go.Scatter(
-        x=df["time"], y=df["RSI13"], mode="lines",
-        line=dict(color="#2A9D8F", width=2.5, dash="dot"),
-        opacity=1, name="RSI(13)", yaxis="y2"
-    ))
-
+    # -----------------------------
+    # RSI 네온 효과 적용
+    # -----------------------------
+    for lw, alpha in [(6,0.05),(4,0.1),(2,0.2),(1.2,1.0)]:
+        fig.add_trace(go.Scatter(
+            x=df["time"], y=df["RSI13"],
+            mode="lines",
+            line=dict(color="#2A9D8F", width=lw),
+            opacity=alpha,
+            name="RSI(13)" if lw==1.2 else "",
+            yaxis="y2",
+            showlegend=(lw==1.2)
+        ))
     fig.add_hline(y=70,line_dash="dash",line_color="#E63946",line_width=1.2,annotation_text="RSI 70",annotation_position="top left",yref="y2")
     fig.add_hline(y=30,line_dash="dash",line_color="#457B9D",line_width=1.2,annotation_text="RSI 30",annotation_position="bottom left",yref="y2")
     fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
@@ -280,20 +281,4 @@ try:
 
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>',unsafe_allow_html=True)
     if not res.empty:
-        tbl=res.sort_values("신호시간",ascending=False).reset_index(drop=True).copy()
-        tbl["기준시가"]=tbl["기준시가"].map(lambda v:f"{int(v):,}")
-        if "RSI(13)" in tbl: tbl["RSI(13)"]=tbl["RSI(13)"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
-        for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
-            if col in tbl: tbl[col]=tbl[col].map(lambda v:f"{v:.1f}%" if pd.notna(v) else "")
-        if "도달시간" in tbl: tbl["도달시간"]=tbl["도달시간"].fillna("-").astype(str)
-        def color_result(val):
-            if val=="성공": return "color:red; font-weight:600; background-color:#FFFACD;"
-            if val=="실패": return "color:blue;"
-            return "color:green; font-weight:600;"
-        styled=tbl.style.applymap(color_result,subset=["결과"])
-        st.dataframe(styled,use_container_width=True,hide_index=True)
-    else:
-        st.info("조건을 만족하는 신호가 없습니다.")
-
-except Exception as e:
-    st.error(f"오류: {e}")
+        tbl=res.sort_values("신호시간",ascending=False).reset_index(drop=True
