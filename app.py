@@ -208,7 +208,8 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
             elif bb_cond=="상한선 중앙돌파": ok=pd.notna(up) and pd.notna(mid) and mid<px<up
             if not ok: continue
 
-        base=float(df.at[i,"low"])
+        # 👉 기준가를 '시가(open)'로 설정 (저가 대신)
+        base=float(df.at[i,"open"])
         closes=df.loc[i+1:end,["time","close"]]
         if closes.empty: continue
 
@@ -373,6 +374,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
