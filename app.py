@@ -6,8 +6,13 @@ from requests.adapters import HTTPAdapter, Retry
 import plotly.graph_objs as go
 import ta
 from datetime import datetime, timedelta
-import locale
-locale.setlocale(locale.LC_TIME, "ko_KR.UTF-8")
+# (선택) 로케일 있으면 사용, 없으면 건너뜀
+try:
+    import locale
+    locale.setlocale(locale.LC_TIME, "ko_KR.UTF-8")
+    _KO_LOCALE = True
+except Exception:
+    _KO_LOCALE = False
 from plotly.subplots import make_subplots
 
 # -----------------------------
@@ -95,7 +100,7 @@ c4, c5, c6 = st.columns(3)
 with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
-    threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, step=0.1)
+    threshold_pct = st.slider("성공/실패 기준 값(%)", 0.05, 3.0, 1.0, step=0.05)
 with c6:
     rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
 
@@ -453,16 +458,83 @@ try:
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.2,
                   annotation_text="RSI 30", annotation_position="bottom left", yref="y2")
 
-    fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-                      xaxis=dict(
-                          rangeslider=dict(visible=False),
-                          tickformat="%m/%d (%a)"  # 한국어 월/요일 표시
-                      ),
-                      height=600, autosize=False,
-                      legend_orientation="h", legend_y=1.05,
-                      margin=dict(l=60, r=40, t=60, b=40),
-                      yaxis=dict(title="가격"),
-                      yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100]))
+    # ---- 차트 그리기 ----
+    fig = make_subplots(rows=1, cols=1)
+    fig.add_trace(go.Candlestick(...))
+    fig.add_trace(go.Scatter(...))  # BB 상단
+    fig.add_trace(go.Scatter(...))  # BB 하단
+    ...
+    
+    # ✅ 여기서 한국어 tick 생성 코드 추가
+    weekday_ko = ["월","화","수","목","금","토","일"]
+    _unique_days = pd.to_datetime(df["time"]).normalize().unique()
+    _step = max(1, len(_unique_days)//12)
+    _tickvals, _ticktext = [], []
+    for d in _unique_days[::_step]:
+        idx0 = df.index[pd.to_datetime(df["time"]).dt.normalize() == pd.Timestamp(d)][0]
+        tv = df.at[idx0,"time"]
+        wd = weekday_ko[pd.Timestamp(d).weekday()]
+        _tickvals.append(tv)
+        _ticktext.append(f"{pd.Timestamp(d):%m/%d} ({wd})")
+    
+    # ---- 레이아웃 설정 ----
+    fig.update_layout(
+        title="...",
+        height=600,
+        ...
+    )
+    fig.update_xaxes(rangeslider_visible=False, tickmode="array",
+                     tickvals=_tickvals, ticktext=_ticktext)
+        # ---- 차트 그리기 ----
+    fig = make_subplots(rows=1, cols=1)
+    fig.add_trace(go.Candlestick(...))
+    fig.add_trace(go.Scatter(...))  # BB 상단
+    fig.add_trace(go.Scatter(...))  # BB 하단
+    ...
+    
+    # ✅ 여기서 한국어 tick 생성 코드 추가
+    weekday_ko = ["월","화","수","목","금","토","일"]
+    _unique_days = pd.to_datetime(df["time"]).normalize().unique()
+    _step = max(1, len(_unique_days)//12)
+    _tickvals, _ticktext = [], []
+    for d in _unique_days[::_step]:
+        idx0 = df.index[pd.to_datetime(df["time"]).dt.normalize() == pd.Timestamp(d)][0]
+        tv = df.at[idx0,"time"]
+        wd = weekday_ko[pd.Timestamp(d).weekday()]
+        _tickvals.append(tv)
+        _ticktext.append(f"{pd.Timestamp(d):%m/%d} ({wd})")
+    
+    # ---- 레이아웃 설정 ----
+    fig.update_layout(
+        title="...",
+        height=600,
+        ...
+    )
+    fig.update_xaxes(rangeslider_visible=False, tickmode="array",
+                     tickvals=_tickvals, ticktext=_ticktext)
+    if _KO_LOCALE:
+        # 로케일이 잡히면 d3 %a도 한글로 나옵니다.
+        fig.update_layout(
+            title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+            xaxis=dict(rangeslider=dict(visible=False), tickformat="%m/%d (%a)"),
+            height=600, autosize=False,
+            legend_orientation="h", legend_y=1.05,
+            margin=dict(l=60, r=40, t=60, b=40),
+            yaxis=dict(title="가격"),
+            yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100]),
+        )
+    else:
+        # 로케일이 없어도 한국어 요일로 표시
+        fig.update_layout(
+            title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+            height=600, autosize=False,
+            legend_orientation="h", legend_y=1.05,
+            margin=dict(l=60, r=40, t=60, b=40),
+            yaxis=dict(title="가격"),
+            yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100]),
+        )
+        fig.update_xaxes(rangeslider_visible=False, tickmode="array",
+                         tickvals=_tickvals, ticktext=_ticktext)
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -496,6 +568,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
