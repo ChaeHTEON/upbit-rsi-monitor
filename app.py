@@ -114,9 +114,59 @@ with c8:
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
-# 안전 장치(세션 보강)
-st.session_state["rsi_side"] = rsi_side
-st.session_state["bb_cond"]  = bb_cond
+# -----------------------------
+# 데이터 수집 (Upbit Pagination)
+# -----------------------------
+def estimate_calls(start_dt, end_dt, minutes_per_bar):
+    mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
+    bars = max(1, mins // minutes_per_bar)
+    return bars // 200 + 1
+
+_session = requests.Session()
+_retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429,500,502,503,504])
+_session.mount("https://", HTTPAdapter(max_retries=_retries))
+
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar):
+    if "minutes/" in interval_key:
+        unit = interval_key.split("/")[1]
+        url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
+    else:
+        url = "https://api.upbit.com/v1/candles/days"
+
+    calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
+    max_calls = min(calls_est + 2, 60)
+    req_count = 200
+
+    all_data, to_time = [], end_dt
+    progress = st.progress(0.0)
+    try:
+        for done in range(max_calls):
+            params = {"market": market_code, "count": req_count, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
+            r = _session.get(url, params=params, headers={"Accept":"application/json"}, timeout=10)
+            r.raise_for_status()
+            batch = r.json()
+            if not batch:
+                break
+            all_data.extend(batch)
+            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+            if last_ts <= start_dt:
+                break
+            to_time = last_ts - timedelta(seconds=1)
+            progress.progress(min(1.0, (done + 1) / max(1, max_calls)))
+    finally:
+        progress.empty()
+
+    if not all_data:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(all_data).rename(columns={
+        "candle_date_time_kst":"time","opening_price":"open","high_price":"high",
+        "low_price":"low","trade_price":"close","candle_acc_trade_volume":"volume"})
+    df["time"] = pd.to_datetime(df["time"])
+    df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
+    df = df[(df["time"].dt.date >= start_dt.date()) & (df["time"].dt.date <= end_dt.date())]
+    return df
 
 # -----------------------------
 # 지표
@@ -185,7 +235,6 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         min_ret=(closes["close"].min()/base-1)*100.0
         max_ret=(closes["close"].max()/base-1)*100.0
 
-        # 결과 판정
         result="중립"; reach_min=None
         if max_ret >= thr:
             first_hit = closes[closes["close"] >= base*(1+thr/100)]
@@ -211,7 +260,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
 
     out=pd.DataFrame(res)
 
-    # 중복 제거 로직
+    # 중복 제거
     if not out.empty and dedup_mode.startswith("중복 제거"):
         out["분"] = pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
         out = out.drop_duplicates(subset=["분"], keep="first").drop(columns=["분"])
@@ -254,7 +303,6 @@ try:
     res_dedup = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond,
                         "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev)
 
-    # 이후 차트/요약/표 렌더링 코드는 동일
-    # ...
+    # 이후 차트/요약/표 렌더링 코드는 기존과 동일
 except Exception as e:
     st.error(f"오류: {e}")
