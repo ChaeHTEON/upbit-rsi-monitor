@@ -97,7 +97,7 @@ with c5:
 with c6:
     rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
 
-# 볼린저밴드 조건 (누락됐던 부분 복구)
+# 볼린저밴드 조건
 c7, _, _ = st.columns(3)
 with c7:
     bb_cond = st.selectbox(
@@ -106,9 +106,9 @@ with c7:
         index=0,
     )
 
-# 안전 장치(세션 보강)
+# 안전 장치(세션 보강: 위젯 재실행 시 NameError 방지)
 st.session_state["rsi_side"] = rsi_side
-st.session_state["bb_cond"] = bb_cond
+st.session_state["bb_cond"]  = bb_cond
 
 # -----------------------------
 # 데이터 수집 (세션+재시도+필터)
@@ -124,19 +124,17 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar):
+    # endpoint
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
         url = f"https://api.upbit.com/v1/candles/{interval_key}"
 
-    if interval_key == "days":
-        max_calls = 1
-        req_count = 1           # 일봉은 하루만
-    else:
-        calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
-        max_calls = min(calls_est + 2, 60)
-        req_count = 200
+    # 👉 모든 봉에서 기간만큼 충분히 페이징 (일봉 특수처리 제거)
+    calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
+    max_calls = min(calls_est + 2, 60)
+    req_count = 200
 
     all_data, to_time = [], end_dt
     progress = st.progress(0.0)
@@ -146,23 +144,27 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
             r = _session.get(url, params=params, headers={"Accept":"application/json"}, timeout=10)
             r.raise_for_status()
             batch = r.json()
-            if not batch: break
+            if not batch:
+                break
             all_data.extend(batch)
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_dt: break
+            if last_ts <= start_dt:
+                break
             to_time = last_ts - timedelta(seconds=1)
-            progress.progress(min(1.0,(done+1)/max(1,max_calls)))
+            progress.progress(min(1.0, (done + 1) / max(1, max_calls)))
     finally:
         progress.empty()
 
-    if not all_data: return pd.DataFrame()
+    if not all_data:
+        return pd.DataFrame()
+
     df = pd.DataFrame(all_data).rename(columns={
         "candle_date_time_kst":"time","opening_price":"open","high_price":"high",
         "low_price":"low","trade_price":"close","candle_acc_trade_volume":"volume"})
     df["time"] = pd.to_datetime(df["time"])
     df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
 
-    # 날짜 필터 (선택 구간만)
+    # 날짜 필터 (UI와 정확히 일치)
     df = df[(df["time"].dt.date >= start_dt.date()) & (df["time"].dt.date <= end_dt.date())]
     return df
 
@@ -194,6 +196,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         end=i+lookahead
         if end>=n: continue
 
+        # 볼린저 조건
         if bb_cond!="없음":
             px=float(df.at[i,"close"]); up,lo,mid=df.at[i,"BB_up"],df.at[i,"BB_low"],df.at[i,"BB_mid"]
             ok=True
