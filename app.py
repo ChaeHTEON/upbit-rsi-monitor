@@ -226,15 +226,32 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
     res=[]
     n=len(df); thr=float(thr_pct)
 
-    # RSI 방향 트리거
-    if "≤" in rsi_side:
-        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
-    else:
-        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
+    # --- 신호 후보 인덱스 찾기 ---
+    candidates = []
 
-    for i in sig_idx:
+    # ① RSI 조건
+    if rsi_side != "없음":
+        if "≤" in rsi_side:
+            candidates = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
+        elif "≥" in rsi_side:
+            candidates = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
+
+    # ② RSI 없음 + 볼린저만 있는 경우
+    if rsi_side == "없음" and bb_cond != "없음":
+        candidates = list(range(n))  # 모든 캔들 대상으로 볼린저만 검사
+
+    # ③ 둘 다 없음 → 시뮬레이터에서 처리, 여기서는 빈 결과
+    if rsi_side == "없음" and bb_cond == "없음":
+        return pd.DataFrame(columns=[
+            "신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분",
+            "최종수익률(%)","최저수익률(%)","최고수익률(%)"
+        ])
+
+    # --- 후보 인덱스별 조건 검사 ---
+    for i in candidates:
         end=i+lookahead
-        if end>=n: continue
+        if end>=n: 
+            continue
 
         # 볼린저 조건 체크
         if bb_cond!="없음":
@@ -246,7 +263,8 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
             elif bb_cond=="상한선 상향돌파": ok=pd.notna(up) and px>up
             elif bb_cond=="하한선 중앙돌파": ok=pd.notna(lo) and pd.notna(mid) and lo<px<mid
             elif bb_cond=="상한선 중앙돌파": ok=pd.notna(up) and pd.notna(mid) and mid<px<up
-            if not ok: continue
+            if not ok: 
+                continue
 
         # 기준가: 시가(open)
         base=float(df.at[i,"open"])
@@ -505,6 +523,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
