@@ -285,7 +285,14 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         out = out.drop_duplicates(subset=["분"], keep="first").drop(columns=["분"])
 
     if not out.empty and dedup_mode.startswith("중복 제거"):
-        out = out.loc[out["결과"].shift() != out["결과"]]
+        # lookahead 봉 이후에만 새로운 신호 허용
+        filtered = []
+        last_idx = -9999
+        for idx, row in out.reset_index().iterrows():
+            if row["index"] >= last_idx + lookahead:
+                filtered.append(row)
+                last_idx = row["index"]
+        out = pd.DataFrame(filtered).drop(columns=["index"]) if filtered else pd.DataFrame()
     return out
 
 # -----------------------------
@@ -482,6 +489,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
