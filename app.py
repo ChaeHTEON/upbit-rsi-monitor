@@ -336,10 +336,13 @@ try:
         c5.metric("승률",f"{win:.1f}%")
         c6.metric("총 변동폭 합(%)",f"{range_sum:.1f}%")
 
-        # 최종수익률 합계: 양수=빨간, 음수=파란
+        # 최종수익률 합계: 양수=빨간, 음수=파란 (글자 크기 확대)
         total_final = final_succ + final_fail
         color = "red" if total_final > 0 else "blue" if total_final < 0 else "black"
-        c7.markdown(f"<div style='font-weight:600; color:{color};'>최종수익률 합계: {total_final:.1f}%</div>", unsafe_allow_html=True)
+        c7.markdown(
+            f"<div style='font-weight:600; font-size:1.2rem; color:{color};'>최종수익률 합계: {total_final:.1f}%</div>",
+            unsafe_allow_html=True
+        )
         st.markdown("---")
 
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
@@ -355,7 +358,7 @@ try:
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="#219EBC", width=1.5), name="BB 하단"))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="#8D99AE", width=1.2, dash="dot"), name="BB 중앙"))
 
-    # 신호 마커 + 성공 흐름선
+    # 신호 마커 + 흐름선
     if not res.empty:
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FFD166")]:
             sub=res[res["결과"]==_label]
@@ -367,28 +370,40 @@ try:
                     marker=dict(size=10, color=_color, symbol="circle", line=dict(width=1, color="black"))
                 ))
 
-                # 성공 신호일 경우 흐름선 + 도달 지점
-                if _label == "성공" and "도달분" in res.columns:
-                    for _, row in sub.iterrows():
-                        if pd.notna(row["도달분"]):
-                            signal_time = row["신호시간"]
-                            signal_price = row["기준시가"]
-                            target_time = row["신호시간"] + pd.Timedelta(minutes=row["도달분"])
-                            target_price = row["기준시가"] * (1 + row["성공기준(%)"]/100)
+                # 결과별 흐름선
+                for _, row in sub.iterrows():
+                    if _label == "성공" and pd.notna(row["도달분"]):
+                        signal_time = row["신호시간"]
+                        signal_price = row["기준시가"]
+                        target_time = row["신호시간"] + pd.Timedelta(minutes=row["도달분"])
+                        target_price = row["기준시가"] * (1 + row["성공기준(%)"]/100)
 
-                            # 목표 도달 마커
-                            fig.add_trace(go.Scatter(
-                                x=[target_time], y=[target_price], mode="markers",
-                                name="목표 도달",
-                                marker=dict(size=12, color="red", symbol="star", line=dict(width=1, color="black"))
-                            ))
+                        # 목표 도달 마커
+                        fig.add_trace(go.Scatter(
+                            x=[target_time], y=[target_price], mode="markers",
+                            name="목표 도달",
+                            marker=dict(size=12, color="red", symbol="star", line=dict(width=1, color="black"))
+                        ))
 
-                            # 흐름선
-                            fig.add_trace(go.Scatter(
-                                x=[signal_time, target_time], y=[signal_price, target_price],
-                                mode="lines", line=dict(color="red", width=2, dash="dot"),
-                                name="흐름선"
-                            ))
+                        # 성공 흐름선 (굵고 선명한 점선)
+                        fig.add_trace(go.Scatter(
+                            x=[signal_time, target_time], y=[signal_price, target_price],
+                            mode="lines", line=dict(color="red", width=2.5, dash="dot"),
+                            name="흐름선(성공)"
+                        ))
+
+                    elif _label in ["실패","중립"]:
+                        signal_time = row["신호시간"]
+                        signal_price = row["기준시가"]
+                        end_time = row["신호시간"] + pd.Timedelta(minutes=lookahead)
+                        end_price = row["기준시가"] * (1 + row["최종수익률(%)"]/100)
+
+                        # 실패/중립 흐름선 (얇고 연한 점선)
+                        fig.add_trace(go.Scatter(
+                            x=[signal_time, end_time], y=[signal_price, end_price],
+                            mode="lines", line=dict(color=_color, width=1, dash="dot"),
+                            name=f"흐름선({_label})", opacity=0.5
+                        ))
 
     # RSI(13) 네온 + 점선
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
@@ -441,6 +456,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
