@@ -16,7 +16,7 @@ st.markdown("""
   .block-container {padding-top: 0.8rem; padding-bottom: 0.8rem; max-width: 1100px;}
   .stMetric {text-align:center;}
   .success {color:red; font-weight:600;}
-  .fail {color:blue; font-weight:600;}
+  .fail {color:blue;}
   .neutral {color:green; font-weight:600;}
   .section-title {font-size:1.05rem; font-weight:700; margin: 0.6rem 0 0.2rem;}
   .hint {color:#6b7280;}
@@ -190,9 +190,13 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         hit_up, hit_down=closes[closes["close"]>=target_up], closes[closes["close"]<=target_down]
         result, reach_time="중립",None
         if not hit_up.empty and not hit_down.empty:
-            if hit_up.iloc[0]["time"]<hit_down.iloc[0]["time"]: result,reach_time="성공",hit_up.iloc[0]["time"].strftime("%H:%M")
+            if hit_up.iloc[0]["time"]<hit_down.iloc[0]["time"]:
+                minutes_diff=int((hit_up.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60)
+                result,reach_time="성공",f"{minutes_diff}분"
             else: result="실패"
-        elif not hit_up.empty: result,reach_time="성공",hit_up.iloc[0]["time"].strftime("%H:%M")
+        elif not hit_up.empty:
+            minutes_diff=int((hit_up.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60)
+            result,reach_time="성공",f"{minutes_diff}분"
         elif not hit_down.empty: result="실패"
         else:
             final_price=closes.iloc[-1]["close"]
@@ -269,8 +273,8 @@ try:
             if col in tbl: tbl[col]=tbl[col].map(lambda v:f"{v:.1f}%" if pd.notna(v) else "")
         if "도달시간" in tbl: tbl["도달시간"]=tbl["도달시간"].fillna("-").astype(str)
         def color_result(val):
-            if val=="성공": return "color:red; font-weight:600;"
-            if val=="실패": return "color:blue; font-weight:600;"
+            if val=="성공": return "color:red; font-weight:600; background-color:#FFFACD;"
+            if val=="실패": return "color:blue;"
             return "color:green; font-weight:600;"
         styled=tbl.style.applymap(color_result,subset=["결과"])
         st.dataframe(styled,use_container_width=True,hide_index=True)
