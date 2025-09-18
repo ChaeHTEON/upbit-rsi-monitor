@@ -268,11 +268,15 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             except Exception:
                 continue
 
-    # (D) 최종 후보
-    if rsi_side != "없음" and bb_cond != "없음": sig_idx = sorted(set(rsi_idx) | set(bb_idx))
-    elif rsi_side != "없음": sig_idx = rsi_idx
-    elif bb_cond != "없음": sig_idx = bb_idx
-    else: sig_idx = []
+    # (D) 최종 후보 → AND 조건으로 수정
+    if rsi_side != "없음" and bb_cond != "없음":
+        sig_idx = sorted(set(rsi_idx) & set(bb_idx))   # 교차(AND)
+    elif rsi_side != "없음":
+        sig_idx = rsi_idx
+    elif bb_cond != "없음":
+        sig_idx = bb_idx
+    else:
+        sig_idx = []
 
     # (E) 결과 계산
     for i in sig_idx:
@@ -429,7 +433,7 @@ try:
             for _, row in sub.iterrows():
                 if _label == "성공" and pd.notna(row["도달분"]):
                     signal_time = row["신호시간"]; signal_price = row["기준시가"]
-                    target_time = row["신호시간"] + pd.Timedelta(minutes=int(row["도달분"]))
+                    target_time = row["신호시간"] + pd.Timedelta(minutes=int(row["도달분"]));
                     target_price = row["기준시가"] * (1 + row["성공기준(%)"]/100)
                     fig.add_trace(go.Scatter(
                         x=[target_time], y=[target_price], mode="markers", name="목표 도달",
