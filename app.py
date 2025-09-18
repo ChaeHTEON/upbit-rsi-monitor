@@ -505,6 +505,70 @@ try:
         if df_in is None or df_in.empty:
             st.info(f"{caption}: 결과 없음")
             return
+        view = df_in.sort_values("신호시간", ascending=False).copy()
+        for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)","성공기준(%)"]:
+            view[col] = view[col].map(lambda v: None if pd.isna(v) else round(float(v), 2))
+        st.dataframe(view, use_container_width=True, hide_index=True)
+
+    st.caption("※ ‘중복 제거’는 같은 lookahead 구간에 겹치는 신호를 제거합니다.")
+    _render_table(res_all,   "중복 포함")
+    _render_table(res_dedup, "중복 제거")
+
+except Exception as e:
+    st.error(f"오류가 발생했습니다: {e}")
+
+    # ---- ③ 요약 & 차트 ----
+    st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
+
+    def _summarize(df_in):
+        if df_in is None or df_in.empty:
+            return 0,0,0,0,0.0,0.0,0.0,0.0
+        total = len(df_in)
+        succ  = int((df_in["결과"]=="성공").sum())
+        fail  = int((df_in["결과"]=="실패").sum())
+        neu   = int((df_in["결과"]=="중립").sum())
+        win   = succ/total*100.0
+        range_sum  = float((df_in["최고수익률(%)"] - df_in["최저수익률(%)"]).sum())
+        final_succ = float(df_in.loc[df_in["결과"]=="성공","최종수익률(%)"].sum())
+        final_fail = float(df_in.loc[df_in["결과"]=="실패","최종수익률(%)"].sum())
+        return total,succ,fail,neu,win,range_sum,final_succ,final_fail
+
+    for label, data in [("중복 포함 (연속 신호 모두)", res_all),
+                        ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
+        total,succ,fail,neu,win,range_sum,final_succ,final_fail = _summarize(data)
+        st.markdown(f"**{label}**")
+        mc1, mc2, mc3, mc4, mc5, mc6 = st.columns(6)
+        mc1.metric("총 신호", total)
+        mc2.metric("성공", succ)
+        mc3.metric("실패", fail)
+        mc4.metric("중립", neu)
+        mc5.metric("승률(%)", f"{win:.2f}")
+        mc6.metric("합계(최고-최저)", f"{range_sum:.2f}")
+
+    # 차트 (캔들 + BB / RSI)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
+                        row_heights=[0.7, 0.3])
+    fig.add_trace(go.Candlestick(
+        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        increasing_line_color='red', decreasing_line_color='blue', name="Price"
+    ), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"],  mode="lines", name="BB 상단"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", name="BB 중앙"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", name="BB 하단"), row=1, col=1)
+
+    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)"), row=2, col=1)
+    fig.add_hline(y=70, line_dash="dash", row=2, col=1)
+    fig.add_hline(y=30, line_dash="dash", row=2, col=1)
+    fig.update_layout(height=620, margin=dict(t=10,b=10,l=10,r=10), xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # ---- ④ 신호 결과 (최신 순) ----
+    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+
+    def _render_table(df_in, caption):
+        if df_in is None or df_in.empty:
+            st.info(f"{caption}: 결과 없음")
+            return
         # 최신 순
         view = df_in.sort_values("신호시간", ascending=False).copy()
         # 표시용 포맷
@@ -518,3 +582,4 @@ try:
 
 except Exception as e:
     st.error(f"오류가 발생했습니다: {e}")
+
