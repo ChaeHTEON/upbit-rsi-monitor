@@ -273,21 +273,21 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
                 if not sub_df.empty:
                     sub_df = add_indicators(sub_df, bb_window, bb_dev)
                     for j in sub_df.index:
-                        lo2, up2, mid2 = sub_df.at[j,"BB_low"], sub_df.at[j,"BB_up"], sub_df.at[j,"BB_mid"]
-                        low2, high2 = sub_df.at[j,"low"], sub_df.at[j,"high"]
-
-                        if bb_cond == "하한선 하향돌파" and pd.notna(lo2) and (low2 <= lo2 <= high2):
-                            ok = True; break
-                        elif bb_cond == "하한선 상향돌파" and pd.notna(lo2) and (low2 <= lo2 <= high2):
-                            ok = True; break
-                        elif bb_cond == "상한선 하향돌파" and pd.notna(up2) and (low2 <= up2 <= high2):
-                            ok = True; break
-                        elif bb_cond == "상한선 상향돌파" and pd.notna(up2) and (low2 <= up2 <= high2):
-                            ok = True; break
-                        elif bb_cond == "하한선 중앙돌파" and pd.notna(lo2) and pd.notna(mid2) and (low2 <= lo2 <= high2 and low2 <= mid2 <= high2):
-                            ok = True; break
-                        elif bb_cond == "상한선 중앙돌파" and pd.notna(up2) and pd.notna(mid2) and (low2 <= up2 <= high2 and low2 <= mid2 <= high2):
-                            ok = True; break
+                      bb_low2, bb_up2, bb_mid2 = sub_df.at[j,"BB_low"], sub_df.at[j,"BB_up"], sub_df.at[j,"BB_mid"]
+                      low2, high2 = sub_df.at[j,"low"], sub_df.at[j,"high"]
+                  
+                      if bb_cond == "하한선 하향돌파" and pd.notna(bb_low2) and (low2 <= bb_low2 <= high2):
+                          ok = True; break
+                      elif bb_cond == "하한선 상향돌파" and pd.notna(bb_low2) and (low2 <= bb_low2 <= high2):
+                          ok = True; break
+                      elif bb_cond == "상한선 하향돌파" and pd.notna(bb_up2) and (low2 <= bb_up2 <= high2):
+                          ok = True; break
+                      elif bb_cond == "상한선 상향돌파" and pd.notna(bb_up2) and (low2 <= bb_up2 <= high2):
+                          ok = True; break
+                      elif bb_cond == "하한선 중앙돌파" and pd.notna(bb_low2) and pd.notna(bb_mid2) and (low2 <= bb_low2 <= high2 and low2 <= bb_mid2 <= high2):
+                          ok = True; break
+                      elif bb_cond == "상한선 중앙돌파" and pd.notna(bb_up2) and pd.notna(bb_mid2) and (low2 <= bb_up2 <= high2 and low2 <= bb_mid2 <= high2):
+                          ok = True; break
 
             if not ok:
                 continue
@@ -422,9 +422,21 @@ try:
         name="가격", increasing_line_color="red", decreasing_line_color="blue",
         line=dict(width=1.2)
     ))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"],  mode="lines", line=dict(color="#FFB703", width=1.5), name="BB 상단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="#219EBC", width=1.5), name="BB 하단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="#8D99AE", width=1.2, dash="dot"), name="BB 중앙"))
+    fig.add_trace(go.Scatter(
+    x=df["time"], y=df["BB_up"],
+    mode="lines", line=dict(color="#FFB703", width=1.5),
+    name="BB 상단", connectgaps=True
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_low"],
+        mode="lines", line=dict(color="#219EBC", width=1.5),
+        name="BB 하단", connectgaps=True
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_mid"],
+        mode="lines", line=dict(color="#8D99AE", width=1.2, dash="dot"),
+        name="BB 중앙", connectgaps=True
+    ))
 
         # 신호 마커 + 흐름선 (타입당 1개의 범례만 표기)
     if not res.empty:
@@ -549,6 +561,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
