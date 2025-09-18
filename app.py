@@ -309,12 +309,15 @@ try:
     df = add_indicators(df)
     res = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, dup_mode)
 
-    # -----------------------------
-    # 요약 & 차트
+        # -----------------------------
+    # 요약 & 차트 (중복 포함 / 중복 제거 모두 표시, 오류 방어 포함)
     # -----------------------------
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
 
     def _summarize(df: pd.DataFrame):
+        if df is None or df.empty or "결과" not in df.columns:
+            return 0, 0, 0, 0, 0.0, 0.0, 0.0
+
         total = len(df)
         succ = int((df["결과"] == "성공").sum())
         fail = int((df["결과"] == "실패").sum())
@@ -332,6 +335,12 @@ try:
     for label, data in [("중복 포함 (연속 신호 모두)", res_all), ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
         total, succ, fail, neu, win, range_sum, final_succ, final_fail = _summarize(data)
         st.markdown(f"**{label}**")
+
+        if total == 0:
+            st.info("해당 조건에 맞는 신호가 없습니다.")
+            st.markdown("---")
+            continue
+
         c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
         c1.metric("신호 수", f"{total}")
         c2.metric("성공", f"{succ}")
@@ -339,13 +348,13 @@ try:
         c4.metric("중립", f"{neu}")
         c5.metric("승률", f"{win:.1f}%")
         c6.metric("총 변동폭 합(%)", f"{range_sum:.1f}%")
-
         final_sum = final_succ + final_fail
-        c7.metric("최종수익률 합계", f"{final_sum:.1f}%")
+        c7.metric("최종수익률 합계", f"{final_sum:+.1f}%")
         st.markdown("---")
 
     # 이후 차트/테이블은 기존대로, 선택된 dup_mode 결과만 사용
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+
 
     # -----------------------------
     # 가격 + RSI 함께 표시 (가독성 + 고정 비율)
@@ -451,6 +460,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
