@@ -229,21 +229,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     res=[]
     n=len(df); thr=float(thr_pct)
 
-    # 1) RSI 후보 인덱스 (경계선 스침/돌파 포함)
-    if rsi_side == "없음":
-        sig_idx = df.index.tolist()  # 이후 BB 조건으로 필터링
-    elif rsi_side == "RSI ≤ 30 (급락)":
-        sig_idx = df.index[
-            (df["RSI13"] <= 30) | ((df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30))
-        ].tolist()
-    elif rsi_side == "RSI ≥ 70 (급등)":
-        sig_idx = df.index[
-            (df["RSI13"] >= 70) | ((df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70))
-        ].tolist()
-    else:
-        sig_idx = []
-
-    # 2) 볼린저 조건 판정 함수 (캔들 한 개 기준: 고/저/종 범위로 판단)
+    # --- (A) 볼린저 조건 판정 함수 (캔들 한 개 기준: 고/저/종 범위로 판단) ---
     def bb_ok(i: int) -> bool:
         if bb_cond == "없음":
             return True
@@ -259,8 +245,8 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             # 이전 봉은 밴드 아래, 이번 봉은 밴드 위로 올라온 경우도 포함
             prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
             return pd.notna(lo) and (
-                (lo_px <= lo and hi >= lo)      # 캔들이 하한선을 걸침
-                or (prev_cl is not None and prev_cl < lo <= cl)  # 종가가 하한선 위로 돌파
+                (lo_px <= lo and hi >= lo) or
+                (prev_cl is not None and prev_cl < lo <= cl)
             )
         if bb_cond == "상한선 하향돌파":
             # 상한선 위에서 아래로 내려옴(터치/종가 하회 포함)
@@ -276,19 +262,49 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             return pd.notna(mid) and ((lo_px <= mid and hi >= mid) or (cl <= mid))
         return False
 
-    # RSI 없음 + BB 있음인 경우에도 bb_ok로 엄격히 필터
-    if bb_cond != "없음":
-        sig_idx = [i for i in sig_idx if bb_ok(i)]
+    # --- (B) RSI 후보 인덱스 (경계선 스침/돌파 포함) ---
+    rsi_idx = []
+    if rsi_side == "RSI ≤ 30 (급락)":
+        rsi_idx = df.index[
+            (df["RSI13"] <= 30) | ((df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30))
+        ].tolist()
+    elif rsi_side == "RSI ≥ 70 (급등)":
+        rsi_idx = df.index[
+            (df["RSI13"] >= 70) | ((df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70))
+        ].tolist()
 
+    # --- (C) BB 후보 인덱스 ---
+    bb_idx = []
+    if bb_cond != "없음":
+        for i in df.index:
+            # 일부 조건에서 i-1을 참조하므로 보호
+            try:
+                if bb_ok(i):
+                    bb_idx.append(i)
+            except Exception:
+                continue
+
+    # --- (D) 최종 후보 결정 (요청사항 반영) ---
+    if rsi_side != "없음" and bb_cond != "없음":
+        # RSI 또는 BB 둘 중 하나라도 만족하면 신호 (OR)
+        sig_idx = sorted(set(rsi_idx) | set(bb_idx))
+    elif rsi_side != "없음":
+        sig_idx = rsi_idx
+    elif bb_cond != "없음":
+        sig_idx = bb_idx
+    else:
+        sig_idx = []
+
+    # --- (E) 결과 계산 ---
     for i in sig_idx:
         end=i+lookahead
-        if end>=n: 
+        if end>=n:
             continue
 
         # 기준가: 종가(close) (차트/판정 일관)
         base=float(df.at[i,"close"])
         closes=df.loc[i+1:end,["time","close"]]
-        if closes.empty: 
+        if closes.empty:
             continue
 
         final_ret=(closes.iloc[-1]["close"]/base-1)*100.0
@@ -304,8 +320,8 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             result = "성공"
         elif final_ret < 0:
             result = "실패"
-        else:
-            result = "중립"
+    #    else:  # 중립 유지
+    #        result = "중립"
 
         # 표시 포맷: 항상 소수점 2자리
         def fmt_ret(val): return round(val, 2)
