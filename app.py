@@ -261,11 +261,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         else:
             result = "중립"
 
-        # 표시 포맷(작은 음수 -0.0% 교정)
+        # 표시 포맷: 항상 소수점 2자리
         def fmt_ret(val):
-            if val < 0 and abs(val) < 0.1:
-                return round(val, 2)
-            return round(val, 1)
+            return round(val, 2)
 
         res.append({
             "신호시간": df.at[i,"time"],
@@ -419,3 +417,4 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
