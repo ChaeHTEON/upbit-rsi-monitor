@@ -226,13 +226,13 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
     res=[]
     n=len(df); thr=float(thr_pct)
 
-    # RSI 방향 트리거
+    # RSI 방향 트리거 (경계선 '스침'만 신호)
     if rsi_side == "없음":
         sig_idx = df.index[df["RSI13"].notna()].tolist()
-    elif "≤" in rsi_side:
-        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
-    elif "≥" in rsi_side:
-        sig_idx = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
+    elif rsi_side == "RSI ≤ 30 (급락)":
+        sig_idx = df.index[(df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30)].tolist()
+    elif rsi_side == "RSI ≥ 70 (급등)":
+        sig_idx = df.index[(df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70)].tolist()
     else:
         sig_idx = []
 
@@ -240,46 +240,25 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         end=i+lookahead
         if end>=n: continue
 
-        # 볼린저 조건 체크 (cross 이벤트 반영)
+        # 볼린저 조건 체크 (선에 '스친' 캔들만 신호)
         if bb_cond!="없음":
-            px = float(df.at[i, "close"])
             hi = float(df.at[i, "high"])
             lo_px = float(df.at[i, "low"])
             up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
 
             ok = True
             if bb_cond == "하한선 하향돌파":
-                if pd.notna(lo) and i > 0:
-                    prev_close = float(df.at[i-1, "close"])
-                    # 이전에는 위, 현재는 아래 → 하향 돌파
-                    ok = prev_close >= lo and px < lo
-                else:
-                    ok = False
+                ok = pd.notna(lo) and (lo_px <= lo <= hi)
             elif bb_cond == "하한선 상향돌파":
-                if pd.notna(lo) and i > 0:
-                    prev_close = float(df.at[i-1, "close"])
-                    # 이전에는 아래, 현재는 위 → 상향 돌파
-                    ok = prev_close <= lo and px > lo
-                else:
-                    ok = False
+                ok = pd.notna(lo) and (lo_px <= lo <= hi)
             elif bb_cond == "상한선 하향돌파":
-                if pd.notna(up) and i > 0:
-                    prev_close = float(df.at[i-1, "close"])
-                    # 이전에는 위, 현재는 아래 → 하향 돌파
-                    ok = prev_close >= up and px < up
-                else:
-                    ok = False
+                ok = pd.notna(up) and (lo_px <= up <= hi)
             elif bb_cond == "상한선 상향돌파":
-                if pd.notna(up) and i > 0:
-                    prev_close = float(df.at[i-1, "close"])
-                    # 이전에는 아래, 현재는 위 → 상향 돌파
-                    ok = prev_close <= up and px > up
-                else:
-                    ok = False
+                ok = pd.notna(up) and (lo_px <= up <= hi)
             elif bb_cond == "하한선 중앙돌파":
-                ok = pd.notna(lo) and pd.notna(mid) and (lo < px < mid)
+                ok = pd.notna(lo) and pd.notna(mid) and (lo_px <= lo <= hi and lo_px <= mid <= hi)
             elif bb_cond == "상한선 중앙돌파":
-                ok = pd.notna(up) and pd.notna(mid) and (mid < px < up)
+                ok = pd.notna(up) and pd.notna(mid) and (lo_px <= up <= hi and lo_px <= mid <= hi)
 
             if not ok:
                 continue
@@ -541,6 +520,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
