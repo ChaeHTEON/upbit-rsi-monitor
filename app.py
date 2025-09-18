@@ -216,17 +216,18 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         min_ret=(closes["close"].min()/base-1)*100.0
         max_ret=(closes["close"].max()/base-1)*100.0
 
-        # 👉 결과 판정 로직 수정 (최고/최저 수익률 기준)
+        # 👉 결과 판정 로직 수정 (최고수익률 / 최종수익률 기준)
         result="중립"; reach_min=None
         if max_ret >= thr:
             first_hit = closes[closes["close"] >= base*(1+thr/100)]
             if not first_hit.empty:
                 reach_min = int((first_hit.iloc[0]["time"] - df.at[i,"time"]).total_seconds() // 60)
             result = "성공"
-        elif min_ret <= -thr:
-            result = "실패"
         else:
-            result = "중립"
+            if final_ret < 0:
+                result = "실패"
+            else:
+                result = "중립"
 
         res.append({
             "신호시간": df.at[i,"time"],
@@ -361,3 +362,4 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
