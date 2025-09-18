@@ -229,6 +229,12 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
             else:
                 result = "중립"
 
+        # 👉 최종/최저/최고 수익률 표시 로직 보정
+        def fmt_ret(val):
+            if val < 0 and abs(val) < 0.1:
+                return round(val, 2)   # 음수인데 -0.1% 미만 → 소수점 둘째자리까지
+            return round(val, 1)       # 일반 경우 소수점 한자리
+
         res.append({
             "신호시간": df.at[i,"time"],
             "기준시가": int(round(base)),
@@ -236,9 +242,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
             "성공기준(%)": round(thr,1),
             "결과": result,
             "도달분": reach_min,
-            "최종수익률(%)": round(final_ret,1),
-            "최저수익률(%)": round(min_ret,1),
-            "최고수익률(%)": round(max_ret,1),
+            "최종수익률(%)": fmt_ret(final_ret),
+            "최저수익률(%)": fmt_ret(min_ret),
+            "최고수익률(%)": fmt_ret(max_ret),
         })
 
     out=pd.DataFrame(res, columns=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"])
@@ -362,4 +368,5 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
