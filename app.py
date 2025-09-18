@@ -228,14 +228,14 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
 
     # RSI 방향 트리거 (경계선 '스침'만 신호)
     if rsi_side == "없음":
-        sig_idx = df.index[df["RSI13"].notna()].tolist()
+        # NaN 여부 무시 → 모든 봉을 후보로 포함
+        sig_idx = df.index.tolist()
     elif rsi_side == "RSI ≤ 30 (급락)":
         sig_idx = df.index[(df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30)].tolist()
     elif rsi_side == "RSI ≥ 70 (급등)":
         sig_idx = df.index[(df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70)].tolist()
     else:
         sig_idx = []
-
     for i in sig_idx:
         end=i+lookahead
         if end>=n: continue
@@ -302,8 +302,8 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
 
     out=pd.DataFrame(res, columns=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"])
 
-    # 같은 '분' 내 중복 신호 제거 (최초 1건)
-    if not out.empty:
+    # 같은 '분' 내 중복 신호 제거는 dedup_mode가 '중복 제거'일 때만 적용
+    if not out.empty and dedup_mode.startswith("중복 제거"):
         out["분"] = pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
         out = out.drop_duplicates(subset=["분"], keep="first").drop(columns=["분"])
 
@@ -520,6 +520,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
