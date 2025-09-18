@@ -240,17 +240,33 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         end=i+lookahead
         if end>=n: continue
 
-        # 볼린저 조건 체크
+        # 볼린저 조건 체크 (low/high 반영: 터치만 해도 신호)
         if bb_cond!="없음":
-            px=float(df.at[i,"close"]); up,lo,mid=df.at[i,"BB_up"],df.at[i,"BB_low"],df.at[i,"BB_mid"]
-            ok=True
-            if bb_cond=="하한선 하향돌파": ok=pd.notna(lo) and px<lo
-            elif bb_cond=="하한선 상향돌파": ok=pd.notna(lo) and px>lo
-            elif bb_cond=="상한선 하향돌파": ok=pd.notna(up) and px<up
-            elif bb_cond=="상한선 상향돌파": ok=pd.notna(up) and px>up
-            elif bb_cond=="하한선 중앙돌파": ok=pd.notna(lo) and pd.notna(mid) and lo<px<mid
-            elif bb_cond=="상한선 중앙돌파": ok=pd.notna(up) and pd.notna(mid) and mid<px<up
-            if not ok: continue
+            px = float(df.at[i, "close"])
+            hi = float(df.at[i, "high"])
+            lo_px = float(df.at[i, "low"])
+            up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
+
+            ok = True
+            if bb_cond == "하한선 하향돌파":
+                # 저가가 하한선에 닿거나 하회하면 도달로 간주
+                ok = pd.notna(lo) and lo_px <= lo
+            elif bb_cond == "하한선 상향돌파":
+                # 종가가 하한선 위에 있으면 도달로 간주
+                ok = pd.notna(lo) and px > lo
+            elif bb_cond == "상한선 하향돌파":
+                # 종가가 상한선 아래면 도달로 간주
+                ok = pd.notna(up) and px < up
+            elif bb_cond == "상한선 상향돌파":
+                # 고가가 상한선을 터치/상회하면 도달로 간주
+                ok = pd.notna(up) and hi >= up
+            elif bb_cond == "하한선 중앙돌파":
+                ok = pd.notna(lo) and pd.notna(mid) and (lo < px < mid)
+            elif bb_cond == "상한선 중앙돌파":
+                ok = pd.notna(up) and pd.notna(mid) and (mid < px < up)
+
+            if not ok:
+                continue
 
         # 기준가: 종가(close) → 조건 체크와 일관성 유지
         base=float(df.at[i,"close"])
@@ -509,6 +525,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
