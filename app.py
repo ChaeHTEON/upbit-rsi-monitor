@@ -255,7 +255,21 @@ try:
             if not sub.empty:
                 fig.add_trace(go.Scatter(x=sub["신호시간"],y=sub["기준시가"],mode="markers",name=f"신호 ({_label})",
                                          marker=dict(size=10,color=_color,symbol="circle",line=dict(width=1,color="black"))))
-    fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="#2A9D8F",width=2),opacity=0.85,name="RSI(13)",yaxis="y2"))
+
+    # === RSI(13) 네온 + 점선 효과 적용 ===
+    # Glow layer
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["RSI13"], mode="lines",
+        line=dict(color="rgba(42,157,143,0.3)", width=6),
+        opacity=0.6, name="RSI Glow", yaxis="y2", showlegend=False
+    ))
+    # Main line (dot + neon style)
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["RSI13"], mode="lines",
+        line=dict(color="#2A9D8F", width=2.5, dash="dot"),
+        opacity=1, name="RSI(13)", yaxis="y2"
+    ))
+
     fig.add_hline(y=70,line_dash="dash",line_color="#E63946",line_width=1.2,annotation_text="RSI 70",annotation_position="top left",yref="y2")
     fig.add_hline(y=30,line_dash="dash",line_color="#457B9D",line_width=1.2,annotation_text="RSI 30",annotation_position="bottom left",yref="y2")
     fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
