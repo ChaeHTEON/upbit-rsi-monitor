@@ -256,8 +256,12 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             # 하한선을 아래로 침투(터치/종가 하회 포함)
             return pd.notna(lo) and ((lo_px <= lo and hi >= lo) or (cl <= lo))
         if bb_cond == "하한선 상향돌파":
-            # 하한선 아래에서 위로 올라옴(터치/종가 상회 포함)
-            return pd.notna(lo) and ((lo_px <= lo and hi >= lo) or (cl >= lo))
+            # 이전 봉은 밴드 아래, 이번 봉은 밴드 위로 올라온 경우도 포함
+            prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
+            return pd.notna(lo) and (
+                (lo_px <= lo and hi >= lo)      # 캔들이 하한선을 걸침
+                or (prev_cl is not None and prev_cl < lo <= cl)  # 종가가 하한선 위로 돌파
+            )
         if bb_cond == "상한선 하향돌파":
             # 상한선 위에서 아래로 내려옴(터치/종가 하회 포함)
             return pd.notna(up) and ((lo_px <= up and hi >= up) or (cl <= up))
@@ -546,3 +550,4 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
