@@ -214,15 +214,19 @@ def add_indicators(df, bb_window, bb_dev):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
     bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-    out["BB_up"]  = bb.bollinger_hband()
-    out["BB_low"] = bb.bollinger_lband()
-    out["BB_mid"] = bb.bollinger_mavg()
+    # NaN → 앞뒤 값으로 채워서 차트 끝까지 선이 이어지도록 보정
+    out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
+    out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
+    out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
+
     return out
 
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
-def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
+def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
+             minutes_per_bar, market_code, bb_window, bb_dev):
+
     res=[]
     n=len(df); thr=float(thr_pct)
 
@@ -374,8 +378,10 @@ try:
     rsi_side = st.session_state.get("rsi_side", rsi_side)
     bb_cond  = st.session_state.get("bb_cond", bb_cond)
 
-    res_all  = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 포함 (연속 신호 모두)")
-    res_dedup= simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 제거 (연속 동일 결과 1개)")
+    res_all  = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, 
+                        "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev)
+    res_dedup = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, 
+                        "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev)
 
     # ---- 요약 & 차트 ----
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
@@ -561,6 +567,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
