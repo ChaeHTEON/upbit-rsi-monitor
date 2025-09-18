@@ -240,13 +240,15 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         end=i+lookahead
         if end>=n: continue
 
-        # 볼린저 조건 체크 (선에 '스친' 캔들만 신호)
-        if bb_cond!="없음":
+        # 볼린저 조건 체크 (하위 봉 데이터까지 포함해 스쳤는지 확인)
+        if bb_cond != "없음":
             hi = float(df.at[i, "high"])
             lo_px = float(df.at[i, "low"])
             up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
 
-            ok = True
+            ok = False  # 기본은 미충족
+
+            # 1) 현재 봉 자체에서 조건 확인
             if bb_cond == "하한선 하향돌파":
                 ok = pd.notna(lo) and (lo_px <= lo <= hi)
             elif bb_cond == "하한선 상향돌파":
@@ -259,6 +261,33 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
                 ok = pd.notna(lo) and pd.notna(mid) and (lo_px <= lo <= hi and lo_px <= mid <= hi)
             elif bb_cond == "상한선 중앙돌파":
                 ok = pd.notna(up) and pd.notna(mid) and (lo_px <= up <= hi and lo_px <= mid <= hi)
+
+            # 2) 현재 봉에서 불충족이면, 하위 봉 데이터 fetch 후 조건 확인
+            if not ok and minutes_per_bar > 1:
+                lower_unit = 1  # 기본 1분봉
+                lower_key = f"minutes/{lower_unit}"
+                start_i = df.at[i,"time"]
+                end_i   = df.at[i,"time"] + timedelta(minutes=minutes_per_bar)
+
+                sub_df = fetch_upbit_paged(market_code, lower_key, start_i, end_i, lower_unit)
+                if not sub_df.empty:
+                    sub_df = add_indicators(sub_df, bb_window, bb_dev)
+                    for j in sub_df.index:
+                        lo2, up2, mid2 = sub_df.at[j,"BB_low"], sub_df.at[j,"BB_up"], sub_df.at[j,"BB_mid"]
+                        low2, high2 = sub_df.at[j,"low"], sub_df.at[j,"high"]
+
+                        if bb_cond == "하한선 하향돌파" and pd.notna(lo2) and (low2 <= lo2 <= high2):
+                            ok = True; break
+                        elif bb_cond == "하한선 상향돌파" and pd.notna(lo2) and (low2 <= lo2 <= high2):
+                            ok = True; break
+                        elif bb_cond == "상한선 하향돌파" and pd.notna(up2) and (low2 <= up2 <= high2):
+                            ok = True; break
+                        elif bb_cond == "상한선 상향돌파" and pd.notna(up2) and (low2 <= up2 <= high2):
+                            ok = True; break
+                        elif bb_cond == "하한선 중앙돌파" and pd.notna(lo2) and pd.notna(mid2) and (low2 <= lo2 <= high2 and low2 <= mid2 <= high2):
+                            ok = True; break
+                        elif bb_cond == "상한선 중앙돌파" and pd.notna(up2) and pd.notna(mid2) and (low2 <= up2 <= high2 and low2 <= mid2 <= high2):
+                            ok = True; break
 
             if not ok:
                 continue
@@ -520,6 +549,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
