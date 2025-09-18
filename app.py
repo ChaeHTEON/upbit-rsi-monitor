@@ -253,6 +253,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
 
             ok = False  # 기본은 미충족
 
+            # 1) 현재 봉 자체에서 조건 확인 (현재 봉 값만 판정)
             if bb_cond == "하한선 하향돌파":
                 ok = pd.notna(lo) and (lo_px <= lo)
             elif bb_cond == "하한선 상향돌파":
@@ -265,7 +266,6 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
                 ok = pd.notna(lo) and pd.notna(mid) and (lo_px <= lo or hi >= mid)
             elif bb_cond == "상한선 중앙돌파":
                 ok = pd.notna(up) and pd.notna(mid) and (lo_px <= up or hi >= mid)
-
             if not ok:
                 continue
 
@@ -596,6 +596,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
