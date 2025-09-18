@@ -348,7 +348,6 @@ try:
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # -----------------------------
-    # -----------------------------
     # 가격 + RSI 함께 표시 (가독성 + 고정 비율)
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
@@ -361,15 +360,15 @@ try:
         line=dict(width=1.2)
     ))
     
-    # 볼린저밴드 (상/중/하)
+    # 볼린저밴드 (상/중/하 → 모두 점선)
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_up"], mode="lines",
-        line=dict(color="#FFB703", width=1.5),
+        line=dict(color="#FFB703", width=1.2, dash="dot"),
         name="BB 상단"
     ))
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_low"], mode="lines",
-        line=dict(color="#219EBC", width=1.5),
+        line=dict(color="#219EBC", width=1.2, dash="dot"),
         name="BB 하단"
     ))
     fig.add_trace(go.Scatter(
@@ -379,23 +378,15 @@ try:
     ))
     
     # 신호 (circle, 색상 대비 강화)
-    if total > 0:
-        for label, color in [("성공","#06D6A0"), ("실패","#EF476F"), ("중립","#FFD166")]:
-            sub = res[res["결과"] == label]
-            if not sub.empty:
-                fig.add_trace(go.Scatter(
-                    x=sub["신호시간"], y=sub["기준시가"], mode="markers",
-                    name=f"신호 ({label})",
-                    marker=dict(size=10, color=color, symbol="circle",
-                                line=dict(width=1, color="black"))
-                ))
+    ...
     
-    # RSI → 보조 y축
+    # RSI → 보조 y축 (보라색, 얇게)
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
-        line=dict(color="#2A9D8F", width=2), opacity=0.85,
+        line=dict(color="purple", width=0.8), opacity=0.85,
         name="RSI(13)", yaxis="y2"
     ))
+
     
     # RSI 기준선
     fig.add_hline(y=70, line_dash="dash", line_color="#E63946",
@@ -460,6 +451,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
