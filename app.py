@@ -83,6 +83,8 @@ with c3:
     start_date = st.date_input("시작 날짜", value=default_start)
     end_date = st.date_input("종료 날짜", value=datetime.today())
 
+interval_key, minutes_per_bar = TF_MAP[tf_label]
+
 # -----------------------------
 # 조건 설정
 # -----------------------------
@@ -95,10 +97,18 @@ with c5:
 with c6:
     rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
 
-# 안전 장치(세션에 보관)
-st.session_state["rsi_side"] = rsi_side
+# 볼린저밴드 조건 (누락됐던 부분 복구)
+c7, _, _ = st.columns(3)
+with c7:
+    bb_cond = st.selectbox(
+        "볼린저밴드 조건",
+        ["없음","하한선 하향돌파","하한선 상향돌파","상한선 하향돌파","상한선 상향돌파","하한선 중앙돌파","상한선 중앙돌파"],
+        index=0,
+    )
 
-interval_key, minutes_per_bar = TF_MAP[tf_label]
+# 안전 장치(세션 보강)
+st.session_state["rsi_side"] = rsi_side
+st.session_state["bb_cond"] = bb_cond
 
 # -----------------------------
 # 데이터 수집 (세션+재시도+필터)
@@ -114,14 +124,12 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar):
-    # endpoint
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
         url = f"https://api.upbit.com/v1/candles/{interval_key}"
 
-    # 요청 범위/개수
     if interval_key == "days":
         max_calls = 1
         req_count = 1           # 일봉은 하루만
@@ -186,7 +194,6 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         end=i+lookahead
         if end>=n: continue
 
-        # 볼린저 조건
         if bb_cond!="없음":
             px=float(df.at[i,"close"]); up,lo,mid=df.at[i,"BB_up"],df.at[i,"BB_low"],df.at[i,"BB_mid"]
             ok=True
@@ -255,8 +262,9 @@ try:
 
     df=add_indicators(df)
 
-    # 세션에서 한번 더 보강(혹시 모를 NameError 방지)
+    # 세션 보강(예외적 재실행 대비)
     rsi_side = st.session_state.get("rsi_side", rsi_side)
+    bb_cond  = st.session_state.get("bb_cond", bb_cond)
 
     res_all  = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 포함 (연속 신호 모두)")
     res_dedup= simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 제거 (연속 동일 결과 1개)")
