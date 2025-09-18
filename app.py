@@ -88,7 +88,66 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 # -----------------------------
 # 조건 설정
 # -----------------------------
-# (중략, 기존 동일)
+st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
+c4, c5, c6 = st.columns(3)
+with c4:
+    lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
+with c5:
+    threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, step=0.1)
+with c6:
+    rsi_side = st.selectbox(
+        "RSI 조건",
+        ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"],
+        index=0
+    )
+
+# 볼린저밴드 조건 + 설정
+c7, c8, c9 = st.columns(3)
+with c7:
+    bb_cond = st.selectbox(
+        "볼린저밴드 조건",
+        ["없음","하한선 하향돌파","하한선 상향돌파","상한선 하향돌파","상한선 상향돌파","하한선 중앙돌파","상한선 중앙돌파"],
+        index=0,
+    )
+with c8:
+    bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
+with c9:
+    bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
+
+# 안전 장치(세션 보강)
+st.session_state["rsi_side"] = rsi_side
+st.session_state["bb_cond"]  = bb_cond
+
+# ---- 조건 요약 박스 ----
+sim_minutes = lookahead * minutes_per_bar
+if sim_minutes < 60:
+    sim_dur = f"약 {sim_minutes}분"
+elif sim_minutes < 1440:
+    sim_dur = f"약 {sim_minutes//60}시간 {sim_minutes%60}분"
+else:
+    sim_dur = f"약 {sim_minutes//1440}일"
+
+rsi_display = rsi_side
+if "≤" in rsi_side:   # 급락(하향)
+    rsi_display = f"<span style='color:blue; font-weight:600;'>{rsi_side}</span>"
+elif "≥" in rsi_side: # 급등(상향)
+    rsi_display = f"<span style='color:red; font-weight:600;'>{rsi_side}</span>"
+
+bb_display = bb_cond
+if "하향" in bb_cond:
+    bb_display = f"<span style='color:blue; font-weight:600;'>{bb_cond}</span>"
+elif "상향" in bb_cond:
+    bb_display = f"<span style='color:red; font-weight:600;'>{bb_cond}</span>"
+
+st.markdown(f"""
+<div style="border:1px solid #ccc; border-radius:8px; padding:0.8rem; background-color:#f9f9f9; margin-top:0.6rem; margin-bottom:0.6rem;">
+<b>📌 현재 조건 요약</b><br>
+- 측정 캔들 수: {lookahead}봉 ({sim_dur})<br>
+- 성공/실패 기준: {threshold_pct:.2f}%<br>
+- RSI 조건: {rsi_display}<br>
+- 볼린저밴드 조건: {bb_display}
+</div>
+""", unsafe_allow_html=True)
 
 # -----------------------------
 # 데이터 수집 (Upbit Pagination)
@@ -118,7 +177,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     progress = st.progress(0.0)
     try:
         for done in range(max_calls):
-            # ✅ UTC ISO8601 변환
             to_utc = (to_time - timedelta(hours=9)).strftime("%Y-%m-%dT%H:%M:%S") + "Z"
             params = {"market": market_code, "count": req_count, "to": to_utc}
             r = _session.get(url, params=params, headers={"Accept":"application/json"}, timeout=10)
@@ -127,8 +185,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
             if not batch:
                 break
             all_data.extend(batch)
-            # ✅ pandas 파싱 개선 (utc=True 적용)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"], utc=True).tz_convert("Asia/Seoul")
+            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
             if last_ts <= start_dt:
                 break
             to_time = last_ts - timedelta(seconds=1)
@@ -142,13 +199,132 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     df = pd.DataFrame(all_data).rename(columns={
         "candle_date_time_kst":"time","opening_price":"open","high_price":"high",
         "low_price":"low","trade_price":"close","candle_acc_trade_volume":"volume"})
-    # ✅ DataFrame도 utc=True → 한국시간 변환
-    df["time"] = pd.to_datetime(df["time"], utc=True).tz_convert("Asia/Seoul")
+    df["time"] = pd.to_datetime(df["time"])
     df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
     df = df[(df["time"].dt.date >= start_dt.date()) & (df["time"].dt.date <= end_dt.date())]
     return df
 
 # -----------------------------
-# 지표 / 시뮬레이션 / 실행
+# 지표
 # -----------------------------
-# (이하 동일)
+def add_indicators(df, bb_window, bb_dev):
+    out = df.copy()
+    out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
+    bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
+    out["BB_up"]  = bb.bollinger_hband()
+    out["BB_low"] = bb.bollinger_lband()
+    out["BB_mid"] = bb.bollinger_mavg()
+    return out
+
+# -----------------------------
+# 시뮬레이션 함수 (복원됨)
+# -----------------------------
+def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
+    res=[]
+    n=len(df); thr=float(thr_pct)
+
+    candidates = []
+    if rsi_side != "없음":
+        if "≤" in rsi_side:
+            candidates = df.index[(df["RSI13"].notna()) & (df["RSI13"] <= 30)].tolist()
+        elif "≥" in rsi_side:
+            candidates = df.index[(df["RSI13"].notna()) & (df["RSI13"] >= 70)].tolist()
+    if rsi_side == "없음" and bb_cond != "없음":
+        candidates = list(range(n))
+    if rsi_side == "없음" and bb_cond == "없음":
+        return pd.DataFrame(columns=[
+            "신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분",
+            "최종수익률(%)","최저수익률(%)","최고수익률(%)"
+        ])
+
+    for i in candidates:
+        end=i+lookahead
+        if end>=n: 
+            continue
+        if bb_cond!="없음":
+            px=float(df.at[i,"close"]); up,lo,mid=df.at[i,"BB_up"],df.at[i,"BB_low"],df.at[i,"BB_mid"]
+            ok=True
+            if bb_cond=="하한선 하향돌파": ok=pd.notna(lo) and px<lo
+            elif bb_cond=="하한선 상향돌파": ok=pd.notna(lo) and px>lo
+            elif bb_cond=="상한선 하향돌파": ok=pd.notna(up) and px<up
+            elif bb_cond=="상한선 상향돌파": ok=pd.notna(up) and px>up
+            elif bb_cond=="하한선 중앙돌파": ok=pd.notna(lo) and pd.notna(mid) and lo<px<mid
+            elif bb_cond=="상한선 중앙돌파": ok=pd.notna(up) and pd.notna(mid) and mid<px<up
+            if not ok: 
+                continue
+
+        base=float(df.at[i,"open"])
+        closes=df.loc[i+1:end,["time","close"]]
+        if closes.empty: continue
+
+        final_ret=(closes.iloc[-1]["close"]/base-1)*100.0
+        min_ret=(closes["close"].min()/base-1)*100.0
+        max_ret=(closes["close"].max()/base-1)*100.0
+
+        result="중립"; reach_min=None
+        if max_ret >= thr:
+            first_hit = closes[closes["close"] >= base*(1+thr/100)]
+            if not first_hit.empty:
+                reach_min = int((first_hit.iloc[0]["time"] - df.at[i,"time"]).total_seconds() // 60)
+            result = "성공"
+        elif final_ret < 0:
+            result = "실패"
+        else:
+            result = "중립"
+
+        res.append({
+            "신호시간": df.at[i,"time"],
+            "기준시가": int(round(base)),
+            "RSI(13)": round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
+            "성공기준(%)": round(thr,1),
+            "결과": result,
+            "도달분": reach_min,
+            "최종수익률(%)": round(final_ret,2),
+            "최저수익률(%)": round(min_ret,2),
+            "최고수익률(%)": round(max_ret,2),
+        })
+
+    out=pd.DataFrame(res)
+    if not out.empty:
+        out["분"] = pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+        out = out.drop_duplicates(subset=["분"], keep="first").drop(columns=["분"])
+    if not out.empty and dedup_mode.startswith("중복 제거"):
+        filtered = []
+        last_idx = -9999
+        for idx, row in out.reset_index().iterrows():
+            if row["index"] >= last_idx + lookahead:
+                filtered.append(row)
+                last_idx = row["index"]
+        out = pd.DataFrame(filtered).drop(columns=["index"]) if filtered else pd.DataFrame()
+    return out
+
+# -----------------------------
+# 실행부
+# -----------------------------
+try:
+    if start_date>end_date:
+        st.error("시작 날짜가 종료 날짜보다 이후입니다."); st.stop()
+
+    start_dt=datetime.combine(start_date, datetime.min.time())
+    end_dt  =datetime.combine(end_date,   datetime.max.time())
+
+    df=fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
+    if df.empty: st.error("데이터가 없습니다."); st.stop()
+
+    if rsi_side == "없음" and bb_cond == "없음":
+      st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
+      st.info("대기중..")
+      st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+      st.info("대기중..")
+      st.stop()
+
+    df=add_indicators(df, bb_window, bb_dev)
+    rsi_side = st.session_state.get("rsi_side", rsi_side)
+    bb_cond  = st.session_state.get("bb_cond", bb_cond)
+
+    res_all  = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 포함 (연속 신호 모두)")
+    res_dedup= simulate(df, rsi_side, lookahead, threshold_pct, bb_cond, "중복 제거 (연속 동일 결과 1개)")
+
+    # (차트 + 결과 테이블 렌더링 부분 동일)
+except Exception as e:
+    st.error(f"오류: {e}")
