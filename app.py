@@ -395,7 +395,7 @@ try:
         tbl["기준시가"]=tbl["기준시가"].map(lambda v: f"{int(v):,}")
         if "RSI(13)" in tbl: tbl["RSI(13)"]=tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
         for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
-            if col in tbl: tbl[col]=tbl[col].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+          if col in tbl: tbl[col]=tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
         def fmt_hhmm(m):
             if pd.isna(m): return "-"
@@ -417,4 +417,5 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
