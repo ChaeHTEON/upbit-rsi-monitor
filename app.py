@@ -265,33 +265,20 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
                 ok = pd.notna(lo) and pd.notna(mid) and (lo_px <= lo or hi >= mid)
             elif bb_cond == "상한선 중앙돌파":
                 ok = pd.notna(up) and pd.notna(mid) and (lo_px <= up or hi >= mid)
-
-            # 2) 현재 봉에서 불충족이면, 하위 봉 데이터 fetch 후 조건 확인
-            if not ok and minutes_per_bar > 1:
-                lower_unit = 1  # 기본 1분봉
-                lower_key = f"minutes/{lower_unit}"
-                start_i = df.at[i,"time"]
-                end_i   = df.at[i,"time"] + timedelta(minutes=minutes_per_bar)
-
-                sub_df = fetch_upbit_paged(market_code, lower_key, start_i, end_i, lower_unit)
-                if not sub_df.empty:
-                    sub_df = add_indicators(sub_df, bb_window, bb_dev)
-                    for j in sub_df.index:
-                      bb_low2, bb_up2, bb_mid2 = sub_df.at[j,"BB_low"], sub_df.at[j,"BB_up"], sub_df.at[j,"BB_mid"]
-                      low2, high2 = sub_df.at[j,"low"], sub_df.at[j,"high"]
-                  
-                      if bb_cond == "하한선 하향돌파" and pd.notna(bb_low2) and (low2 <= bb_low2 <= high2):
-                          ok = True; break
-                      elif bb_cond == "하한선 상향돌파" and pd.notna(bb_low2) and (low2 <= bb_low2 <= high2):
-                          ok = True; break
-                      elif bb_cond == "상한선 하향돌파" and pd.notna(bb_up2) and (low2 <= bb_up2 <= high2):
-                          ok = True; break
-                      elif bb_cond == "상한선 상향돌파" and pd.notna(bb_up2) and (low2 <= bb_up2 <= high2):
-                          ok = True; break
-                      elif bb_cond == "하한선 중앙돌파" and pd.notna(bb_low2) and pd.notna(bb_mid2) and (low2 <= bb_low2 <= high2 and low2 <= bb_mid2 <= high2):
-                          ok = True; break
-                      elif bb_cond == "상한선 중앙돌파" and pd.notna(bb_up2) and pd.notna(bb_mid2) and (low2 <= bb_up2 <= high2 and low2 <= bb_mid2 <= high2):
-                          ok = True; break
+            # 2) 하위 봉 데이터 보강 제거 → 현재 봉 값만 판정
+            # (추가 작업 없음)
+             if bb_cond == "하한선 하향돌파":
+                ok = pd.notna(lo) and (lo_px <= lo)
+            elif bb_cond == "하한선 상향돌파":
+                ok = pd.notna(lo) and (hi >= lo)
+            elif bb_cond == "상한선 하향돌파":
+                ok = pd.notna(up) and (lo_px <= up)
+            elif bb_cond == "상한선 상향돌파":
+                ok = pd.notna(up) and (hi >= up)
+            elif bb_cond == "하한선 중앙돌파":
+                ok = pd.notna(lo) and pd.notna(mid) and (lo_px <= lo or hi >= mid)
+            elif bb_cond == "상한선 중앙돌파":
+                ok = pd.notna(up) and pd.notna(mid) and (lo_px <= up or hi >= mid)
 
             if not ok:
                 continue
@@ -567,6 +554,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
