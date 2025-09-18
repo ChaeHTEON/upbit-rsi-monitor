@@ -355,16 +355,40 @@ try:
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="#219EBC", width=1.5), name="BB 하단"))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="#8D99AE", width=1.2, dash="dot"), name="BB 중앙"))
 
-    # 신호 마커: 성공=빨간, 실패=파란, 중립=노란
+    # 신호 마커 + 성공 흐름선
     if not res.empty:
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FFD166")]:
             sub=res[res["결과"]==_label]
             if not sub.empty:
+                # 신호 마커
                 fig.add_trace(go.Scatter(
                     x=sub["신호시간"], y=sub["기준시가"], mode="markers",
                     name=f"신호 ({_label})",
                     marker=dict(size=10, color=_color, symbol="circle", line=dict(width=1, color="black"))
                 ))
+
+                # 성공 신호일 경우 흐름선 + 도달 지점
+                if _label == "성공" and "도달분" in res.columns:
+                    for _, row in sub.iterrows():
+                        if pd.notna(row["도달분"]):
+                            signal_time = row["신호시간"]
+                            signal_price = row["기준시가"]
+                            target_time = row["신호시간"] + pd.Timedelta(minutes=row["도달분"])
+                            target_price = row["기준시가"] * (1 + row["성공기준(%)"]/100)
+
+                            # 목표 도달 마커
+                            fig.add_trace(go.Scatter(
+                                x=[target_time], y=[target_price], mode="markers",
+                                name="목표 도달",
+                                marker=dict(size=12, color="red", symbol="star", line=dict(width=1, color="black"))
+                            ))
+
+                            # 흐름선
+                            fig.add_trace(go.Scatter(
+                                x=[signal_time, target_time], y=[signal_price, target_price],
+                                mode="lines", line=dict(color="red", width=2, dash="dot"),
+                                name="흐름선"
+                            ))
 
     # RSI(13) 네온 + 점선
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
@@ -417,5 +441,6 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
