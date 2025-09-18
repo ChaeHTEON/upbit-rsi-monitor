@@ -325,61 +325,6 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
 
     return out
 
-        # 기준가: 종가(close) → 조건 체크와 일관성 유지
-        base=float(df.at[i,"close"])
-        closes=df.loc[i+1:end,["time","close"]]
-        if closes.empty: continue
-
-        final_ret=(closes.iloc[-1]["close"]/base-1)*100.0
-        min_ret=(closes["close"].min()/base-1)*100.0
-        max_ret=(closes["close"].max()/base-1)*100.0
-
-        # 결과 판정: 최고수익률이 기준 이상이면 '성공' 고정
-        result="중립"; reach_min=None
-        if max_ret >= thr:
-            first_hit = closes[closes["close"] >= base*(1+thr/100)]
-            if not first_hit.empty:
-                reach_min = int((first_hit.iloc[0]["time"] - df.at[i,"time"]).total_seconds() // 60)
-            result = "성공"
-        elif final_ret < 0:
-            result = "실패"
-        else:
-            result = "중립"
-
-        # 표시 포맷: 항상 소수점 2자리
-        def fmt_ret(val):
-            return round(val, 2)
-
-        res.append({
-            "신호시간": df.at[i,"time"],
-            "기준시가": int(round(base)),
-            "RSI(13)": round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
-            "성공기준(%)": round(thr,1),
-            "결과": result,
-            "도달분": reach_min,
-            "최종수익률(%)": fmt_ret(final_ret),
-            "최저수익률(%)": fmt_ret(min_ret),
-            "최고수익률(%)": fmt_ret(max_ret),
-        })
-
-    out=pd.DataFrame(res, columns=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"])
-
-    # 같은 '분' 내 중복 신호 제거는 dedup_mode가 '중복 제거'일 때만 적용
-    if not out.empty and dedup_mode.startswith("중복 제거"):
-        out["분"] = pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        out = out.drop_duplicates(subset=["분"], keep="first").drop(columns=["분"])
-
-    if not out.empty and dedup_mode.startswith("중복 제거"):
-        # lookahead 봉 이후에만 새로운 신호 허용
-        filtered = []
-        last_idx = -9999
-        for idx, row in out.reset_index().iterrows():
-            if row["index"] >= last_idx + lookahead:
-                filtered.append(row)
-                last_idx = row["index"]
-        out = pd.DataFrame(filtered).drop(columns=["index"]) if filtered else pd.DataFrame()
-    return out
-
 # -----------------------------
 # 실행
 # -----------------------------
@@ -596,6 +541,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
