@@ -216,16 +216,16 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         min_ret=(closes["close"].min()/base-1)*100.0
         max_ret=(closes["close"].max()/base-1)*100.0
 
-        # 👉 결과 판정 로직 수정 (성공기준 포함 처리)
+        # 👉 결과 판정 로직 보정 (최고수익률 ≥ 기준 → 무조건 성공)
         result="중립"; reach_min=None
-        if max_ret >= thr:  # 기준 이상 도달 → 성공
+        if max_ret >= thr:
             first_hit = closes[closes["close"] >= base*(1+thr/100)]
             if not first_hit.empty:
                 reach_min = int((first_hit.iloc[0]["time"] - df.at[i,"time"]).total_seconds() // 60)
             result = "성공"
-        elif final_ret < 0:  # 성공 미달 & 최종 수익률 음수 → 실패
+        elif final_ret < 0:
             result = "실패"
-        else:                # 성공 미달 & 최종 수익률 0 이상 → 중립
+        else:
             result = "중립"
 
         # 👉 최종/최저/최고 수익률 표시 로직 보정
@@ -247,6 +247,12 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode):
         })
 
     out=pd.DataFrame(res, columns=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"])
+
+    # 👉 같은 분(YYYY-MM-DD HH:MM) 내 중복 신호 제거 (최초 1건만 유지)
+    if not out.empty:
+        out["분"] = pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+        out = out.drop_duplicates(subset=["분"], keep="first").drop(columns=["분"])
+
     if not out.empty and dedup_mode.startswith("중복 제거"):
         out = out.loc[out["결과"].shift() != out["결과"]]
     return out
@@ -367,6 +373,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
