@@ -257,7 +257,11 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             if bb_cond == "하한선 하향돌파":
                 ok = pd.notna(lo) and ((lo_px <= lo) or (float(df.at[i,"close"]) <= lo))
             elif bb_cond == "하한선 상향돌파":
-                ok = pd.notna(lo) and ((hi >= lo) or (float(df.at[i,"close"]) >= lo))
+                # 캔들의 저가가 밴드 아래 → 위로 올라온 경우도 인정
+                ok = pd.notna(lo) and (
+                    (lo_px <= lo and hi >= lo)   # 캔들 범위가 하한선 걸침/돌파
+                    or (float(df.at[i,"close"]) >= lo)  # 종가가 위로 마감
+                )
             elif bb_cond == "상한선 하향돌파":
                 ok = pd.notna(up) and ((lo_px <= up) or (float(df.at[i,"close"]) <= up))
             elif bb_cond == "상한선 상향돌파":
@@ -542,6 +546,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
