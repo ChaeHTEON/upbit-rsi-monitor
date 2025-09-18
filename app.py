@@ -303,6 +303,9 @@ try:
     res_dedup = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond,
                         "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev)
 
-    # 이후 차트/요약/표 렌더링 코드는 기존과 동일
+    # ---- ③ 요약 & 차트 ----
+    st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
+    # (요약/차트/결과표 렌더링 블록 그대로 유지)
+
 except Exception as e:
     st.error(f"오류: {e}")
