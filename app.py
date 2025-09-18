@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import requests
@@ -163,12 +162,10 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar):
-    # endpoint
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
-        # 일봉
         url = "https://api.upbit.com/v1/candles/days"
 
     calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
@@ -202,8 +199,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         "low_price":"low","trade_price":"close","candle_acc_trade_volume":"volume"})
     df["time"] = pd.to_datetime(df["time"])
     df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
-
-    # 날짜 필터 (UI와 정확히 일치)
     df = df[(df["time"].dt.date >= start_dt.date()) & (df["time"].dt.date <= end_dt.date())]
     return df
 
@@ -214,7 +209,6 @@ def add_indicators(df, bb_window, bb_dev):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
     bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-    # NaN → 앞뒤 값으로 채워서 차트 끝까지 선이 이어지도록 보정
     out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
     out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
     out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
@@ -229,7 +223,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     res=[]
     n=len(df); thr=float(thr_pct)
 
-    # --- (A) 볼린저 조건 판정 함수 ---
+    # --- (A) 볼린저 조건 판정 함수 (보정) ---
     def bb_ok(i: int) -> bool:
         if bb_cond == "없음":
             return True
@@ -239,22 +233,33 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
 
         if bb_cond == "하한선 하향돌파":
-            # 하한선을 아래로 침투하거나 종가 하회 시 신호
-            return pd.notna(lo) and (lo_px <= lo or cl <= lo or (lo_px <= lo and hi >= lo))
+            return pd.notna(lo) and (lo_px <= lo or cl <= lo)
         if bb_cond == "하한선 상향돌파":
             prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
             return pd.notna(lo) and (
-                (lo_px <= lo and hi >= lo) or
-                (prev_cl is not None and prev_cl < lo <= cl)
+                (prev_cl is not None and prev_cl < lo <= cl) or
+                (cl >= lo and lo_px <= lo)
             )
         if bb_cond == "상한선 하향돌파":
-            return pd.notna(up) and ((lo_px <= up and hi >= up) or (cl <= up))
+            prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
+            return pd.notna(up) and (
+                (prev_cl is not None and prev_cl > up >= cl) or
+                (hi >= up and cl <= up)
+            )
         if bb_cond == "상한선 상향돌파":
-            return pd.notna(up) and ((lo_px <= up and hi >= up) or (cl >= up))
+            return pd.notna(up) and (cl >= up or hi >= up)
         if bb_cond == "하한선 중앙돌파":
-            return pd.notna(mid) and ((lo_px <= mid and hi >= mid) or (cl >= mid))
+            prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
+            return pd.notna(mid) and (
+                (prev_cl is not None and prev_cl < mid <= cl) or
+                (cl >= mid and lo_px <= mid)
+            )
         if bb_cond == "상한선 중앙돌파":
-            return pd.notna(mid) and ((lo_px <= mid and hi >= mid) or (cl <= mid))
+            prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
+            return pd.notna(mid) and (
+                (prev_cl is not None and prev_cl > mid >= cl) or
+                (hi >= mid and cl <= mid)
+            )
         return False
 
     # --- (B) RSI 후보 인덱스 ---
