@@ -179,7 +179,9 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     progress = st.progress(0.0)
     try:
         for done in range(max_calls):
-            params = {"market": market_code, "count": req_count, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
+            # Upbit API는 UTC ISO8601 포맷을 요구하므로 변환 필요
+            to_utc = (to_time - timedelta(hours=9)).strftime("%Y-%m-%dT%H:%M:%S") + "Z"
+            params = {"market": market_code, "count": req_count, "to": to_utc}
             r = _session.get(url, params=params, headers={"Accept":"application/json"}, timeout=10)
             r.raise_for_status()
             batch = r.json()
@@ -523,6 +525,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
