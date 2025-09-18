@@ -128,9 +128,9 @@ else:
     sim_dur = f"약 {sim_minutes//1440}일"
 
 rsi_display = rsi_side
-if "≤" in rsi_side:
+if "≤" in rsi_side:   # 급락
     rsi_display = f"<span style='color:blue; font-weight:600;'>{rsi_side}</span>"
-elif "≥" in rsi_side:
+elif "≥" in rsi_side: # 급등
     rsi_display = f"<span style='color:red; font-weight:600;'>{rsi_side}</span>"
 
 bb_display = bb_cond
@@ -153,7 +153,7 @@ st.markdown(f"""
 # 데이터 수집 (Upbit Pagination)
 # -----------------------------
 def estimate_calls(start_dt, end_dt, minutes_per_bar):
-    mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
+    mins = max(1, int((end_dt - start_dt).total_seconds() / 60))
     bars = max(1, mins // minutes_per_bar)
     return bars // 200 + 1
 
@@ -200,7 +200,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         "low_price":"low","trade_price":"close","candle_acc_trade_volume":"volume"})
     df["time"] = pd.to_datetime(df["time"])
     df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
-    # 날짜 필터 (UI와 동일)
     df = df[(df["time"].dt.date >= start_dt.date()) & (df["time"].dt.date <= end_dt.date())]
     return df
 
@@ -211,7 +210,6 @@ def add_indicators(df, bb_window, bb_dev):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
     bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-    # 차트가 끊기지 않도록 보정
     out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
     out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
     out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
@@ -226,7 +224,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     res=[]
     n=len(df); thr=float(thr_pct)
 
-    # (A) 볼린저 조건 판정
+    # (A) 볼린저 조건 판정 (허용 오차 0.1%)
+    eps = 0.001  # 0.1%
+
     def bb_ok(i: int) -> bool:
         if bb_cond == "없음": return True
         hi = float(df.at[i, "high"])
@@ -235,21 +235,33 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
 
         if bb_cond == "하한선 하향돌파":
-            return pd.notna(lo) and (lo_px <= lo or cl <= lo)
+            return pd.notna(lo) and (lo_px <= lo*(1+eps) or cl <= lo*(1+eps))
         if bb_cond == "하한선 상향돌파":
             prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
-            return pd.notna(lo) and ((prev_cl is not None and prev_cl < lo <= cl) or (cl >= lo and lo_px <= lo))
+            return pd.notna(lo) and (
+                (prev_cl is not None and prev_cl < lo and cl >= lo*(1-eps)) or
+                (cl >= lo*(1-eps) and lo_px <= lo*(1+eps))
+            )
         if bb_cond == "상한선 하향돌파":
             prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
-            return pd.notna(up) and ((prev_cl is not None and prev_cl > up >= cl) or (hi >= up and cl <= up))
+            return pd.notna(up) and (
+                (prev_cl is not None and prev_cl > up and cl <= up*(1+eps)) or
+                (hi >= up*(1-eps) and cl <= up*(1+eps))
+            )
         if bb_cond == "상한선 상향돌파":
-            return pd.notna(up) and (cl >= up or hi >= up)
+            return pd.notna(up) and (cl >= up*(1-eps) or hi >= up*(1-eps))
         if bb_cond == "하한선 중앙돌파":
             prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
-            return pd.notna(mid) and ((prev_cl is not None and prev_cl < mid <= cl) or (cl >= mid and lo_px <= mid))
+            return pd.notna(mid) and (
+                (prev_cl is not None and prev_cl < mid and cl >= mid*(1-eps)) or
+                (cl >= mid*(1-eps) and lo_px <= mid*(1+eps))
+            )
         if bb_cond == "상한선 중앙돌파":
             prev_cl = float(df.at[i-1,"close"]) if i > 0 else None
-            return pd.notna(mid) and ((prev_cl is not None and prev_cl > mid >= cl) or (hi >= mid and cl <= mid))
+            return pd.notna(mid) and (
+                (prev_cl is not None and prev_cl > mid and cl <= mid*(1+eps)) or
+                (hi >= mid*(1-eps) and cl <= mid*(1+eps))
+            )
         return False
 
     # (B) RSI 후보
@@ -268,9 +280,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             except Exception:
                 continue
 
-    # (D) 최종 후보 → AND 조건으로 수정
+    # (D) 최종 후보 (둘 다 선택 시 AND)
     if rsi_side != "없음" and bb_cond != "없음":
-        sig_idx = sorted(set(rsi_idx) & set(bb_idx))   # 교차(AND)
+        sig_idx = sorted(set(rsi_idx) & set(bb_idx))
     elif rsi_side != "없음":
         sig_idx = rsi_idx
     elif bb_cond != "없음":
@@ -280,20 +292,20 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
 
     # (E) 결과 계산
     for i in sig_idx:
-        end=i+lookahead
-        if end>=n: 
+        end = i + lookahead
+        if end >= n:
             continue
 
-        # ✅ 기준가: (시가 + 저가) / 2
+        # 기준가: (시가 + 저가) / 2
         base = (float(df.at[i,"open"]) + float(df.at[i,"low"])) / 2.0
 
-        closes=df.loc[i+1:end,["time","close"]]
+        closes = df.loc[i+1:end, ["time","close"]]
         if closes.empty:
             continue
 
-        final_ret=(closes.iloc[-1]["close"]/base-1)*100.0
-        min_ret=(closes["close"].min()/base-1)*100.0
-        max_ret=(closes["close"].max()/base-1)*100.0
+        final_ret = (closes.iloc[-1]["close"]/base - 1)*100.0
+        min_ret   = (closes["close"].min()/base - 1)*100.0
+        max_ret   = (closes["close"].max()/base - 1)*100.0
 
         result="중립"; reach_min=None
         if max_ret >= thr:
@@ -304,7 +316,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         elif final_ret < 0:
             result = "실패"
 
-        def fmt_ret(val): return round(val, 2)
+        def fmt_ret(v): return round(v, 2)
 
         res.append({
             "신호시간": df.at[i,"time"],
@@ -318,13 +330,16 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             "최고수익률(%)": fmt_ret(max_ret),
         })
 
-    out=pd.DataFrame(res, columns=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"])
+    out = pd.DataFrame(
+        res,
+        columns=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
+    )
 
     # (F) 중복 제거 옵션
     if not out.empty and dedup_mode.startswith("중복 제거"):
         out["분"] = pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
         out = out.drop_duplicates(subset=["분"], keep="first").drop(columns=["분"])
-        # 동일 결과 연속 구간에서 N봉 간격으로 한 개만
+        # 동일 결과 연속 구간에서 lookahead*minutes_per_bar 만큼 간격 유지
         filtered = []
         last_time = pd.Timestamp("1970-01-01")
         delta = pd.Timedelta(minutes=lookahead * minutes_per_bar)
@@ -382,7 +397,7 @@ try:
         final_fail=float(df_in.loc[df_in["결과"]=="실패","최종수익률(%)"].sum())
         return total,succ,fail,neu,win,range_sum,final_succ,final_fail
 
-    for label,data in [("중복 포함 (연속 신호 모두)",res_all), ("중복 제거 (연속 동일 결과 1개)",res_dedup)]:
+    for label, data in [("중복 포함 (연속 신호 모두)",res_all), ("중복 제거 (연속 동일 결과 1개)",res_dedup)]:
         total,succ,fail,neu,win,range_sum,final_succ,final_fail=_summarize(data)
         st.markdown(f"**{label}**")
         c1,c2,c3,c4,c5,c6,c7=st.columns(7)
@@ -433,7 +448,7 @@ try:
             for _, row in sub.iterrows():
                 if _label == "성공" and pd.notna(row["도달분"]):
                     signal_time = row["신호시간"]; signal_price = row["기준시가"]
-                    target_time = row["신호시간"] + pd.Timedelta(minutes=int(row["도달분"]));
+                    target_time = row["신호시간"] + pd.Timedelta(minutes=int(row["도달분"]))
                     target_price = row["기준시가"] * (1 + row["성공기준(%)"]/100)
                     fig.add_trace(go.Scatter(
                         x=[target_time], y=[target_price], mode="markers", name="목표 도달",
