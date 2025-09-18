@@ -95,16 +95,24 @@ with c4:
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, step=0.1)
 with c6:
-    rsi_side = st.selectbox("RSI 조건", ["RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
+    rsi_side = st.selectbox(
+        "RSI 조건",
+        ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"],
+        index=0
+    )
 
-# 볼린저밴드 조건
-c7, _, _ = st.columns(3)
+# 볼린저밴드 조건 + 설정
+c7, c8, c9 = st.columns(3)
 with c7:
     bb_cond = st.selectbox(
         "볼린저밴드 조건",
         ["없음","하한선 하향돌파","하한선 상향돌파","상한선 하향돌파","상한선 상향돌파","하한선 중앙돌파","상한선 중앙돌파"],
         index=0,
     )
+with c8:
+    bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
+with c9:
+    bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
 # 안전 장치(세션 보강)
 st.session_state["rsi_side"] = rsi_side
@@ -202,10 +210,10 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
 # -----------------------------
 # 지표
 # -----------------------------
-def add_indicators(df):
+def add_indicators(df, bb_window, bb_dev):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
-    bb = ta.volatility.BollingerBands(close=out["close"], window=30, window_dev=2)
+    bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
     out["BB_up"]  = bb.bollinger_hband()
     out["BB_low"] = bb.bollinger_lband()
     out["BB_mid"] = bb.bollinger_mavg()
@@ -308,7 +316,15 @@ try:
     df=fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty: st.error("데이터가 없습니다."); st.stop()
 
-    df=add_indicators(df)
+    # RSI/BB 조건 체크
+    if rsi_side == "없음" and bb_cond == "없음":
+      st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
+      st.info("대기중..")
+      st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+      st.info("대기중..")
+      st.stop()
+
+    df=add_indicators(df, bb_window, bb_dev)
 
     # 세션 보강
     rsi_side = st.session_state.get("rsi_side", rsi_side)
@@ -489,6 +505,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
