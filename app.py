@@ -235,9 +235,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         # NaN 여부 무시 → 모든 봉을 후보로 포함
         sig_idx = df.index.tolist()
     elif rsi_side == "RSI ≤ 30 (급락)":
-        sig_idx = df.index[(df["RSI13"].shift(1) > 30) & (df["RSI13"] <= 30)].tolist()
+        sig_idx = df.index[df["RSI13"] <= 30].tolist()
     elif rsi_side == "RSI ≥ 70 (급등)":
-        sig_idx = df.index[(df["RSI13"].shift(1) < 70) & (df["RSI13"] >= 70)].tolist()
+        sig_idx = df.index[df["RSI13"] >= 70].tolist()
     else:
         sig_idx = []
     for i in sig_idx:
@@ -254,17 +254,17 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
 
             # 1) 현재 봉 자체에서 조건 확인
             if bb_cond == "하한선 하향돌파":
-                ok = pd.notna(lo) and (lo_px <= lo <= hi)
+                ok = pd.notna(lo) and (lo_px <= lo)
             elif bb_cond == "하한선 상향돌파":
-                ok = pd.notna(lo) and (lo_px <= lo <= hi)
+                ok = pd.notna(lo) and (hi >= lo)
             elif bb_cond == "상한선 하향돌파":
-                ok = pd.notna(up) and (lo_px <= up <= hi)
+                ok = pd.notna(up) and (lo_px <= up)
             elif bb_cond == "상한선 상향돌파":
-                ok = pd.notna(up) and (lo_px <= up <= hi)
+                ok = pd.notna(up) and (hi >= up)
             elif bb_cond == "하한선 중앙돌파":
-                ok = pd.notna(lo) and pd.notna(mid) and (lo_px <= lo <= hi and lo_px <= mid <= hi)
+                ok = pd.notna(lo) and pd.notna(mid) and (lo_px <= lo or hi >= mid)
             elif bb_cond == "상한선 중앙돌파":
-                ok = pd.notna(up) and pd.notna(mid) and (lo_px <= up <= hi and lo_px <= mid <= hi)
+                ok = pd.notna(up) and pd.notna(mid) and (lo_px <= up or hi >= mid)
 
             # 2) 현재 봉에서 불충족이면, 하위 봉 데이터 fetch 후 조건 확인
             if not ok and minutes_per_bar > 1:
@@ -567,6 +567,7 @@ try:
 
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
 
