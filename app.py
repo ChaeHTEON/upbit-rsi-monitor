@@ -113,7 +113,10 @@ with c8:
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
-# 세션 보강(안전)
+# RSI+BB 조합 옵션
+use_and = st.checkbox("RSI + BB 조건 모두 만족해야 함 (AND 모드)", value=False)
+
+# 세션 보강
 st.session_state["rsi_side"] = rsi_side
 st.session_state["bb_cond"]  = bb_cond
 
@@ -138,13 +141,15 @@ if "하향" in bb_cond:
 elif "상향" in bb_cond:
     bb_display = f"<span style='color:red; font-weight:600;'>{bb_cond}</span>"
 
+comb_txt = "AND" if use_and and rsi_side!="없음" and bb_cond!="없음" else "개별 적용"
 st.markdown(f"""
 <div style="border:1px solid #ccc; border-radius:8px; padding:0.8rem; background-color:#f9f9f9; margin-top:0.6rem; margin-bottom:0.6rem;">
 <b>📌 현재 조건 요약</b><br>
 - 측정 캔들 수: {lookahead}봉 ({sim_dur})<br>
 - 성공/실패 기준: {threshold_pct:.2f}%<br>
 - RSI 조건: {rsi_display}<br>
-- 볼린저밴드 조건: {bb_display}
+- 볼린저밴드 조건: {bb_display}<br>
+- 조합 모드: <b>{comb_txt}</b>
 </div>
 """, unsafe_allow_html=True)
 
@@ -220,11 +225,11 @@ def add_indicators(df, bb_window, bb_dev):
 # 시뮬레이션
 # -----------------------------
 def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev):
+             minutes_per_bar, market_code, bb_window, bb_dev, use_and=False):
 
     res=[]
     n=len(df); thr=float(thr_pct)
-    eps = 1e-3  # 0.1% 정도 유연성
+    eps = 1e-3  # ≈0.1% 허용 오차
 
     # (A) 볼린저 조건 판정
     def bb_ok(i: int) -> bool:
@@ -280,11 +285,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             except Exception:
                 continue
 
-    # (D) 최종 후보 (규칙)
-    # - 둘 다 선택: AND(교집합)
-    # - 하나만 선택: 해당 조건만 사용
+    # (D) 최종 후보 (조합 규칙)
     if rsi_side != "없음" and bb_cond != "없음":
-        sig_idx = sorted(set(rsi_idx) & set(bb_idx))
+        sig_idx = sorted(set(rsi_idx) & set(bb_idx)) if use_and else sorted(set(rsi_idx) | set(bb_idx))
     elif rsi_side != "없음":
         sig_idx = rsi_idx
     elif bb_cond != "없음":
@@ -375,10 +378,11 @@ try:
     rsi_side = st.session_state.get("rsi_side", rsi_side)
     bb_cond  = st.session_state.get("bb_cond", bb_cond)
 
+    # 두 버전 모두 계산 (화면 토글용)
     res_all   = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond,
-                         "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev)
+                         "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev, use_and)
     res_dedup = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond,
-                         "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev)
+                         "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev, use_and)
 
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
 
@@ -413,7 +417,7 @@ try:
         )
         st.markdown("---")
 
-    # 화면 선택에 맞춰 테이블용 결과 선택
+    # 화면 선택에 맞춰 테이블/차트용 결과 선택
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # ---- 차트 ----
@@ -509,15 +513,8 @@ try:
             if pd.isna(m): return "-"
             m = int(m); h,mm = divmod(m,60)
             return f"{h:02d}:{mm:02d}"
-        tbl["도달시간"] = tbl["도달분"].map(fmt_hhmm) if "도달분" in tbl else "-"
-        if "도달분" in tbl:
-            tbl = tbl.drop(columns=["도달분"])
-        def color_result(v):
-            if v=="성공": return "color:red; font-weight:600; background-color:#FFFACD;"
-            if v=="실패": return "color:blue;"
-            return "color:green; font-weight:600;"
-        styled = tbl.style.applymap(color_result, subset=["결과"])
-        st.dataframe(styled, use_container_width=True, hide_index=True)
+        tbl["도달시간"] = res["도달분"].map(fmt_hhmm) if "도달분" in res else "-"
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
