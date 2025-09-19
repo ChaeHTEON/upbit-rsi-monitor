@@ -21,7 +21,7 @@ st.markdown("""
   .hint {color:#6b7280;}
   .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
   .fail-cell {color:#1E40AF; font-weight:600;}
-  .neutral-cell {color:#059669; font-weight:600;}
+  .neutral-cell {color:#FF9800; font-weight:600;}
   table {border-collapse:collapse; width:100%;}
   th, td {border:1px solid #ddd; padding:6px; text-align:center;}
 </style>
@@ -31,7 +31,7 @@ st.title("📊 Upbit RSI(13) + Bollinger Band 시뮬레이터")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 내 점선은 신호 흐름선, 성공 시 도달 지점에 ⭐ 별표 표시</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# 업비트 마켓 로드 (네트워크 폴백 포함)
+# 업비트 마켓 로드
 # -----------------------------
 @st.cache_data(ttl=3600)
 def get_upbit_krw_markets():
@@ -71,13 +71,9 @@ TF_MAP = {
 }
 
 # -----------------------------
-# 상단: 신호 중복 처리
+# 신호 중복 처리
 # -----------------------------
-dup_mode = st.radio(
-    "신호 중복 처리",
-    ["중복 포함 (연속 신호 모두)", "중복 제거 (연속 동일 결과 1개)"],
-    horizontal=True,
-)
+dup_mode = st.radio("신호 중복 처리", ["중복 포함 (연속 신호 모두)", "중복 제거 (연속 동일 결과 1개)"], horizontal=True)
 
 # -----------------------------
 # 기본 설정
@@ -105,26 +101,18 @@ with c4:
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, step=0.1)
 with c6:
-    rsi_side = st.selectbox(
-        "RSI 조건",
-        ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"],
-        index=0
-    )
+    rsi_side = st.selectbox("RSI 조건", ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
 
 c7, c8, c9 = st.columns(3)
 with c7:
-    bb_cond = st.selectbox(
-        "볼린저밴드 조건",
-        ["없음", "상한선", "중앙선", "하한선"],
-        index=0,
-    )
+    bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
 with c8:
     bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
 st.session_state["rsi_side"] = rsi_side
-st.session_state["bb_cond"]  = bb_cond
+st.session_state["bb_cond"] = bb_cond
 
 # -----------------------------
 # 데이터 수집
@@ -146,11 +134,12 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         url = "https://api.upbit.com/v1/candles/days"
     calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
-    max_calls = min(calls_est + 2, 60)
+    max_calls = min(calls_est + 2, 20)  # ✅ API 호출 제한 축소
     req_count = 200
     all_data, to_time = [], end_dt
+    progress = st.progress(0, text="📡 데이터 불러오는 중...")  # ✅ 프로그레스바
     try:
-        for _ in range(max_calls):
+        for call_idx in range(max_calls):
             params = {"market": market_code, "count": req_count, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
             r = _session.get(url, params=params, headers={"Accept":"application/json"}, timeout=10)
             r.raise_for_status()
@@ -160,8 +149,11 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
             if last_ts <= start_dt: break
             to_time = last_ts - timedelta(seconds=1)
+            progress.progress((call_idx+1)/max_calls, text=f"📡 데이터 불러오는 중... ({call_idx+1}/{max_calls})")
     except Exception:
         return pd.DataFrame()
+    finally:
+        progress.empty()
     if not all_data: return pd.DataFrame()
     df = pd.DataFrame(all_data).rename(columns={
         "candle_date_time_kst":"time","opening_price":"open","high_price":"high",
@@ -203,7 +195,6 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     elif rsi_side!="없음": sig_idx=rsi_idx
     elif bb_cond!="없음": sig_idx=bb_idx
     else: sig_idx=[]
-
     i = 0
     while i < n:
         if i in sig_idx:
@@ -234,14 +225,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
                     "성공기준(%)": round(thr,1), "결과": result, "도달분": reach_min,
                     "최종수익률(%)": round(final_ret,2), "최저수익률(%)": round(min_ret,2), "최고수익률(%)": round(max_ret,2)
                 })
-            # ✅ 중복 포함/제거 모드 차이
-            if dedup_mode.startswith("중복 제거"):
-                i = end   # N봉 건너뛰기
-            else:
-                i += 1   # 다음 봉부터 검사 (연속 신호 허용)
-        else:
-            i += 1
-
+            if dedup_mode.startswith("중복 제거"): i = end
+            else: i += 1
+        else: i += 1
     return pd.DataFrame(res)
 
 # -----------------------------
@@ -262,7 +248,7 @@ try:
     res_dedup=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 제거 (연속 동일 결과 1개)",minutes_per_bar,market_code,bb_window,bb_dev)
     res=res_all if dup_mode.startswith("중복 포함") else res_dedup
 
-    # 요약 메트릭
+    # 요약
     def _summarize(df_in):
         if df_in is None or df_in.empty: return 0,0,0,0,0.0,0.0
         total=len(df_in); succ=(df_in["결과"]=="성공").sum(); fail=(df_in["결과"]=="실패").sum(); neu=(df_in["결과"]=="중립").sum()
@@ -287,57 +273,35 @@ try:
     fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
     if not res.empty:
-        # 도착 시점의 '시가' 조회용
         open_by_time = df.set_index("time")["open"]
-
-        # ✅ 중립 색상 주황(#FF9800), 실패/중립 흐릿 처리(opacity)
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
             sub = res[res["결과"] == _label]
             if sub.empty: continue
-
-            # 신호 마커
-            fig.add_trace(go.Scatter(
-                x=sub["신호시간"], y=sub["기준시가"],
-                mode="markers", name=f"신호({_label})",
-                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-            ))
-
-            # 성공 지점 스타 표시
+            fig.add_trace(go.Scatter(x=sub["신호시간"], y=sub["기준시가"], mode="markers", name=f"신호({_label})",
+                                     marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))))
             if _label == "성공":
                 for _, row in sub.iterrows():
                     if pd.notna(row.get("도달분")):
                         target_time = row["신호시간"] + timedelta(minutes=int(row["도달분"]))
                         target_price = row["기준시가"] * (1 + row["성공기준(%)"]/100)
-                        fig.add_trace(go.Scatter(
-                            x=[target_time], y=[target_price],
-                            mode="markers", name="목표 도달",
-                            marker=dict(size=12, color="red", symbol="star", line=dict(width=1, color="black")),
-                            showlegend=False
-                        ))
-
-            # 신호 흐름 점선(성공 진하게, 실패/중립 옅게)
+                        fig.add_trace(go.Scatter(x=[target_time], y=[target_price], mode="markers", name="목표 도달",
+                                                 marker=dict(size=12, color="red", symbol="star", line=dict(width=1, color="black")), showlegend=False))
             for _, row in sub.iterrows():
                 v = row.get("도달분")
                 if pd.isna(v): continue
-                start_x = row["신호시간"]; start_y = row["기준시가"]
-                end_x = pd.to_datetime(start_x) + pd.to_timedelta(int(v), unit="m")
-                end_y = open_by_time.get(end_x, np.nan)
+                start_x=row["신호시간"]; start_y=row["기준시가"]
+                end_x=pd.to_datetime(start_x)+pd.to_timedelta(int(v),unit="m")
+                end_y=open_by_time.get(end_x, np.nan)
                 if pd.isna(end_y):
-                    next_idx = df["time"].searchsorted(end_x, side="left")
-                    if 0 <= next_idx < len(df): end_y = float(df.iloc[next_idx]["open"])
-                    else: end_y = float(start_y)
-                if _label == "성공":
-                    fig.add_trace(go.Scatter(
-                        x=[start_x, end_x], y=[start_y, end_y],
-                        mode="lines", line=dict(color=_color, width=1.8, dash="dot"),
-                        opacity=0.9, showlegend=False
-                    ))
+                    next_idx=df["time"].searchsorted(end_x, side="left")
+                    if 0 <= next_idx < len(df): end_y=float(df.iloc[next_idx]["open"])
+                    else: end_y=float(start_y)
+                if _label=="성공":
+                    fig.add_trace(go.Scatter(x=[start_x,end_x], y=[start_y,end_y], mode="lines",
+                                             line=dict(color=_color, width=1.8, dash="dot"), showlegend=False))
                 else:
-                    fig.add_trace(go.Scatter(
-                        x=[start_x, end_x], y=[start_y, end_y],
-                        mode="lines", line=dict(color=_color, width=1.0, dash="dot"),
-                        opacity=0.35, showlegend=False
-                    ))
+                    fig.add_trace(go.Scatter(x=[start_x,end_x], y=[start_y,end_y], mode="lines",
+                                             line=dict(color=_color, width=1, dash="dot"), opacity=0.35, showlegend=False))
 
     # RSI
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="rgba(42,157,143,0.3)",width=6),yaxis="y2",showlegend=False))
@@ -360,26 +324,21 @@ try:
         if "BB값" in tbl: tbl["BB값"]=tbl["BB값"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
         for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
             if col in tbl: tbl[col]=tbl[col].map(lambda v:f"{v:.2f}%" if pd.notna(v) else "")
-        def fmt_hhmm(m): 
+        def fmt_hhmm(m):
             if pd.isna(m): return "-"
             m=int(m); h,mm=divmod(m,60); return f"{h:02d}:{mm:02d}"
         tbl["도달시간"]=res["도달분"].map(fmt_hhmm) if "도달분" in res else "-"
         if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
         cols=["신호시간","기준시가","RSI(13)","BB값","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
         tbl=tbl[[c for c in cols if c in tbl.columns]]
-        tbl = tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
-
+        tbl=tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
         def style_result(val):
-            if val == "성공":
-                return "background-color: #FFF59D; color: #E53935;"
-            elif val == "실패":
-                return "color: #1E40AF;"
-            elif val == "중립":
-                return "color: #FF9800;"
+            if val=="성공": return "background-color: #FFF59D; color: #E53935;"
+            elif val=="실패": return "color: #1E40AF;"
+            elif val=="중립": return "color: #FF9800;"
             return ""
-
-        styled_tbl = tbl.style.applymap(style_result, subset=["결과"])
-        st.dataframe(styled_tbl, use_container_width=True)
+        styled_tbl=tbl.style.applymap(style_result, subset=["결과"])
+        st.dataframe(styled_tbl.head(200), use_container_width=True)  # ✅ 최대 200행 제한
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
