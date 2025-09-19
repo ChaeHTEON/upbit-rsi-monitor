@@ -22,6 +22,8 @@ st.markdown("""
   .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
   .fail-cell {color:#1E40AF; font-weight:600;}
   .neutral-cell {color:#059669; font-weight:600;}
+  table {border-collapse:collapse; width:100%;}
+  th, td {border:1px solid #ddd; padding:6px; text-align:center;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -265,9 +267,83 @@ try:
     res_all=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 포함 (연속 신호 모두)",minutes_per_bar,market_code,bb_window,bb_dev)
     res_dedup=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 제거 (연속 동일 결과 1개)",minutes_per_bar,market_code,bb_window,bb_dev)
     res=res_all if dup_mode.startswith("중복 포함") else res_dedup
-    show_forecast=st.checkbox("예측 추세선 표시 (1일치)", value=True)  # ✅ st.toggle → st.checkbox
+    show_forecast=st.checkbox("예측 추세선 표시 (1일치)", value=True)
 
-    # 요약 & 차트, 표 렌더링 (생략: 위 코드와 동일)
-    # ...
+    # 요약 메트릭
+    def _summarize(df_in):
+        if df_in is None or df_in.empty: return 0,0,0,0,0.0,0.0
+        total=len(df_in); succ=(df_in["결과"]=="성공").sum(); fail=(df_in["결과"]=="실패").sum(); neu=(df_in["결과"]=="중립").sum()
+        win=succ/total*100 if total else 0.0; total_final=df_in["최종수익률(%)"].sum()
+        return total,succ,fail,neu,win,total_final
+    for label, data in [("중복 포함 (연속 신호 모두)",res_all),("중복 제거 (연속 동일 결과 1개)",res_dedup)]:
+        total,succ,fail,neu,win,total_final=_summarize(data)
+        st.markdown(f"**{label}**")
+        c1,c2,c3,c4,c5,c6=st.columns(6)
+        c1.metric("신호 수",f"{total}"); c2.metric("성공",f"{succ}"); c3.metric("실패",f"{fail}")
+        c4.metric("중립",f"{neu}"); c5.metric("승률",f"{win:.1f}%")
+        col="red" if total_final>0 else "blue" if total_final<0 else "black"
+        c6.markdown(f"<div style='font-weight:600;'>최종수익률 합계: <span style='color:{col}; font-size:1.1rem'>{total_final:.1f}%</span></div>",unsafe_allow_html=True)
+        st.markdown("---")
+
+    # 차트
+    fig=make_subplots(rows=1,cols=1)
+    fig.add_trace(go.Candlestick(x=df["time"],open=df["open"],high=df["high"],low=df["low"],close=df["close"],
+                                 name="가격",increasing_line_color="red",decreasing_line_color="blue",line=dict(width=1.1)))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["BB_up"],mode="lines",line=dict(color="#FFB703",width=1.4),name="BB 상단"))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["BB_low"],mode="lines",line=dict(color="#219EBC",width=1.4),name="BB 하단"))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
+
+    if not res.empty:
+        for _label,_color in [("성공","red"),("실패","blue"),("중립","#9B59B6")]:
+            sub=res[res["결과"]==_label]
+            if sub.empty: continue
+            fig.add_trace(go.Scatter(x=sub["신호시간"],y=sub["기준시가"],mode="markers",name=f"신호({_label})",
+                                     marker=dict(size=9,color=_color,symbol="circle",line=dict(width=1,color="black"))))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="rgba(42,157,143,0.3)",width=6),yaxis="y2",showlegend=False))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="#2A9D8F",width=2.4,dash="dot"),name="RSI(13)",yaxis="y2"))
+    fig.add_hline(y=70,line_dash="dash",line_color="#E63946",line_width=1.1,yref="y2")
+    fig.add_hline(y=30,line_dash="dash",line_color="#457B9D",line_width=1.1,yref="y2")
+    fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+                      dragmode="zoom",xaxis_rangeslider_visible=False,height=600,legend_orientation="h",legend_y=1.05,
+                      margin=dict(l=60,r=40,t=60,b=40),yaxis=dict(title="가격"),
+                      yaxis2=dict(overlaying="y",side="right",showgrid=False,title="RSI(13)",range=[0,100]))
+    if show_forecast:
+        fc=forecast_line(df,minutes_per_bar)
+        if not fc.empty: fig.add_trace(go.Scatter(x=fc["time"],y=fc["yhat"],mode="lines",line=dict(color="#6C5CE7",width=2,dash="dash"),name="예측 추세선(1일)"))
+    st.plotly_chart(fig,use_container_width=True,config={"scrollZoom":True,"doubleClick":"reset"})
+
+    # 표
+    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+    if not res.empty:
+        tbl=res.sort_values("신호시간",ascending=False).reset_index(drop=True).copy()
+        tbl["신호시간"]=pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+        tbl["기준시가"]=tbl["기준시가"].map(lambda v:f"{int(v):,}")
+        if "RSI(13)" in tbl: tbl["RSI(13)"]=tbl["RSI(13)"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
+        if "BB값" in tbl: tbl["BB값"]=tbl["BB값"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
+        for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
+            if col in tbl: tbl[col]=tbl[col].map(lambda v:f"{v:.2f}%" if pd.notna(v) else "")
+        def fmt_hhmm(m): 
+            if pd.isna(m): return "-"
+            m=int(m); h,mm=divmod(m,60); return f"{h:02d}:{mm:02d}"
+        tbl["도달시간"]=res["도달분"].map(fmt_hhmm) if "도달분" in res else "-"
+        if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
+        cols=["신호시간","기준시가","RSI(13)","BB값","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
+        tbl=tbl[[c for c in cols if c in tbl.columns]]
+        def color_result(val):
+            if val=="성공": return "success-cell"
+            elif val=="실패": return "fail-cell"
+            elif val=="중립": return "neutral-cell"
+            return ""
+        # HTML 생성
+        html="<table><thead><tr>"+"".join([f"<th>{c}</th>" for c in tbl.columns])+"</tr></thead><tbody>"
+        for _,row in tbl.iterrows():
+            html+="<tr>"
+            for c in tbl.columns:
+                cls=color_result(row["결과"]) if c=="결과" else ""
+                html+=f"<td class='{cls}'>{row[c]}</td>"
+            html+="</tr>"
+        html+="</tbody></table>"
+        st.markdown(html,unsafe_allow_html=True)
+    else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
