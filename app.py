@@ -235,22 +235,6 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     return out
 
 # -----------------------------
-# 예측 추세선
-# -----------------------------
-def forecast_line(df, minutes_per_bar, bars_for_fit=100):
-    if df.empty: return pd.DataFrame(columns=["time","yhat"])
-    use=df.tail(min(bars_for_fit,len(df)))
-    x=np.arange(len(use)); y=use["close"].to_numpy(dtype=float)
-    if len(x)<2: return pd.DataFrame(columns=["time","yhat"])
-    a,b=np.polyfit(x,y,1)
-    future_len=1 if minutes_per_bar>=1440 else max(1,1440//minutes_per_bar)
-    x_future=np.arange(len(use),len(use)+future_len)
-    y_future=a*x_future+b
-    last_time=use["time"].iloc[-1]
-    times=[last_time+timedelta(minutes=minutes_per_bar*i) for i in range(1,future_len+1)]
-    return pd.DataFrame({"time":times,"yhat":y_future})
-
-# -----------------------------
 # 실행
 # -----------------------------
 try:
@@ -267,7 +251,6 @@ try:
     res_all=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 포함 (연속 신호 모두)",minutes_per_bar,market_code,bb_window,bb_dev)
     res_dedup=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 제거 (연속 동일 결과 1개)",minutes_per_bar,market_code,bb_window,bb_dev)
     res=res_all if dup_mode.startswith("중복 포함") else res_dedup
-    show_forecast=st.checkbox("예측 추세선 표시 (1일치)", value=True)
 
     # 요약 메트릭
     def _summarize(df_in):
@@ -307,9 +290,6 @@ try:
                       dragmode="zoom",xaxis_rangeslider_visible=False,height=600,legend_orientation="h",legend_y=1.05,
                       margin=dict(l=60,r=40,t=60,b=40),yaxis=dict(title="가격"),
                       yaxis2=dict(overlaying="y",side="right",showgrid=False,title="RSI(13)",range=[0,100]))
-    if show_forecast:
-        fc=forecast_line(df,minutes_per_bar)
-        if not fc.empty: fig.add_trace(go.Scatter(x=fc["time"],y=fc["yhat"],mode="lines",line=dict(color="#6C5CE7",width=2,dash="dash"),name="예측 추세선(1일)"))
     st.plotly_chart(fig,use_container_width=True,config={"scrollZoom":True,"doubleClick":"reset"})
 
     # 표
