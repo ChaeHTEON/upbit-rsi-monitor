@@ -202,36 +202,41 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     elif rsi_side!="없음": sig_idx=rsi_idx
     elif bb_cond!="없음": sig_idx=bb_idx
     else: sig_idx=[]
-    for i in sig_idx:
-        end=i+lookahead
-        if end>=n: continue
-        base=(float(df.at[i,"open"])+float(df.at[i,"low"]))/2.0
-        closes=df.loc[i+1:end,["time","close"]]
-        if closes.empty: continue
-        final_ret=(closes.iloc[-1]["close"]/base-1)*100
-        min_ret=(closes["close"].min()/base-1)*100
-        max_ret=(closes["close"].max()/base-1)*100
-        result="중립"; reach_min=None
-        if max_ret>=thr:
-            first_hit=closes[closes["close"]>=base*(1+thr/100)]
-            if not first_hit.empty:
-                reach_min=int((first_hit.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60)
-            result="성공"
-        elif final_ret<0: result="실패"
-        bb_value=None
-        if bb_cond=="상한선": bb_value=df.at[i,"BB_up"]
-        elif bb_cond=="중앙선": bb_value=df.at[i,"BB_mid"]
-        elif bb_cond=="하한선": bb_value=df.at[i,"BB_low"]
-        res.append({
-            "신호시간":df.at[i,"time"],"기준시가":int(round(base)),
-            "RSI(13)":round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
-            "BB값":round(float(bb_value),1) if bb_value is not None else None,
-            "성공기준(%)":round(thr,1),"결과":result,"도달분":reach_min,
-            "최종수익률(%)":round(final_ret,2),"최저수익률(%)":round(min_ret,2),"최고수익률(%)":round(max_ret,2)})
-    out=pd.DataFrame(res)
-    if not out.empty and dedup_mode.startswith("중복 제거"):
-        out["분"]=pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        out=out.drop_duplicates(subset=["분"],keep="first").drop(columns=["분"])
+    i = 0
+    while i < n:
+        if i in sig_idx:
+            end = i + lookahead
+            if end >= n: break
+            base = (float(df.at[i,"open"]) + float(df.at[i,"low"])) / 2.0
+            closes = df.loc[i+1:end, ["time","close"]]
+            if not closes.empty:
+                final_ret = (closes.iloc[-1]["close"]/base - 1) * 100
+                min_ret   = (closes["close"].min()/base - 1) * 100
+                max_ret   = (closes["close"].max()/base - 1) * 100
+                result = "중립"; reach_min = None
+                if max_ret >= thr:
+                    first_hit = closes[closes["close"] >= base*(1+thr/100)]
+                    if not first_hit.empty:
+                        reach_min = int((first_hit.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60)
+                    result = "성공"
+                elif final_ret < 0:
+                    result = "실패"
+                bb_value = None
+                if bb_cond=="상한선": bb_value = df.at[i,"BB_up"]
+                elif bb_cond=="중앙선": bb_value = df.at[i,"BB_mid"]
+                elif bb_cond=="하한선": bb_value = df.at[i,"BB_low"]
+                res.append({
+                    "신호시간": df.at[i,"time"], "기준시가": int(round(base)),
+                    "RSI(13)": round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
+                    "BB값": round(float(bb_value),1) if bb_value is not None else None,
+                    "성공기준(%)": round(thr,1), "결과": result, "도달분": reach_min,
+                    "최종수익률(%)": round(final_ret,2), "최저수익률(%)": round(min_ret,2), "최고수익률(%)": round(max_ret,2)
+                })
+            # N봉 측정 끝날 때까지 건너뛰기
+            i = end
+        else:
+            i += 1
+    out = pd.DataFrame(res)
     return out
 
 # -----------------------------
@@ -327,4 +332,5 @@ try:
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
 
