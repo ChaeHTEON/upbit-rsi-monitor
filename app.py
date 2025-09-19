@@ -199,7 +199,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     df["time"] = pd.to_datetime(df["time"])
     df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
     # 날짜 필터 (UI와 동일)
-    df = df[(df["time"].dt.date >= start_dt.date()) & (df["time"].dt.date <= end_dt.date())]
+    df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)]
     return df
 
 # -----------------------------
@@ -491,3 +491,4 @@ try:
         st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
