@@ -69,7 +69,7 @@ TF_MAP = {
 }
 
 # -----------------------------
-# 상단: 신호 중복 처리
+# 신호 중복 처리
 # -----------------------------
 dup_mode = st.radio(
     "신호 중복 처리",
@@ -103,19 +103,11 @@ with c4:
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, step=0.1)
 with c6:
-    rsi_side = st.selectbox(
-        "RSI 조건",
-        ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"],
-        index=0
-    )
+    rsi_side = st.selectbox("RSI 조건", ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
 
 c7, c8, c9 = st.columns(3)
 with c7:
-    bb_cond = st.selectbox(
-        "볼린저밴드 조건",
-        ["없음", "상한선", "중앙선", "하한선"],
-        index=0,
-    )
+    bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
 with c8:
     bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
 with c9:
@@ -125,7 +117,7 @@ st.session_state["rsi_side"] = rsi_side
 st.session_state["bb_cond"]  = bb_cond
 
 # -----------------------------
-# 데이터 수집 (Upbit Pagination)
+# 데이터 수집
 # -----------------------------
 def estimate_calls(start_dt, end_dt, minutes_per_bar):
     mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
@@ -147,7 +139,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
     max_calls = min(calls_est + 2, 60)
     req_count = 200
-
     all_data, to_time = [], end_dt
     progress = st.progress(0.0)
     try:
@@ -212,3 +203,60 @@ def forecast_curve(df, minutes_per_bar):
         return pd.DataFrame({"time": times, "curve": curve})
     except Exception:
         return pd.DataFrame(columns=["time","curve"])
+
+# -----------------------------
+# 실행
+# -----------------------------
+try:
+    if start_date > end_date:
+        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
+        st.stop()
+
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt   = datetime.combine(end_date,   datetime.max.time())
+
+    df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
+    if df.empty:
+        st.error("데이터가 없습니다.")
+        st.stop()
+
+    df = add_indicators(df, bb_window, bb_dev)
+
+    # 예측 추세선 ON/OFF
+    show_forecast = st.checkbox("예측 추세선 표시 (1일치)", value=True)
+
+    # -----------------------------
+    # 차트
+    # -----------------------------
+    fig=make_subplots(rows=1, cols=1)
+    fig.add_trace(go.Candlestick(
+        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
+    ))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
+                             line=dict(color="#FFB703", width=1.4), name="BB 상단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines",
+                             line=dict(color="#219EBC", width=1.4), name="BB 하단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines",
+                             line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"))
+
+    if show_forecast:
+        fc = forecast_curve(df, minutes_per_bar)
+        if not fc.empty:
+            fig.add_trace(go.Scatter(
+                x=fc["time"], y=fc["curve"], mode="lines",
+                line=dict(color="red", width=2), name="추세선(과거+예측)"
+            ))
+
+    fig.update_layout(
+        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+        dragmode="zoom", xaxis_rangeslider_visible=False, height=600, autosize=False,
+        legend_orientation="h", legend_y=1.05,
+        margin=dict(l=60,r=40,t=60,b=40),
+        yaxis=dict(title="가격"),
+        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
+
+except Exception as e:
+    st.error(f"오류: {e}")
