@@ -287,7 +287,6 @@ try:
 
     if not res.empty:
         open_by_time = df.set_index("time")["open"]
-        # ✅ 중립 색상 주황(#FF9800)
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
             sub = res[res["결과"] == _label]
             if sub.empty: continue
@@ -323,17 +322,18 @@ try:
                     next_idx = df["time"].searchsorted(end_x, side="left")
                     if 0 <= next_idx < len(df): end_y = float(df.iloc[next_idx]["open"])
                     else: end_y = float(start_y)
-                # ✅ 성공은 진하게, 실패/중립은 흐릿하게
                 if _label == "성공":
                     fig.add_trace(go.Scatter(
                         x=[start_x, end_x], y=[start_y, end_y],
-                        mode="lines", line=dict(color=_color, width=1.8, dash="dot", opacity=0.9),
+                        mode="lines", line=dict(color=_color, width=1.8, dash="dot"),
+                        opacity=0.9,
                         showlegend=False
                     ))
                 else:
                     fig.add_trace(go.Scatter(
                         x=[start_x, end_x], y=[start_y, end_y],
-                        mode="lines", line=dict(color=_color, width=1, dash="dot", opacity=0.35),
+                        mode="lines", line=dict(color=_color, width=1, dash="dot"),
+                        opacity=0.35,
                         showlegend=False
                     ))
 
@@ -367,17 +367,7 @@ try:
         tbl=tbl[[c for c in cols if c in tbl.columns]]
         tbl = tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
 
-        def style_result(val):
-            if val == "성공":
-                return "background-color: #FFF59D; color: #E53935;"
-            elif val == "실패":
-                return "color: #1E40AF;"
-            elif val == "중립":
-                return "color: #FF9800;"
-            return ""
-
-        styled_tbl = tbl.style.applymap(style_result, subset=["결과"])
-        st.dataframe(styled_tbl, use_container_width=True)
+        st.dataframe(tbl, use_container_width=True)
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
