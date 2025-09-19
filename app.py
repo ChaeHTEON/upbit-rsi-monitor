@@ -192,9 +192,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     def bb_ok(i):
         hi, lo_px = float(df.at[i,"high"]), float(df.at[i,"low"])
         up, lo, mid = df.at[i,"BB_up"], df.at[i,"BB_low"], df.at[i,"BB_mid"]
-        if bb_cond=="상한선": return pd.notna(up) and (lo_px <= up <= hi)
-        if bb_cond=="중앙선": return pd.notna(mid) and (lo_px <= mid <= hi)
-        if bb_cond=="하한선": return pd.notna(lo) and (lo_px <= lo <= hi)
+        if bb_cond=="상한선": return pd.notna(up) and (lo_px <= float(up) <= hi)
+        if bb_cond=="중앙선": return pd.notna(mid) and (lo_px <= float(mid) <= hi)
+        if bb_cond=="하한선": return pd.notna(lo) and (lo_px <= float(lo) <= hi)
         return False
     rsi_idx = df.index[df["RSI13"] <= 30].tolist() if rsi_side=="RSI ≤ 30 (급락)" else \
               df.index[df["RSI13"] >= 70].tolist() if rsi_side=="RSI ≥ 70 (급등)" else []
