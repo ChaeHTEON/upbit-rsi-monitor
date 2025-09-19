@@ -7,7 +7,6 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import ta
 from datetime import datetime, timedelta
-import numpy as np
 
 # -----------------------------
 # 페이지/스타일
@@ -19,38 +18,28 @@ st.markdown("""
   .stMetric {text-align:center;}
   .section-title {font-size:1.05rem; font-weight:700; margin: 0.6rem 0 0.2rem;}
   .hint {color:#6b7280;}
-  .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
-  .fail-cell {color:#1E40AF; font-weight:600;}
-  .neutral-cell {color:#059669; font-weight:600;}
 </style>
 """, unsafe_allow_html=True)
 
 st.title("📊 Upbit RSI(13) + Bollinger Band 시뮬레이터")
 
 # -----------------------------
-# 업비트 마켓 로드 (네트워크 폴백 포함)
+# 업비트 마켓 로드
 # -----------------------------
 @st.cache_data(ttl=3600)
 def get_upbit_krw_markets():
     url = "https://api.upbit.com/v1/market/all"
-    try:
-        r = requests.get(url, params={"isDetails":"false"}, timeout=8)
-        r.raise_for_status()
-        items = r.json()
-        rows = []
-        for it in items:
-            mk = it.get("market","")
-            if mk.startswith("KRW-"):
-                sym = mk[4:]
-                label = f'{it.get("korean_name","")} ({sym}) — {mk}'
-                rows.append((label, mk))
-        rows.sort(key=lambda x: (x[1] != "KRW-BTC", x[1]))
-        if rows:
-            return rows
-    except Exception:
-        pass
-    # 네트워크 실패 시 폴백
-    return [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
+    r = requests.get(url, params={"isDetails":"false"}, timeout=10)
+    r.raise_for_status()
+    items = r.json()
+    rows = []
+    for it in items:
+        if it["market"].startswith("KRW-"):
+            sym = it["market"][4:]
+            label = f'{it["korean_name"]} ({sym}) — {it["market"]}'
+            rows.append((label, it["market"]))
+    rows.sort(key=lambda x: (x[1] != "KRW-BTC", x[1]))
+    return rows
 
 MARKET_LIST = get_upbit_krw_markets()
 default_idx = next((i for i,(_,code) in enumerate(MARKET_LIST) if code=="KRW-BTC"), 0)
@@ -109,6 +98,7 @@ with c6:
         index=0
     )
 
+# ➜ 볼린저밴드 조건 단순화 (상/중앙/하)  + “걸침(고가~저가가 해당선 포함)” 판정
 c7, c8, c9 = st.columns(3)
 with c7:
     bb_cond = st.selectbox(
@@ -234,7 +224,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     res=[]
     n=len(df); thr=float(thr_pct)
 
-    # (A) 볼린저 조건: “걸침” 판정
+    # (A) 볼린저 조건: “걸침” 판정 (해당 라인값이 그 봉의 [저가, 고가] 사이면 신호)
     def bb_ok(i: int) -> bool:
         if bb_cond == "없음":
             return True
@@ -249,7 +239,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             return pd.notna(lo) and (lo_px <= lo <= hi)
         return False
 
-    # (B) RSI 후보
+    # (B) RSI 후보 (임계값 충족이면 신호)
     rsi_idx = []
     if rsi_side == "RSI ≤ 30 (급락)":
         rsi_idx = df.index[df["RSI13"] <= 30].tolist()
@@ -265,7 +255,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             except Exception:
                 continue
 
-    # (D) 최종 후보 (AND/단독)
+    # (D) 최종 후보 (둘 다 선택 시 AND, 하나만 선택 시 해당 조건만)
     if rsi_side != "없음" and bb_cond != "없음":
         sig_idx = sorted(set(rsi_idx) & set(bb_idx))
     elif rsi_side != "없음":
@@ -281,6 +271,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         if end >= n:
             continue
 
+        # 기준가: (시가 + 저가) / 2
         base = (float(df.at[i,"open"]) + float(df.at[i,"low"])) / 2.0
 
         closes = df.loc[i+1:end, ["time","close"]]
@@ -300,23 +291,10 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
         elif final_ret < 0:
             result = "실패"
 
-        # (BB) 신호 시점의 볼린저 '도달 값' 계산 (선택된 선 기준)
-        bb_value = None
-        if bb_cond == "상한선":
-            val = df.at[i, "BB_up"]
-            bb_value = round(float(val),1) if pd.notna(val) else None
-        elif bb_cond == "중앙선":
-            val = df.at[i, "BB_mid"]
-            bb_value = round(float(val),1) if pd.notna(val) else None
-        elif bb_cond == "하한선":
-            val = df.at[i, "BB_low"]
-            bb_value = round(float(val),1) if pd.notna(val) else None
-
         res.append({
             "신호시간": df.at[i,"time"],
             "기준시가": int(round(base)),
             "RSI(13)": round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
-            "BB값": bb_value,
             "성공기준(%)": round(thr,1),
             "결과": result,
             "도달분": reach_min,
@@ -325,7 +303,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             "최고수익률(%)": round(max_ret, 2),
         })
 
-    out = pd.DataFrame(res, columns=["신호시간","기준시가","RSI(13)","BB값","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"])
+    out = pd.DataFrame(res, columns=["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달분","최종수익률(%)","최저수익률(%)","최고수익률(%)"])
 
     # (F) 중복 제거 옵션
     if not out.empty and dedup_mode.startswith("중복 제거"):
@@ -343,34 +321,6 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     return out
 
 # -----------------------------
-# (보조) 예측 추세선 생성
-# -----------------------------
-def forecast_line(df, minutes_per_bar, bars_for_fit=100):
-    if df.empty:
-        return pd.DataFrame(columns=["time","yhat"])
-    use = df.tail(min(bars_for_fit, len(df))).copy()
-    x = np.arange(len(use))
-    y = use["close"].to_numpy(dtype=float)
-    if len(x) < 2:
-        return pd.DataFrame(columns=["time","yhat"])
-    coef = np.polyfit(x, y, 1)  # 1차 선형
-    a, b = coef[0], coef[1]
-
-    # 앞으로 1일치 예측 길이
-    future_len = 1 if minutes_per_bar >= 1440 else max(1, 1440 // minutes_per_bar)
-    x_future = np.arange(len(use), len(use) + future_len)
-    y_future = a * x_future + b
-
-    # 시간축 생성
-    last_time = use["time"].iloc[-1]
-    if minutes_per_bar >= 1440:  # 일봉
-        times = [last_time + timedelta(days=i) for i in range(1, future_len+1)]
-    else:
-        times = [last_time + timedelta(minutes=minutes_per_bar*i) for i in range(1, future_len+1)]
-
-    return pd.DataFrame({"time": times, "yhat": y_future})
-
-# -----------------------------
 # 실행
 # -----------------------------
 try:
@@ -381,18 +331,16 @@ try:
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt   = datetime.combine(end_date,   datetime.max.time())
 
-    # ✅ 조건 먼저 확인: 둘 다 '없음'이면 외부 호출 없이 즉시 종료 (health-check 대응)
+    df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
+    if df.empty:
+        st.error("데이터가 없습니다.")
+        st.stop()
+
     if rsi_side == "없음" and bb_cond == "없음":
         st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
         st.info("대기중..")
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
         st.info("대기중..")
-        st.stop()
-
-    # 조건이 있는 경우에만 데이터 호출
-    df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
-    if df.empty:
-        st.error("데이터가 없습니다.")
         st.stop()
 
     df = add_indicators(df, bb_window, bb_dev)
@@ -404,14 +352,9 @@ try:
                          "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev)
     res_dedup = simulate(df, rsi_side, lookahead, threshold_pct, bb_cond,
                          "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev)
-    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
-
-    # 예측 추세선 ON/OFF
-    show_forecast = st.toggle("예측 추세선 표시 (1일치)", value=True)
 
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
 
-    # ---- 요약 메트릭 ----
     def _summarize(df_in: pd.DataFrame):
         if df_in is None or df_in.empty:
             return 0,0,0,0,0.0,0.0
@@ -440,6 +383,9 @@ try:
         )
         st.markdown("---")
 
+    # 현재 화면 선택 적용
+    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+
     # ---- 차트 ----
     fig=make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
@@ -454,11 +400,11 @@ try:
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines",
                              line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙", connectgaps=True))
 
-    # 신호 마커/흐름선 (아이콘 위치 보정은 제외)
+    # 신호 마커/흐름선
     if res is not None and not res.empty:
         legend_once = { "신호_성공": False, "신호_실패": False, "신호_중립": False,
                         "목표도달": False, "선_성공": False, "선_실패": False, "선_중립": False }
-        for _label, _color in [("성공","red"), ("실패","blue"), ("중립","#9B59B6")]:  # 중립선 보라색
+        for _label, _color in [("성공","red"), ("실패","blue"), ("중립","#FFD166")]:
             sub = res[res["결과"] == _label]
             if sub.empty: continue
             fig.add_trace(go.Scatter(
@@ -510,30 +456,15 @@ try:
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1,
                   annotation_text="RSI 30", annotation_position="bottom left", yref="y2")
 
-    # 차트 레이아웃 & 조작
-    fig.update_layout(
-        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="zoom",
-        xaxis_rangeslider_visible=False, height=600, autosize=False,
-        legend_orientation="h", legend_y=1.05,
-        margin=dict(l=60, r=40, t=60, b=40),
-        yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
-    )
+    fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+                      xaxis_rangeslider_visible=False, height=600, autosize=False,
+                      legend_orientation="h", legend_y=1.05,
+                      margin=dict(l=60, r=40, t=60, b=40),
+                      yaxis=dict(title="가격"),
+                      yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100]))
+    st.plotly_chart(fig, use_container_width=True)
 
-    # 예측 추세선
-    if show_forecast:
-        fc = forecast_line(df, minutes_per_bar)
-        if not fc.empty:
-            fig.add_trace(go.Scatter(
-                x=fc["time"], y=fc["yhat"], mode="lines",
-                line=dict(color="#6C5CE7", width=2, dash="dash"),
-                name="예측 추세선(1일)"
-            ))
-
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
-
-    # ---- 표 (예전 스타일 + 컬럼 순서) ----
+    # ---- 표 (예전 스타일) ----
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
     if res is not None and not res.empty:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
@@ -541,34 +472,21 @@ try:
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
         if "RSI(13)" in tbl:
             tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        if "BB값" in tbl:
-            tbl["BB값"] = tbl["BB값"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
         for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
             if col in tbl:
                 tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-        # 도달시간 HH:MM (None -> "-")
+        # 도달시간 HH:MM
         def fmt_hhmm(m):
-            if pd.isna(m): return "-"
+            if pd.isna(m): return "None"
             m = int(m); h,mm = divmod(m,60)
             return f"{h:02d}:{mm:02d}"
-        tbl["도달시간"] = res["도달분"].map(fmt_hhmm) if "도달분" in res else "-"
-        if "도달분" in tbl:
+        tbl["도달시간"] = res["도달분"].map(fmt_hhmm) if "도달분" in res else "None"
+        if "도달분" in tbl:  # 사용자는 표에서 분은 숨김
             tbl = tbl.drop(columns=["도달분"])
-
-        # 컬럼 순서 고정
-        cols = ["신호시간","기준시가","RSI(13)","BB값","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
+        # 컬럼 순서 보정
+        cols = ["신호시간","기준시가","RSI(13)","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
         tbl = tbl[[c for c in cols if c in tbl.columns]]
-
-        # 결과별 색상/강조 (Styler 사용)
-        def color_result(s):
-            return [("success-cell" if v=="성공" else "fail-cell" if v=="실패" else "neutral-cell" if v=="중립" else "") for v in s]
-        styled = tbl.style.set_table_styles([
-            {'selector':'th','props':'text-align:center;'}
-        ]).hide_index().set_properties(**{'text-align':'center'}) \
-         .apply(color_result, subset=["결과"])
-
-        # Streamlit는 Styler를 HTML로 렌더 → 상호작용 필요 시 st.dataframe(tbl)로 교체 가능
-        st.write(styled)
+        st.dataframe(tbl, use_container_width=True, hide_index=True)
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
