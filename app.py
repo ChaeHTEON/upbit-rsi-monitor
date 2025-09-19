@@ -327,7 +327,6 @@ try:
                     mode="lines", line=dict(color=_color, width=1.5, dash="dot"),
                     showlegend=False
                 ))
-            ))
             # 신호 흐름 (점선)
             for _, row in sub.iterrows():
                 if pd.notna(row.get("도달분")):  # 도달 시간이 있는 경우만
@@ -384,5 +383,6 @@ try:
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
 
 
