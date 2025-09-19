@@ -8,7 +8,6 @@ from plotly.subplots import make_subplots
 import ta
 from datetime import datetime, timedelta
 import numpy as np
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 # -----------------------------
 # 페이지/스타일
@@ -20,9 +19,6 @@ st.markdown("""
   .stMetric {text-align:center;}
   .section-title {font-size:1.05rem; font-weight:700; margin: 0.6rem 0 0.2rem;}
   .hint {color:#6b7280;}
-  .success-cell {background-color:#FFF59D; color:#E53935;}
-  .fail-cell {color:#1E40AF;}
-  .neutral-cell {color:#059669;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -69,7 +65,7 @@ TF_MAP = {
 }
 
 # -----------------------------
-# 신호 중복 처리
+# (자리 유지) 신호 중복 처리 라디오
 # -----------------------------
 dup_mode = st.radio(
     "신호 중복 처리",
@@ -112,9 +108,6 @@ with c8:
     bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
-
-st.session_state["rsi_side"] = rsi_side
-st.session_state["bb_cond"]  = bb_cond
 
 # -----------------------------
 # 데이터 수집
@@ -182,27 +175,67 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 추세선 (Holt-Winters)
+# 순수 NumPy Holt 선형(이중 지수평활)
 # -----------------------------
+def holt_linear_in_out(y: np.ndarray, steps: int, alpha: float = 0.6, beta: float = 0.3):
+    """과거 one-step 예측(pred_in) + 미래 k-step 예측(pred_out)"""
+    y = np.asarray(y, dtype=float)
+    n = len(y)
+    if n < 3:
+        if n == 0:
+            return np.array([]), np.array([])
+        if n == 1:
+            return np.repeat(y[0], n), np.repeat(y[0], steps)
+        slope = y[1] - y[0]
+        pred_in = np.array([y[0], y[0] + slope])
+        pred_out = np.array([y[-1] + (i+1)*slope for i in range(steps)])
+        return pred_in, pred_out
+
+    l = y[0]; b = y[1] - y[0]
+    pred_in = np.zeros(n)
+    pred_in[0] = y[0]
+    for t in range(1, n):
+        yhat_t = l + b            # t시점 one-step 예측
+        pred_in[t] = yhat_t
+        l_new = alpha * y[t] + (1 - alpha) * (l + b)
+        b_new = beta * (l_new - l) + (1 - beta) * b
+        l, b = l_new, b_new
+
+    pred_out = np.array([l + (i+1)*b for i in range(steps)], dtype=float)
+    return pred_in, pred_out
+
+def holt_autotune(y: np.ndarray):
+    alphas = [0.2, 0.4, 0.6, 0.8]
+    betas  = [0.1, 0.3, 0.5]
+    best = (0.6, 0.3); best_rmse = float("inf")
+    if len(y) < 5:
+        return best
+    for a in alphas:
+        for b in betas:
+            pred_in, _ = holt_linear_in_out(y, steps=1, alpha=a, beta=b)
+            actual = y[1:]; pred = pred_in[1:]
+            rmse = np.sqrt(np.mean((actual - pred)**2))
+            if rmse < best_rmse:
+                best_rmse = rmse; best = (a, b)
+    return best
+
 def forecast_curve(df, minutes_per_bar):
-    if df.empty: return pd.DataFrame(columns=["time","curve"])
+    if df.empty:
+        return pd.DataFrame(columns=["time","curve"]), np.array([]), np.array([])
     y = df["close"].astype(float).values
-    try:
-        model = ExponentialSmoothing(y, trend="add", seasonal=None)
-        fit = model.fit()
-        fitted = fit.fittedvalues
-        steps = 1 if minutes_per_bar >= 1440 else max(1, 1440 // minutes_per_bar)
-        forecast = fit.forecast(steps)
-        past_times = df["time"].values
-        if minutes_per_bar >= 1440:
-            future_times = [df["time"].iloc[-1] + timedelta(days=i) for i in range(1, steps+1)]
-        else:
-            future_times = [df["time"].iloc[-1] + timedelta(minutes=minutes_per_bar*i) for i in range(1, steps+1)]
-        times = list(past_times) + future_times
-        curve = list(fitted) + list(forecast)
-        return pd.DataFrame({"time": times, "curve": curve})
-    except Exception:
-        return pd.DataFrame(columns=["time","curve"])
+    steps = 1 if minutes_per_bar >= 1440 else max(1, 1440 // minutes_per_bar)
+    a, b = holt_autotune(y)
+    pred_in, pred_out = holt_linear_in_out(y, steps=steps, alpha=a, beta=b)
+
+    past_times = df["time"].values
+    if minutes_per_bar >= 1440:
+        future_times = [df["time"].iloc[-1] + timedelta(days=i) for i in range(1, steps+1)]
+    else:
+        future_times = [df["time"].iloc[-1] + timedelta(minutes=minutes_per_bar*i) for i in range(1, steps+1)]
+
+    times = list(past_times) + future_times
+    curve = list(pred_in) + list(pred_out)
+    return pd.DataFrame({"time": times, "curve": curve}), pred_in, pred_out
 
 # -----------------------------
 # 실행
@@ -217,13 +250,13 @@ try:
 
     df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty:
-        st.error("데이터가 없습니다.")
-        st.stop()
+        st.error("데이터가 없습니다."); st.stop()
 
     df = add_indicators(df, bb_window, bb_dev)
 
-    # 예측 추세선 ON/OFF
+    # 예측 표시 및 적중률 허용오차
     show_forecast = st.checkbox("예측 추세선 표시 (1일치)", value=True)
+    tol_pct = st.slider("예측 허용오차(%) — 실제 종가가 예측선 ±오차 이내면 적중", 0.5, 5.0, 2.0, 0.5)
 
     # -----------------------------
     # 차트
@@ -240,13 +273,39 @@ try:
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines",
                              line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"))
 
+    acc_stats = None
     if show_forecast:
-        fc = forecast_curve(df, minutes_per_bar)
-        if not fc.empty:
+        fc_df, pred_in, pred_out = forecast_curve(df, minutes_per_bar)
+        if not fc_df.empty:
             fig.add_trace(go.Scatter(
-                x=fc["time"], y=fc["curve"], mode="lines",
+                x=fc_df["time"], y=fc_df["curve"], mode="lines",
                 line=dict(color="red", width=2), name="추세선(과거+예측)"
             ))
+
+            # ----- 적중률 통계(과거 one-step 예측 vs 실제) -----
+            y = df["close"].astype(float).values
+            if len(y) >= 3:
+                actual = y[1:]        # t 시점 실제
+                pred   = pred_in[1:]  # t 시점 one-step 예측(직전상태)
+                # 허용오차 적중률
+                hit = np.abs(actual - pred) / np.maximum(1e-12, np.abs(actual)) * 100.0 <= tol_pct
+                hit_rate = float(hit.mean()*100.0)
+
+                # 방향 적중률 (이전 실제 대비 방향)
+                d_actual = actual - y[:-1]
+                d_pred   = pred   - y[:-1]
+                dir_match = np.sign(d_actual) == np.sign(d_pred)
+                dir_acc = float(dir_match.mean()*100.0)
+
+                # RMSE% / MAPE%
+                rmse_pct = float(np.sqrt(np.mean(((actual - pred)/np.maximum(1e-12, np.abs(actual)))**2))*100.0)
+                mape_pct = float(np.mean(np.abs((actual - pred)/np.maximum(1e-12, np.abs(actual))))*100.0)
+
+                acc_stats = {"N": len(actual),
+                             "hit_rate": hit_rate,
+                             "dir_acc": dir_acc,
+                             "rmse_pct": rmse_pct,
+                             "mape_pct": mape_pct}
 
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
@@ -257,6 +316,18 @@ try:
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
     )
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
+
+    # -----------------------------
+    # 적중률 요약 메트릭
+    # -----------------------------
+    if acc_stats is not None:
+        st.markdown('<div class="section-title">③ 예측 적중률 통계 (과거 구간)</div>', unsafe_allow_html=True)
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("표본 N", f"{acc_stats['N']}")
+        m2.metric(f"허용오차 적중률 (±{tol_pct:.1f}%)", f"{acc_stats['hit_rate']:.1f}%")
+        m3.metric("방향 적중률", f"{acc_stats['dir_acc']:.1f}%")
+        m4.metric("RMSE%", f"{acc_stats['rmse_pct']:.2f}%")
+        m5.metric("MAPE%", f"{acc_stats['mape_pct']:.2f}%")
 
 except Exception as e:
     st.error(f"오류: {e}")
