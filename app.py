@@ -202,6 +202,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
     elif rsi_side!="없음": sig_idx=rsi_idx
     elif bb_cond!="없음": sig_idx=bb_idx
     else: sig_idx=[]
+
     i = 0
     while i < n:
         if i in sig_idx:
@@ -232,12 +233,15 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
                     "성공기준(%)": round(thr,1), "결과": result, "도달분": reach_min,
                     "최종수익률(%)": round(final_ret,2), "최저수익률(%)": round(min_ret,2), "최고수익률(%)": round(max_ret,2)
                 })
-            # N봉 측정 끝날 때까지 건너뛰기
-            i = end
+            # ✅ 중복 포함/제거 모드 차이
+            if dedup_mode.startswith("중복 제거"):
+                i = end   # N봉 건너뛰기
+            else:
+                i += 1   # 다음 봉부터 검사 (연속 신호 허용)
         else:
             i += 1
-    out = pd.DataFrame(res)
-    return out
+
+    return pd.DataFrame(res)
 
 # -----------------------------
 # 실행
@@ -314,17 +318,15 @@ try:
         if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
         cols=["신호시간","기준시가","RSI(13)","BB값","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
         tbl=tbl[[c for c in cols if c in tbl.columns]]
-        # 컬럼 순서 맞추기
         tbl = tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
 
-        # 결과 색상 적용 (성공은 배경 강조 포함)
         def style_result(val):
             if val == "성공":
-                return "background-color: #FFF59D; color: #E53935;"  # 옅은 노랑 배경 + 빨강 글씨
+                return "background-color: #FFF59D; color: #E53935;"
             elif val == "실패":
-                return "color: #1E40AF;"  # 파랑
+                return "color: #1E40AF;"
             elif val == "중립":
-                return "color: #059669;"  # 초록
+                return "color: #059669;"
             return ""
 
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"])
@@ -332,5 +334,3 @@ try:
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
-
-
