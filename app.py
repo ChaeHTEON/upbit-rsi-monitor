@@ -286,11 +286,29 @@ try:
     fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
     if not res.empty:
+            if not res.empty:
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#9B59B6")]:
             sub=res[res["결과"]==_label]
             if sub.empty: continue
-            fig.add_trace(go.Scatter(x=sub["신호시간"],y=sub["기준시가"],mode="markers",name=f"신호({_label})",
-                                     marker=dict(size=9,color=_color,symbol="circle",line=dict(width=1,color="black"))))
+            # 신호 마커
+            fig.add_trace(go.Scatter(
+                x=sub["신호시간"], y=sub["기준시가"],
+                mode="markers", name=f"신호({_label})",
+                marker=dict(size=9,color=_color,symbol="circle",line=dict(width=1,color="black"))
+            ))
+            # 신호 흐름 (점선)
+            for _, row in sub.iterrows():
+                if pd.notna(row.get("도달분")):  # 도달 시간이 있는 경우만
+                    start_x = row["신호시간"]
+                    start_y = row["기준시가"]
+                    # 도달 시점 계산
+                    end_x = pd.to_datetime(row["신호시간"]) + timedelta(minutes=int(row["도달분"]))
+                    end_y = start_y  # 시가 기준 위치까지 도달
+                    fig.add_trace(go.Scatter(
+                        x=[start_x, end_x], y=[start_y, end_y],
+                        mode="lines", line=dict(color=_color, width=1.5, dash="dot"),
+                        showlegend=False
+                    ))
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="rgba(42,157,143,0.3)",width=6),yaxis="y2",showlegend=False))
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="#2A9D8F",width=2.4,dash="dot"),name="RSI(13)",yaxis="y2"))
     fig.add_hline(y=70,line_dash="dash",line_color="#E63946",line_width=1.1,yref="y2")
@@ -334,3 +352,4 @@ try:
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
