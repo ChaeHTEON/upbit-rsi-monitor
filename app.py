@@ -309,21 +309,22 @@ try:
         if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
         cols=["신호시간","기준시가","RSI(13)","BB값","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
         tbl=tbl[[c for c in cols if c in tbl.columns]]
-        def color_result(val):
-            if val=="성공": return "success-cell"
-            elif val=="실패": return "fail-cell"
-            elif val=="중립": return "neutral-cell"
+        # 컬럼 순서 맞추기
+        tbl = tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
+
+        # 결과 색상 적용 (성공은 배경 강조 포함)
+        def style_result(val):
+            if val == "성공":
+                return "background-color: #FFF59D; color: #E53935;"  # 옅은 노랑 배경 + 빨강 글씨
+            elif val == "실패":
+                return "color: #1E40AF;"  # 파랑
+            elif val == "중립":
+                return "color: #059669;"  # 초록
             return ""
-        # HTML 생성
-        html="<table><thead><tr>"+"".join([f"<th>{c}</th>" for c in tbl.columns])+"</tr></thead><tbody>"
-        for _,row in tbl.iterrows():
-            html+="<tr>"
-            for c in tbl.columns:
-                cls=color_result(row["결과"]) if c=="결과" else ""
-                html+=f"<td class='{cls}'>{row[c]}</td>"
-            html+="</tr>"
-        html+="</tbody></table>"
-        st.markdown(html,unsafe_allow_html=True)
+
+        styled_tbl = tbl.style.applymap(style_result, subset=["결과"])
+        st.dataframe(styled_tbl, use_container_width=True)
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
