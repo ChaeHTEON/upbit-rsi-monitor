@@ -286,15 +286,47 @@ try:
     fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
     if not res.empty:
-            if not res.empty:
+        # 도착 시점의 '시가'를 빠르게 찾기 위한 맵 (정확 매칭 우선)
+        open_by_time = df.set_index("time")["open"]
+
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#9B59B6")]:
-            sub=res[res["결과"]==_label]
-            if sub.empty: continue
-            # 신호 마커
+            sub = res[res["결과"] == _label]
+            if sub.empty:
+                continue
+
+            # 1) 신호 마커 (기존과 동일)
             fig.add_trace(go.Scatter(
                 x=sub["신호시간"], y=sub["기준시가"],
                 mode="markers", name=f"신호({_label})",
-                marker=dict(size=9,color=_color,symbol="circle",line=dict(width=1,color="black"))
+                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
+            ))
+
+            # 2) 신호 흐름 (점선) : 시작=신호시간/기준시가, 끝=도달시각/그 시점의 '시가'
+            for _, row in sub.iterrows():
+                v = row.get("도달분")
+                if pd.isna(v):
+                    continue  # 도달하지 못한 케이스는 라인 생략
+
+                start_x = row["신호시간"]
+                start_y = row["기준시가"]
+                end_x = pd.to_datetime(start_x) + pd.to_timedelta(int(v), unit="m")
+
+                # 우선 정확 매칭 시가 시도
+                end_y = open_by_time.get(end_x, np.nan)
+
+                # 정확 매칭이 없으면 "가장 가까운 미래 봉"의 시가를 폴백으로 사용
+                if pd.isna(end_y):
+                    next_idx = df["time"].searchsorted(end_x, side="left")
+                    if 0 <= next_idx < len(df):
+                        end_y = float(df.iloc[next_idx]["open"])
+                    else:
+                        end_y = float(start_y)  # 폴백 실패 시 수평선 처리
+
+                fig.add_trace(go.Scatter(
+                    x=[start_x, end_x], y=[start_y, end_y],
+                    mode="lines", line=dict(color=_color, width=1.5, dash="dot"),
+                    showlegend=False
+                ))
             ))
             # 신호 흐름 (점선)
             for _, row in sub.iterrows():
@@ -352,4 +384,5 @@ try:
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
 
