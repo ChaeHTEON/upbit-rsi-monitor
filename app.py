@@ -406,8 +406,8 @@ try:
                          "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev)
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
-    # 예측 추세선 ON/OFF
-    show_forecast = st.toggle("예측 추세선 표시 (1일치)", value=True)
+    # 예측 추세선 ON/OFF (Streamlit 1.25.0 호환)
+    show_forecast = st.checkbox("예측 추세선 표시 (1일치)", value=True)
 
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
 
@@ -573,3 +573,4 @@ try:
         st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
