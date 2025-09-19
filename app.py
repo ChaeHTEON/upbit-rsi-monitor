@@ -19,6 +19,11 @@ st.markdown("""
   .stMetric {text-align:center;}
   .section-title {font-size:1.05rem; font-weight:700; margin: 0.6rem 0 0.2rem;}
   .hint {color:#6b7280;}
+  .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
+  .fail-cell {color:#1E40AF; font-weight:600;}
+  .neutral-cell {color:#059669; font-weight:600;}
+  table {border-collapse:collapse; width:100%;}
+  th, td {border:1px solid #ddd; padding:6px; text-align:center;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -65,7 +70,7 @@ TF_MAP = {
 }
 
 # -----------------------------
-# (자리 유지) 신호 중복 처리 라디오
+# 상단: 신호 중복 처리
 # -----------------------------
 dup_mode = st.radio(
     "신호 중복 처리",
@@ -99,15 +104,26 @@ with c4:
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, step=0.1)
 with c6:
-    rsi_side = st.selectbox("RSI 조건", ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"], index=0)
+    rsi_side = st.selectbox(
+        "RSI 조건",
+        ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)"],
+        index=0
+    )
 
 c7, c8, c9 = st.columns(3)
 with c7:
-    bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
+    bb_cond = st.selectbox(
+        "볼린저밴드 조건",
+        ["없음", "상한선", "중앙선", "하한선"],
+        index=0,
+    )
 with c8:
     bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
+
+st.session_state["rsi_side"] = rsi_side
+st.session_state["bb_cond"]  = bb_cond
 
 # -----------------------------
 # 데이터 수집
@@ -128,39 +144,30 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
         url = "https://api.upbit.com/v1/candles/days"
-
     calls_est = estimate_calls(start_dt, end_dt, minutes_per_bar)
     max_calls = min(calls_est + 2, 60)
     req_count = 200
     all_data, to_time = [], end_dt
-    progress = st.progress(0.0)
     try:
-        for done in range(max_calls):
+        for _ in range(max_calls):
             params = {"market": market_code, "count": req_count, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
             r = _session.get(url, params=params, headers={"Accept":"application/json"}, timeout=10)
             r.raise_for_status()
             batch = r.json()
-            if not batch:
-                break
+            if not batch: break
             all_data.extend(batch)
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_dt:
-                break
+            if last_ts <= start_dt: break
             to_time = last_ts - timedelta(seconds=1)
-            progress.progress(min(1.0, (done + 1) / max(1, max_calls)))
-    finally:
-        progress.empty()
-
-    if not all_data:
+    except Exception:
         return pd.DataFrame()
-
+    if not all_data: return pd.DataFrame()
     df = pd.DataFrame(all_data).rename(columns={
         "candle_date_time_kst":"time","opening_price":"open","high_price":"high",
         "low_price":"low","trade_price":"close","candle_acc_trade_volume":"volume"})
     df["time"] = pd.to_datetime(df["time"])
     df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
-    df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)]
-    return df
+    return df[(df["time"] >= start_dt) & (df["time"] <= end_dt)]
 
 # -----------------------------
 # 지표
@@ -175,159 +182,168 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 순수 NumPy Holt 선형(이중 지수평활)
+# 시뮬레이션
 # -----------------------------
-def holt_linear_in_out(y: np.ndarray, steps: int, alpha: float = 0.6, beta: float = 0.3):
-    """과거 one-step 예측(pred_in) + 미래 k-step 예측(pred_out)"""
-    y = np.asarray(y, dtype=float)
-    n = len(y)
-    if n < 3:
-        if n == 0:
-            return np.array([]), np.array([])
-        if n == 1:
-            return np.repeat(y[0], n), np.repeat(y[0], steps)
-        slope = y[1] - y[0]
-        pred_in = np.array([y[0], y[0] + slope])
-        pred_out = np.array([y[-1] + (i+1)*slope for i in range(steps)])
-        return pred_in, pred_out
+def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
+             minutes_per_bar, market_code, bb_window, bb_dev):
+    res=[]
+    n=len(df); thr=float(thr_pct)
+    def bb_ok(i):
+        hi, lo_px = float(df.at[i,"high"]), float(df.at[i,"low"])
+        up, lo, mid = df.at[i,"BB_up"], df.at[i,"BB_low"], df.at[i,"BB_mid"]
+        if bb_cond=="상한선": return pd.notna(up) and (lo_px <= up <= hi)
+        if bb_cond=="중앙선": return pd.notna(mid) and (lo_px <= mid <= hi)
+        if bb_cond=="하한선": return pd.notna(lo) and (lo_px <= lo <= hi)
+        return False
+    rsi_idx = df.index[df["RSI13"] <= 30].tolist() if rsi_side=="RSI ≤ 30 (급락)" else \
+              df.index[df["RSI13"] >= 70].tolist() if rsi_side=="RSI ≥ 70 (급등)" else []
+    bb_idx = [i for i in df.index if bb_ok(i)] if bb_cond!="없음" else []
+    if rsi_side!="없음" and bb_cond!="없음": sig_idx=sorted(set(rsi_idx)&set(bb_idx))
+    elif rsi_side!="없음": sig_idx=rsi_idx
+    elif bb_cond!="없음": sig_idx=bb_idx
+    else: sig_idx=[]
+    for i in sig_idx:
+        end=i+lookahead
+        if end>=n: continue
+        base=(float(df.at[i,"open"])+float(df.at[i,"low"]))/2.0
+        closes=df.loc[i+1:end,["time","close"]]
+        if closes.empty: continue
+        final_ret=(closes.iloc[-1]["close"]/base-1)*100
+        min_ret=(closes["close"].min()/base-1)*100
+        max_ret=(closes["close"].max()/base-1)*100
+        result="중립"; reach_min=None
+        if max_ret>=thr:
+            first_hit=closes[closes["close"]>=base*(1+thr/100)]
+            if not first_hit.empty:
+                reach_min=int((first_hit.iloc[0]["time"]-df.at[i,"time"]).total_seconds()//60)
+            result="성공"
+        elif final_ret<0: result="실패"
+        bb_value=None
+        if bb_cond=="상한선": bb_value=df.at[i,"BB_up"]
+        elif bb_cond=="중앙선": bb_value=df.at[i,"BB_mid"]
+        elif bb_cond=="하한선": bb_value=df.at[i,"BB_low"]
+        res.append({
+            "신호시간":df.at[i,"time"],"기준시가":int(round(base)),
+            "RSI(13)":round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
+            "BB값":round(float(bb_value),1) if bb_value is not None else None,
+            "성공기준(%)":round(thr,1),"결과":result,"도달분":reach_min,
+            "최종수익률(%)":round(final_ret,2),"최저수익률(%)":round(min_ret,2),"최고수익률(%)":round(max_ret,2)})
+    out=pd.DataFrame(res)
+    if not out.empty and dedup_mode.startswith("중복 제거"):
+        out["분"]=pd.to_datetime(out["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+        out=out.drop_duplicates(subset=["분"],keep="first").drop(columns=["분"])
+    return out
 
-    l = y[0]; b = y[1] - y[0]
-    pred_in = np.zeros(n)
-    pred_in[0] = y[0]
-    for t in range(1, n):
-        yhat_t = l + b            # t시점 one-step 예측
-        pred_in[t] = yhat_t
-        l_new = alpha * y[t] + (1 - alpha) * (l + b)
-        b_new = beta * (l_new - l) + (1 - beta) * b
-        l, b = l_new, b_new
-
-    pred_out = np.array([l + (i+1)*b for i in range(steps)], dtype=float)
-    return pred_in, pred_out
-
-def holt_autotune(y: np.ndarray):
-    alphas = [0.2, 0.4, 0.6, 0.8]
-    betas  = [0.1, 0.3, 0.5]
-    best = (0.6, 0.3); best_rmse = float("inf")
-    if len(y) < 5:
-        return best
-    for a in alphas:
-        for b in betas:
-            pred_in, _ = holt_linear_in_out(y, steps=1, alpha=a, beta=b)
-            actual = y[1:]; pred = pred_in[1:]
-            rmse = np.sqrt(np.mean((actual - pred)**2))
-            if rmse < best_rmse:
-                best_rmse = rmse; best = (a, b)
-    return best
-
-def forecast_curve(df, minutes_per_bar):
-    if df.empty:
-        return pd.DataFrame(columns=["time","curve"]), np.array([]), np.array([])
-    y = df["close"].astype(float).values
-    steps = 1 if minutes_per_bar >= 1440 else max(1, 1440 // minutes_per_bar)
-    a, b = holt_autotune(y)
-    pred_in, pred_out = holt_linear_in_out(y, steps=steps, alpha=a, beta=b)
-
-    past_times = df["time"].values
-    if minutes_per_bar >= 1440:
-        future_times = [df["time"].iloc[-1] + timedelta(days=i) for i in range(1, steps+1)]
-    else:
-        future_times = [df["time"].iloc[-1] + timedelta(minutes=minutes_per_bar*i) for i in range(1, steps+1)]
-
-    times = list(past_times) + future_times
-    curve = list(pred_in) + list(pred_out)
-    return pd.DataFrame({"time": times, "curve": curve}), pred_in, pred_out
+# -----------------------------
+# 예측 추세선
+# -----------------------------
+def forecast_line(df, minutes_per_bar, bars_for_fit=100):
+    if df.empty: return pd.DataFrame(columns=["time","yhat"])
+    use=df.tail(min(bars_for_fit,len(df)))
+    x=np.arange(len(use)); y=use["close"].to_numpy(dtype=float)
+    if len(x)<2: return pd.DataFrame(columns=["time","yhat"])
+    a,b=np.polyfit(x,y,1)
+    future_len=1 if minutes_per_bar>=1440 else max(1,1440//minutes_per_bar)
+    x_future=np.arange(len(use),len(use)+future_len)
+    y_future=a*x_future+b
+    last_time=use["time"].iloc[-1]
+    times=[last_time+timedelta(minutes=minutes_per_bar*i) for i in range(1,future_len+1)]
+    return pd.DataFrame({"time":times,"yhat":y_future})
 
 # -----------------------------
 # 실행
 # -----------------------------
 try:
-    if start_date > end_date:
-        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
-        st.stop()
+    if start_date > end_date: st.error("시작 날짜가 종료 날짜보다 이후입니다."); st.stop()
+    start_dt=datetime.combine(start_date, datetime.min.time())
+    end_dt=datetime.combine(end_date, datetime.max.time())
+    if rsi_side=="없음" and bb_cond=="없음":
+        st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
+        st.info("대기중.."); st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True); st.info("대기중.."); st.stop()
+    df=fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
+    if df.empty: st.error("데이터가 없습니다."); st.stop()
+    df=add_indicators(df, bb_window, bb_dev)
+    rsi_side=st.session_state.get("rsi_side", rsi_side); bb_cond=st.session_state.get("bb_cond", bb_cond)
+    res_all=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 포함 (연속 신호 모두)",minutes_per_bar,market_code,bb_window,bb_dev)
+    res_dedup=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 제거 (연속 동일 결과 1개)",minutes_per_bar,market_code,bb_window,bb_dev)
+    res=res_all if dup_mode.startswith("중복 포함") else res_dedup
+    show_forecast=st.checkbox("예측 추세선 표시 (1일치)", value=True)
 
-    start_dt = datetime.combine(start_date, datetime.min.time())
-    end_dt   = datetime.combine(end_date,   datetime.max.time())
+    # 요약 메트릭
+    def _summarize(df_in):
+        if df_in is None or df_in.empty: return 0,0,0,0,0.0,0.0
+        total=len(df_in); succ=(df_in["결과"]=="성공").sum(); fail=(df_in["결과"]=="실패").sum(); neu=(df_in["결과"]=="중립").sum()
+        win=succ/total*100 if total else 0.0; total_final=df_in["최종수익률(%)"].sum()
+        return total,succ,fail,neu,win,total_final
+    for label, data in [("중복 포함 (연속 신호 모두)",res_all),("중복 제거 (연속 동일 결과 1개)",res_dedup)]:
+        total,succ,fail,neu,win,total_final=_summarize(data)
+        st.markdown(f"**{label}**")
+        c1,c2,c3,c4,c5,c6=st.columns(6)
+        c1.metric("신호 수",f"{total}"); c2.metric("성공",f"{succ}"); c3.metric("실패",f"{fail}")
+        c4.metric("중립",f"{neu}"); c5.metric("승률",f"{win:.1f}%")
+        col="red" if total_final>0 else "blue" if total_final<0 else "black"
+        c6.markdown(f"<div style='font-weight:600;'>최종수익률 합계: <span style='color:{col}; font-size:1.1rem'>{total_final:.1f}%</span></div>",unsafe_allow_html=True)
+        st.markdown("---")
 
-    df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
-    if df.empty:
-        st.error("데이터가 없습니다."); st.stop()
-
-    df = add_indicators(df, bb_window, bb_dev)
-
-    # 예측 표시 및 적중률 허용오차
-    show_forecast = st.checkbox("예측 추세선 표시 (1일치)", value=True)
-    tol_pct = st.slider("예측 허용오차(%) — 실제 종가가 예측선 ±오차 이내면 적중", 0.5, 5.0, 2.0, 0.5)
-
-    # -----------------------------
     # 차트
-    # -----------------------------
-    fig=make_subplots(rows=1, cols=1)
-    fig.add_trace(go.Candlestick(
-        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
-    ))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
-                             line=dict(color="#FFB703", width=1.4), name="BB 상단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines",
-                             line=dict(color="#219EBC", width=1.4), name="BB 하단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines",
-                             line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"))
+    fig=make_subplots(rows=1,cols=1)
+    fig.add_trace(go.Candlestick(x=df["time"],open=df["open"],high=df["high"],low=df["low"],close=df["close"],
+                                 name="가격",increasing_line_color="red",decreasing_line_color="blue",line=dict(width=1.1)))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["BB_up"],mode="lines",line=dict(color="#FFB703",width=1.4),name="BB 상단"))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["BB_low"],mode="lines",line=dict(color="#219EBC",width=1.4),name="BB 하단"))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
-    acc_stats = None
+    if not res.empty:
+        for _label,_color in [("성공","red"),("실패","blue"),("중립","#9B59B6")]:
+            sub=res[res["결과"]==_label]
+            if sub.empty: continue
+            fig.add_trace(go.Scatter(x=sub["신호시간"],y=sub["기준시가"],mode="markers",name=f"신호({_label})",
+                                     marker=dict(size=9,color=_color,symbol="circle",line=dict(width=1,color="black"))))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="rgba(42,157,143,0.3)",width=6),yaxis="y2",showlegend=False))
+    fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="#2A9D8F",width=2.4,dash="dot"),name="RSI(13)",yaxis="y2"))
+    fig.add_hline(y=70,line_dash="dash",line_color="#E63946",line_width=1.1,yref="y2")
+    fig.add_hline(y=30,line_dash="dash",line_color="#457B9D",line_width=1.1,yref="y2")
+    fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+                      dragmode="zoom",xaxis_rangeslider_visible=False,height=600,legend_orientation="h",legend_y=1.05,
+                      margin=dict(l=60,r=40,t=60,b=40),yaxis=dict(title="가격"),
+                      yaxis2=dict(overlaying="y",side="right",showgrid=False,title="RSI(13)",range=[0,100]))
     if show_forecast:
-        fc_df, pred_in, pred_out = forecast_curve(df, minutes_per_bar)
-        if not fc_df.empty:
-            fig.add_trace(go.Scatter(
-                x=fc_df["time"], y=fc_df["curve"], mode="lines",
-                line=dict(color="red", width=2), name="추세선(과거+예측)"
-            ))
+        fc=forecast_line(df,minutes_per_bar)
+        if not fc.empty: fig.add_trace(go.Scatter(x=fc["time"],y=fc["yhat"],mode="lines",line=dict(color="#6C5CE7",width=2,dash="dash"),name="예측 추세선(1일)"))
+    st.plotly_chart(fig,use_container_width=True,config={"scrollZoom":True,"doubleClick":"reset"})
 
-            # ----- 적중률 통계(과거 one-step 예측 vs 실제) -----
-            y = df["close"].astype(float).values
-            if len(y) >= 3:
-                actual = y[1:]        # t 시점 실제
-                pred   = pred_in[1:]  # t 시점 one-step 예측(직전상태)
-                # 허용오차 적중률
-                hit = np.abs(actual - pred) / np.maximum(1e-12, np.abs(actual)) * 100.0 <= tol_pct
-                hit_rate = float(hit.mean()*100.0)
-
-                # 방향 적중률 (이전 실제 대비 방향)
-                d_actual = actual - y[:-1]
-                d_pred   = pred   - y[:-1]
-                dir_match = np.sign(d_actual) == np.sign(d_pred)
-                dir_acc = float(dir_match.mean()*100.0)
-
-                # RMSE% / MAPE%
-                rmse_pct = float(np.sqrt(np.mean(((actual - pred)/np.maximum(1e-12, np.abs(actual)))**2))*100.0)
-                mape_pct = float(np.mean(np.abs((actual - pred)/np.maximum(1e-12, np.abs(actual))))*100.0)
-
-                acc_stats = {"N": len(actual),
-                             "hit_rate": hit_rate,
-                             "dir_acc": dir_acc,
-                             "rmse_pct": rmse_pct,
-                             "mape_pct": mape_pct}
-
-    fig.update_layout(
-        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="zoom", xaxis_rangeslider_visible=False, height=600, autosize=False,
-        legend_orientation="h", legend_y=1.05,
-        margin=dict(l=60,r=40,t=60,b=40),
-        yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0,100])
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
-
-    # -----------------------------
-    # 적중률 요약 메트릭
-    # -----------------------------
-    if acc_stats is not None:
-        st.markdown('<div class="section-title">③ 예측 적중률 통계 (과거 구간)</div>', unsafe_allow_html=True)
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("표본 N", f"{acc_stats['N']}")
-        m2.metric(f"허용오차 적중률 (±{tol_pct:.1f}%)", f"{acc_stats['hit_rate']:.1f}%")
-        m3.metric("방향 적중률", f"{acc_stats['dir_acc']:.1f}%")
-        m4.metric("RMSE%", f"{acc_stats['rmse_pct']:.2f}%")
-        m5.metric("MAPE%", f"{acc_stats['mape_pct']:.2f}%")
-
+    # 표
+    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+    if not res.empty:
+        tbl=res.sort_values("신호시간",ascending=False).reset_index(drop=True).copy()
+        tbl["신호시간"]=pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+        tbl["기준시가"]=tbl["기준시가"].map(lambda v:f"{int(v):,}")
+        if "RSI(13)" in tbl: tbl["RSI(13)"]=tbl["RSI(13)"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
+        if "BB값" in tbl: tbl["BB값"]=tbl["BB값"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
+        for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
+            if col in tbl: tbl[col]=tbl[col].map(lambda v:f"{v:.2f}%" if pd.notna(v) else "")
+        def fmt_hhmm(m): 
+            if pd.isna(m): return "-"
+            m=int(m); h,mm=divmod(m,60); return f"{h:02d}:{mm:02d}"
+        tbl["도달시간"]=res["도달분"].map(fmt_hhmm) if "도달분" in res else "-"
+        if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
+        cols=["신호시간","기준시가","RSI(13)","BB값","성공기준(%)","결과","도달시간","최종수익률(%)","최저수익률(%)","최고수익률(%)"]
+        tbl=tbl[[c for c in cols if c in tbl.columns]]
+        def color_result(val):
+            if val=="성공": return "success-cell"
+            elif val=="실패": return "fail-cell"
+            elif val=="중립": return "neutral-cell"
+            return ""
+        # HTML 생성
+        html="<table><thead><tr>"+"".join([f"<th>{c}</th>" for c in tbl.columns])+"</tr></thead><tbody>"
+        for _,row in tbl.iterrows():
+            html+="<tr>"
+            for c in tbl.columns:
+                cls=color_result(row["결과"]) if c=="결과" else ""
+                html+=f"<td class='{cls}'>{row[c]}</td>"
+            html+="</tr>"
+        html+="</tbody></table>"
+        st.markdown(html,unsafe_allow_html=True)
+    else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
