@@ -182,6 +182,19 @@ def add_indicators(df, bb_window, bb_dev):
     out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
     return out
 
+# --------- 안전 스칼라 변환 헬퍼 ---------
+def _to_float_safe(x):
+    try:
+        return float(x)
+    except Exception:
+        if hasattr(x, "iloc") and len(x) > 0:
+            try:
+                return float(x.iloc[0])
+            except Exception:
+                return np.nan
+        return np.nan
+# ----------------------------------------
+
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
@@ -234,11 +247,10 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
                     "성공기준(%)": round(thr,1), "결과": result, "도달분": reach_min,
                     "최종수익률(%)": round(final_ret,2), "최저수익률(%)": round(min_ret,2), "최고수익률(%)": round(max_ret,2)
                 })
-            # ✅ 중복 포함/제거 모드 차이
             if dedup_mode.startswith("중복 제거"):
-                i = end   # N봉 건너뛰기
+                i = end
             else:
-                i += 1   # 다음 봉부터 검사 (연속 신호 허용)
+                i += 1
         else:
             i += 1
 
@@ -287,22 +299,18 @@ try:
     fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
     if not res.empty:
-        # 도착 시점의 '시가' 조회용
         open_by_time = df.set_index("time")["open"]
 
-        # ✅ 중립 색상 주황(#FF9800), 실패/중립 흐릿 처리(opacity)
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
             sub = res[res["결과"] == _label]
             if sub.empty: continue
 
-            # 신호 마커
             fig.add_trace(go.Scatter(
                 x=sub["신호시간"], y=sub["기준시가"],
                 mode="markers", name=f"신호({_label})",
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
 
-            # 성공 지점 스타 표시
             if _label == "성공":
                 for _, row in sub.iterrows():
                     if pd.notna(row.get("도달분")):
@@ -315,17 +323,18 @@ try:
                             showlegend=False
                         ))
 
-            # 신호 흐름 점선(성공 진하게, 실패/중립 옅게)
             for _, row in sub.iterrows():
                 v = row.get("도달분")
                 if pd.isna(v): continue
                 start_x = row["신호시간"]; start_y = row["기준시가"]
                 end_x = pd.to_datetime(start_x) + pd.to_timedelta(int(v), unit="m")
-                end_y = open_by_time.get(end_x, np.nan)
-                if pd.isna(end_y):
+                end_y = _to_float_safe(open_by_time.get(end_x, np.nan))
+                if np.isnan(end_y):
                     next_idx = df["time"].searchsorted(end_x, side="left")
-                    if 0 <= next_idx < len(df): end_y = float(df.iloc[next_idx]["open"])
-                    else: end_y = float(start_y)
+                    if 0 <= next_idx < len(df):
+                        end_y = float(df.iloc[next_idx]["open"])
+                    else:
+                        end_y = float(start_y)
                 if _label == "성공":
                     fig.add_trace(go.Scatter(
                         x=[start_x, end_x], y=[start_y, end_y],
@@ -339,7 +348,6 @@ try:
                         opacity=0.35, showlegend=False
                     ))
 
-    # RSI
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="rgba(42,157,143,0.3)",width=6),yaxis="y2",showlegend=False))
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",line=dict(color="#2A9D8F",width=2.4,dash="dot"),name="RSI(13)",yaxis="y2"))
     fig.add_hline(y=70,line_dash="dash",line_color="#E63946",line_width=1.1,yref="y2")
@@ -350,7 +358,6 @@ try:
                       yaxis2=dict(overlaying="y",side="right",showgrid=False,title="RSI(13)",range=[0,100]))
     st.plotly_chart(fig,use_container_width=True,config={"scrollZoom":True,"doubleClick":"reset"})
 
-    # 표
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
     if not res.empty:
         tbl=res.sort_values("신호시간",ascending=False).reset_index(drop=True).copy()
