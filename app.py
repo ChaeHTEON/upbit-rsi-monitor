@@ -234,10 +234,11 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
                     "성공기준(%)": round(thr,1), "결과": result, "도달분": reach_min,
                     "최종수익률(%)": round(final_ret,2), "최저수익률(%)": round(min_ret,2), "최고수익률(%)": round(max_ret,2)
                 })
+            # ✅ 중복 포함/제거 모드 차이
             if dedup_mode.startswith("중복 제거"):
-                i = end
+                i = end   # N봉 건너뛰기
             else:
-                i += 1
+                i += 1   # 다음 봉부터 검사 (연속 신호 허용)
         else:
             i += 1
 
@@ -286,7 +287,10 @@ try:
     fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
     if not res.empty:
+        # 도착 시점의 '시가' 조회용
         open_by_time = df.set_index("time")["open"]
+
+        # ✅ 중립 색상 주황(#FF9800), 실패/중립 흐릿 처리(opacity)
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
             sub = res[res["결과"] == _label]
             if sub.empty: continue
@@ -298,7 +302,7 @@ try:
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
 
-            # 성공 신호 → ⭐ 별표
+            # 성공 지점 스타 표시
             if _label == "성공":
                 for _, row in sub.iterrows():
                     if pd.notna(row.get("도달분")):
@@ -311,7 +315,7 @@ try:
                             showlegend=False
                         ))
 
-            # 신호 흐름 점선
+            # 신호 흐름 점선(성공 진하게, 실패/중립 옅게)
             for _, row in sub.iterrows():
                 v = row.get("도달분")
                 if pd.isna(v): continue
@@ -326,15 +330,13 @@ try:
                     fig.add_trace(go.Scatter(
                         x=[start_x, end_x], y=[start_y, end_y],
                         mode="lines", line=dict(color=_color, width=1.8, dash="dot"),
-                        opacity=0.9,
-                        showlegend=False
+                        opacity=0.9, showlegend=False
                     ))
                 else:
                     fig.add_trace(go.Scatter(
                         x=[start_x, end_x], y=[start_y, end_y],
-                        mode="lines", line=dict(color=_color, width=1, dash="dot"),
-                        opacity=0.35,
-                        showlegend=False
+                        mode="lines", line=dict(color=_color, width=1.0, dash="dot"),
+                        opacity=0.35, showlegend=False
                     ))
 
     # RSI
@@ -367,7 +369,17 @@ try:
         tbl=tbl[[c for c in cols if c in tbl.columns]]
         tbl = tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
 
-        st.dataframe(tbl, use_container_width=True)
+        def style_result(val):
+            if val == "성공":
+                return "background-color: #FFF59D; color: #E53935;"
+            elif val == "실패":
+                return "color: #1E40AF;"
+            elif val == "중립":
+                return "color: #FF9800;"
+            return ""
+
+        styled_tbl = tbl.style.applymap(style_result, subset=["결과"])
+        st.dataframe(styled_tbl, use_container_width=True)
     else: st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
