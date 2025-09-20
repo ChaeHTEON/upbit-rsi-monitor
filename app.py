@@ -370,15 +370,18 @@ try:
         open_by_time  = df.set_index("time")["open"]
         close_by_time = df.set_index("time")["close"]
 
-        # 시작 마커 (기존 유지)
-        for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
-            sub = res[res["결과"] == _label]
-            if sub.empty: continue
-            fig.add_trace(go.Scatter(
-                x=sub["신호시간"], y=sub["기준시가"],
-                mode="markers", name=f"신호({_label})",
-                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-            ))
+      # 시작 마커 (중복 제거 → 그룹별 대표 신호만 표시)
+      for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
+          sub = res[res["결과"] == _label]
+          if sub.empty:
+              continue
+          # 그룹에서 첫 번째 신호만 대표로 표시
+          first_row = sub.iloc[0]
+          fig.add_trace(go.Scatter(
+              x=[first_row["신호시간"]], y=[first_row["기준시가"]],
+              mode="markers", name=f"신호({_label})",
+              marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
+          ))
 
         # 종료 마커 & 점선 (범례 토글용 이름 고정: "신호(점선)")
         for _, row in res.iterrows():
@@ -475,3 +478,4 @@ try:
         st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
+
