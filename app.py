@@ -201,24 +201,18 @@ def _to_float_safe(x):
 
 # -----------------------------
 # 시뮬레이션
+# -----------------------------
 def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev):
-    res = []
-    n = len(df)
-    thr = float(thr_pct)
+    res=[]
+    n=len(df); thr=float(thr_pct)
 
     def bb_ok(i):
-        try:
-            hi, lo_px = float(df.at[i, "high"]), float(df.at[i, "low"])
-            up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
-            if bb_cond == "상한선":
-                return pd.notna(up) and (lo_px <= float(up) <= hi)
-            if bb_cond == "중앙선":
-                return pd.notna(mid) and (lo_px <= float(mid) <= hi)
-            if bb_cond == "하한선":
-                return pd.notna(lo) and (lo_px <= float(lo) <= hi)
-        except Exception as e:
-            st.error(f"BB 조건 처리 오류: {e}")
+        hi, lo_px = float(df.at[i,"high"]), float(df.at[i,"low"])
+        up, lo, mid = df.at[i,"BB_up"], df.at[i,"BB_low"], df.at[i,"BB_mid"]
+        if bb_cond=="상한선": return pd.notna(up) and (lo_px <= float(up) <= hi)
+        if bb_cond=="중앙선": return pd.notna(mid) and (lo_px <= float(mid) <= hi)
+        if bb_cond=="하한선": return pd.notna(lo) and (lo_px <= float(lo) <= hi)
         return False
 
     # RSI 측면 조건 세분화 반영
@@ -484,5 +478,3 @@ try:
         st.info("조건을 만족하는 신호가 없습니다.")
 except Exception as e:
     st.error(f"오류: {e}")
-
-
