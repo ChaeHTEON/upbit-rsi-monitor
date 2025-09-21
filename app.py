@@ -97,6 +97,9 @@ with c3:
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 
+# 구분선 추가
+st.markdown("---")
+
 # -----------------------------
 # 조건 설정
 # -----------------------------
@@ -105,15 +108,11 @@ c4, c5, c6 = st.columns(3)
 with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
-    # 0.1 단위 세밀 조정 + 상한 확장(요청)
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
 with c6:
-    # RSI 조건 세분화(요청)
-    rsi_side = st.selectbox(
-        "RSI 조건",
-        ["없음", "RSI ≤ 30 (급락)", "RSI ≥ 70 (급등)", "RSI ≤ 20 (강한 급락)", "RSI ≥ 80 (강한 급등)"],
-        index=0
-    )
+    # RSI 1단위 세밀 조정
+    rsi_mode = st.selectbox("RSI 조건", ["없음", "≤", "≥"], index=0)
+    rsi_level = st.slider("RSI 기준값(정수)", 0, 100, 30, step=1)
 
 c7, c8, c9 = st.columns(3)
 with c7:
@@ -127,8 +126,18 @@ with c8:
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
-st.session_state["rsi_side"] = rsi_side
+# 2차 조건 (양봉/기타)
+st.markdown('<div class="hint">2차 조건: 1차 조건(RSI·볼린저밴드) 충족 후 추가 필터</div>', unsafe_allow_html=True)
+sec1, sec2 = st.columns(2)
+with sec1:
+    use_bull2 = st.checkbox("양봉 2개 연속 상승 적용", value=False, help="두 캔들이 연속으로 상승(종가>시가)이며 종가가 연속 상승해야 함")
+with sec2:
+    allow_other_secondary = st.checkbox("다른 2차 조건 확장 허용", value=False, help="향후 다른 2차 필터 추가용 토글")
+
 st.session_state["bb_cond"]  = bb_cond
+
+# 구분선 추가
+st.markdown("---")
 
 # -----------------------------
 # 데이터 수집
@@ -202,47 +211,85 @@ def _to_float_safe(x):
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
-def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev):
+def simulate(df, rsi_mode, rsi_level, lookahead, thr_pct, bb_cond, dedup_mode,
+             minutes_per_bar, market_code, bb_window, bb_dev, use_bull2=False, allow_other_secondary=False):
     res=[]
     n=len(df); thr=float(thr_pct)
 
     def bb_ok(i):
-        hi, lo_px = float(df.at[i,"high"]), float(df.at[i,"low"])
+        close_i = float(df.at[i, "close"])
         up, lo, mid = df.at[i,"BB_up"], df.at[i,"BB_low"], df.at[i,"BB_mid"]
-        if bb_cond=="상한선": return pd.notna(up) and (lo_px <= float(up) <= hi)
-        if bb_cond=="중앙선": return pd.notna(mid) and (lo_px <= float(mid) <= hi)
-        if bb_cond=="하한선": return pd.notna(lo) and (lo_px <= float(lo) <= hi)
+
+        if bb_cond == "상한선":
+            # 가격이 상한선을 '초과'했을 때만 신호 (종가 기준)
+            return pd.notna(up) and (close_i > float(up))
+
+        if bb_cond == "하한선":
+            # 가격이 하한선을 '초과'(아래로 벗어남)했을 때만 신호 (종가 기준)
+            return pd.notna(lo) and (close_i < float(lo))
+
+        if bb_cond == "중앙선":
+            # 중앙선 '초과' 또는 '근처'에서 신호 판별
+            if pd.isna(mid) or pd.isna(up) or pd.isna(lo):
+                return False
+            band_w = max(1e-9, float(up) - float(lo))
+            near_eps = 0.1 * band_w  # 밴드폭의 10%를 근처로 간주
+            return (close_i >= float(mid)) or (abs(close_i - float(mid)) <= near_eps)
+
         return False
 
-    # RSI 측면 조건 세분화 반영
-    if rsi_side=="RSI ≤ 30 (급락)":
-        rsi_idx = df.index[df["RSI13"] <= 30].tolist()
-    elif rsi_side=="RSI ≥ 70 (급등)":
-        rsi_idx = df.index[df["RSI13"] >= 70].tolist()
-    elif rsi_side=="RSI ≤ 20 (강한 급락)":
-        rsi_idx = df.index[df["RSI13"] <= 20].tolist()
-    elif rsi_side=="RSI ≥ 80 (강한 급등)":
-        rsi_idx = df.index[df["RSI13"] >= 80].tolist()
+    # --- RSI 판정 (1단위 정수 기준) ---
+    if rsi_mode == "≤":
+        rsi_idx = df.index[df["RSI13"] <= float(rsi_level)].tolist()
+    elif rsi_mode == "≥":
+        rsi_idx = df.index[df["RSI13"] >= float(rsi_level)].tolist()
     else:
         rsi_idx = []
 
-    bb_idx = [i for i in df.index if bb_ok(i)] if bb_cond!="없음" else []
+    # --- BB 판정 ---
+    bb_idx = [i for i in df.index if bb_ok(i)] if bb_cond != "없음" else []
 
-    if rsi_side!="없음" and bb_cond!="없음":
-        sig_idx=sorted(set(rsi_idx)&set(bb_idx))
-    elif rsi_side!="없음":
-        sig_idx=rsi_idx
-    elif bb_cond!="없음":
-        sig_idx=bb_idx
+    # --- 1차 조건 결합 ---
+    if rsi_mode != "없음" and bb_cond != "없음":
+        base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
+    elif rsi_mode != "없음":
+        base_sig_idx = rsi_idx
+    elif bb_cond != "없음":
+        base_sig_idx = bb_idx
     else:
-        sig_idx=[]
+        base_sig_idx = []
+
+    # --- 2차 조건: 양봉 2개 연속 상승 ---
+    def bullish_two_in_a_row_anywhere(i, end_idx):
+        """i+1 ~ end_idx 사이에 연속 양봉(두 캔들 모두 종가>시가이며, 종가가 연속 상승)이 한 번이라도 존재하는지"""
+        if i+2 > end_idx:
+            return False
+        sub = df.loc[i+1:end_idx, ["open","close"]].reset_index(drop=True)
+        for k in range(len(sub)-1):
+            c0, o0 = float(sub.at[k,"close"]), float(sub.at[k,"open"])
+            c1, o1 = float(sub.at[k+1,"close"]), float(sub.at[k+1,"open"])
+            if (c0 > o0) and (c1 > o1) and (c1 > c0):
+                return True
+        return False
+
+    # 최종 시그널 후보
+    sig_idx = base_sig_idx
 
     i = 0
     while i < n:
         if i in sig_idx:
             end = i + lookahead
             if end >= n: break
+
+            # --- 2차 조건 적용 시 필터링 ---
+            if use_bull2:
+                if bb_cond == "없음":
+                    # 2차 조건을 쓸 수 없으므로 신호 무효화
+                    i += 1
+                    continue
+                if not bullish_two_in_a_row_anywhere(i, end):
+                    i += 1
+                    continue
 
             base = (float(df.at[i,"open"]) + float(df.at[i,"low"])) / 2.0
             closes = df.loc[i+1:end, ["time","close"]]
@@ -261,9 +308,8 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
                 if not first_hit.empty:
                     hit_time = first_hit.iloc[0]["time"]
                     reach_min = int((hit_time - df.at[i,"time"]).total_seconds()//60)
-                    # 종료 시점/가격을 "도달 캔들의 종가"로 설정 (요청: 종가 위치)
+                    # 종료 시점/가격을 "도달 캔들의 종가"로 설정
                     end_time = hit_time
-                    # hit_time에 정확히 일치하는 인덱스 취득
                     idx_hit = df.index[df["time"] == hit_time]
                     if len(idx_hit) > 0:
                         end_close = float(df.at[int(idx_hit[0]), "close"])
@@ -273,7 +319,7 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
             # 실패: 최종수익률 음수
             elif final_ret < 0:
                 result = "실패"
-            # 그 외 중립: end_time/end_close는 위에서 기본 설정
+            # 그 외 중립: end_time/end_close는 기본값 유지
 
             bb_value = None
             if bb_cond=="상한선": bb_value = df.at[i,"BB_up"]
@@ -282,9 +328,9 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
 
             res.append({
                 "신호시간": df.at[i,"time"],
-                "종료시간": end_time,               # 종료(표시) 시각
+                "종료시간": end_time,
                 "기준시가": int(round(base)),
-                "종료가": end_close,                # 종료 시 종가 (성공/실패/중립 모두 종가 위치)
+                "종료가": end_close,
                 "RSI(13)": round(float(df.at[i,"RSI13"]),1) if pd.notna(df.at[i,"RSI13"]) else None,
                 "BB값": round(float(bb_value),1) if bb_value is not None else None,
                 "성공기준(%)": round(thr,1),
@@ -308,13 +354,13 @@ def simulate(df, rsi_side, lookahead, thr_pct, bb_cond, dedup_mode,
 # 실행
 # -----------------------------
 try:
-    if start_date > end_date: 
-        st.error("시작 날짜가 종료 날짜보다 이후입니다."); 
+    if start_date > end_date:
+        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
         st.stop()
     start_dt=datetime.combine(start_date, datetime.min.time())
     end_dt=datetime.combine(end_date, datetime.max.time())
 
-    if rsi_side=="없음" and bb_cond=="없음":
+    if rsi_mode=="없음" and bb_cond=="없음":
         st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
         st.info("대기중..")
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
@@ -322,16 +368,37 @@ try:
         st.stop()
 
     df=fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
-    if df.empty: 
-        st.error("데이터가 없습니다."); 
+    if df.empty:
+        st.error("데이터가 없습니다.")
         st.stop()
 
     df=add_indicators(df, bb_window, bb_dev)
-    rsi_side=st.session_state.get("rsi_side", rsi_side)
     bb_cond=st.session_state.get("bb_cond", bb_cond)
 
-    res_all=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 포함 (연속 신호 모두)",minutes_per_bar,market_code,bb_window,bb_dev)
-    res_dedup=simulate(df,rsi_side,lookahead,threshold_pct,bb_cond,"중복 제거 (연속 동일 결과 1개)",minutes_per_bar,market_code,bb_window,bb_dev)
+    # 볼린저밴드 미설정 + 양봉 2연속 요구 시 에러 팝업
+    if (bb_cond == "없음") and use_bull2:
+        st.error("볼린저밴드 설정이 없음 상태입니다")
+        st.stop()
+
+    # 조건 요약 출력
+    rsi_txt = "없음" if rsi_mode=="없음" else f"RSI {rsi_mode} {int(rsi_level)}"
+    bb_txt  = f"볼린저밴드: {bb_cond}" if bb_cond!="없음" else "볼린저밴드: 없음"
+    sec_txt = []
+    if use_bull2: sec_txt.append("양봉 2개 연속 상승")
+    if allow_other_secondary: sec_txt.append("기타 2차 조건 확장 허용")
+    sec_str = " / ".join(sec_txt) if sec_txt else "2차 조건: 없음"
+    st.info(f"설정 요약 · {rsi_txt} · {bb_txt} · {sec_str}")
+
+    res_all=simulate(
+        df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
+        "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
+        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
+    )
+    res_dedup=simulate(
+        df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
+        "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
+        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
+    )
     res=res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # 요약 메트릭
@@ -341,17 +408,18 @@ try:
         win=succ/total*100 if total else 0.0; total_final=df_in["최종수익률(%)"].sum()
         return total,succ,fail,neu,win,total_final
 
+    st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
     for label, data in [("중복 포함 (연속 신호 모두)",res_all),("중복 제거 (연속 동일 결과 1개)",res_dedup)]:
         total,succ,fail,neu,win,total_final=_summarize(data)
         st.markdown(f"**{label}**")
-        c1,c2,c3,c4,c5,c6=st.columns(6)
-        c1.metric("신호 수",f"{total}")
-        c2.metric("성공",f"{succ}")
-        c3.metric("실패",f"{fail}")
-        c4.metric("중립",f"{neu}")
-        c5.metric("승률",f"{win:.1f}%")
+        m1,m2,m3,m4,m5,m6=st.columns(6)
+        m1.metric("신호 수",f"{total}")
+        m2.metric("성공",f"{succ}")
+        m3.metric("실패",f"{fail}")
+        m4.metric("중립",f"{neu}")
+        m5.metric("승률",f"{win:.1f}%")
         col="red" if total_final>0 else "blue" if total_final<0 else "black"
-        c6.markdown(f"<div style='font-weight:600;'>최종수익률 합계: <span style='color:{col}; font-size:1.1rem'>{total_final:.1f}%</span></div>",unsafe_allow_html=True)
+        m6.markdown(f"<div style='font-weight:600;'>최종수익률 합계: <span style='color:{col}; font-size:1.1rem'>{total_final:.1f}%</span></div>",unsafe_allow_html=True)
         st.markdown("---")
 
     # 차트
@@ -367,9 +435,6 @@ try:
     fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
     if not res.empty:
-        open_by_time  = df.set_index("time")["open"]
-        close_by_time = df.set_index("time")["close"]
-
         # 시작 마커 (기존 유지)
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
             sub = res[res["결과"] == _label]
@@ -380,41 +445,48 @@ try:
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
 
-        # 종료 마커 & 점선 (범례 토글용 이름 고정: "신호(점선)")
+        # 종료 마커 & 점선 — 그룹별 첫 점선만 범례 노출
+        legend_emitted = {"성공": False, "실패": False, "중립": False}
+
         for _, row in res.iterrows():
             start_x = pd.to_datetime(row["신호시간"])
             start_y = float(row["기준시가"])
-
-            end_x = pd.to_datetime(row["종료시간"])
-            # 요청: 종료 지점은 "종가"에 표시(성공/실패/중립 공통)
+            end_x   = pd.to_datetime(row["종료시간"])
             end_close = float(row["종료가"])
-            end_y_for_line = end_close  # 점선도 종료 종가까지
 
-            color = "red" if row["결과"]=="성공" else ("blue" if row["결과"]=="실패" else "#FF9800")
+            grp = row["결과"]
+            color = "red" if grp=="성공" else ("blue" if grp=="실패" else "#FF9800")
 
-            # 점선 (범례에서 ON/OFF 가능하도록 동일 name 사용)
+            # 점선
             fig.add_trace(go.Scatter(
-                x=[start_x, end_x], y=[start_y, end_y_for_line],
-                mode="lines", line=dict(color=color, width=1.6 if row["결과"]=="성공" else 1.0, dash="dot"),
-                opacity=0.9 if row["결과"]=="성공" else 0.5,
-                showlegend=True, name="신호(점선)"
+                x=[start_x, end_x], y=[start_y, end_close],
+                mode="lines",
+                line=dict(color=color, width=1.6 if grp=="성공" else 1.0, dash="dot"),
+                opacity=0.9 if grp=="성공" else 0.5,
+                showlegend=(not legend_emitted[grp]), name=f"신호(점선)-{grp}"
             ))
+            legend_emitted[grp] = True
 
-            # 종료 마커
-            if row["결과"] == "성공":
-                # 성공: 종료 지점(도달 캔들의 종가) 위쪽에 ⭐ 표시 (주황, 크기 확대)
+            if grp == "성공":
+                # 목표 도달 캔들의 '최고가' 바로 위에 ⭐ (중복 마커 방지: X는 표시하지 않음)
+                hit_row = df.loc[df["time"]==end_x]
+                if not hit_row.empty:
+                    high_at_hit = float(hit_row.iloc[0]["high"])
+                    star_y = high_at_hit * 1.001
+                else:
+                    star_y = end_close * 1.002
                 fig.add_trace(go.Scatter(
-                    x=[end_x], y=[end_close * 1.002],  # 종가 약간 위
+                    x=[end_x], y=[star_y],
                     mode="markers", name="목표 도달",
                     marker=dict(size=15, color="orange", symbol="star", line=dict(width=1, color="black")),
                     showlegend=False
                 ))
             else:
-                # 실패/중립: 종료 지점 종가에 표시(원 마커)
+                # 실패/중립: 도착 지점은 작은 X 마커, 원형 마커는 사용하지 않음
                 fig.add_trace(go.Scatter(
                     x=[end_x], y=[end_close],
-                    mode="markers", name=f"종료({_label})",
-                    marker=dict(size=8, color=color, symbol="circle", line=dict(width=1, color="black")),
+                    mode="markers", name=f"도착-{grp}",
+                    marker=dict(size=8, color=color, symbol="x", line=dict(width=1, color="black")),
                     showlegend=False
                 ))
 
