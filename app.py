@@ -28,12 +28,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 제목 고정 (요청: "코인 시뮬레이션")
+# 제목 고정
 st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 내 점선은 신호 흐름선, 성공 시 도달 지점에 ⭐ 별표 표시</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# 업비트 마켓 로드 (네트워크 폴백 포함)
+# 업비트 마켓 로드
 # -----------------------------
 @st.cache_data(ttl=3600)
 def get_upbit_krw_markets():
@@ -97,7 +97,6 @@ with c3:
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 
-# 구분선 추가
 st.markdown("---")
 
 # -----------------------------
@@ -110,7 +109,6 @@ with c4:
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
 with c6:
-    # RSI: 없음 / 현재(과매도·과매수 중 하나) / 과매도 기준 / 과매수 기준  (BB와 동일 정렬)
     r1, r2, r3 = st.columns(3)
     with r1:
         rsi_mode = st.selectbox(
@@ -120,9 +118,9 @@ with c6:
             help="현재: RSI≤과매도 또는 RSI≥과매수 중 하나라도 충족"
         )
     with r2:
-        rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1, help="RSI ≤ 값")
+        rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
-        rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1, help="RSI ≥ 값")
+        rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
 
 c7, c8, c9 = st.columns(3)
 with c7:
@@ -136,17 +134,17 @@ with c8:
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
-# 2차 조건 (양봉/기타)
-st.markdown('<div class="hint">2차 조건: 1차 조건(RSI·볼린저밴드) 충족 후 추가 필터</div>', unsafe_allow_html=True)
-sec1, sec2 = st.columns(2)
-with sec1:
-    use_bull2 = st.checkbox("양봉 2개 연속 상승 적용", value=False, help="두 캔들이 연속으로 상승(종가>시가)이며 종가가 연속 상승해야 함")
-with sec2:
-    allow_other_secondary = st.checkbox("다른 2차 조건 확장 허용", value=False, help="향후 다른 2차 필터 추가용 토글")
+# --- 2차 조건 (택일) ---
+st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반)</div>', unsafe_allow_html=True)
+sec_cond = st.selectbox(
+    "2차 조건 선택",
+    ["없음", "양봉 2개 연속 상승", "BB 기반 첫 양봉 50% 진입"],
+    index=0,
+    help="2차 조건은 하나만 선택하여 적용됩니다."
+)
 
 st.session_state["bb_cond"]  = bb_cond
 
-# 구분선 추가
 st.markdown("---")
 
 # -----------------------------
@@ -205,56 +203,21 @@ def add_indicators(df, bb_window, bb_dev):
     out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
     return out
 
-# --------- 안전 스칼라 변환 헬퍼 ---------
-def _to_float_safe(x):
-    try:
-        return float(x)
-    except Exception:
-        if hasattr(x, "iloc") and len(x) > 0:
-            try:
-                return float(x.iloc[0])
-            except Exception:
-                return np.nan
-        return np.nan
-# ----------------------------------------
-
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev, use_bull2=False, allow_other_secondary=False):
+             minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음"):
     res=[]
     n=len(df); thr=float(thr_pct)
 
-    def bb_ok(i):
-        close_i = float(df.at[i, "close"])
-        up, lo, mid = df.at[i,"BB_up"], df.at[i,"BB_low"], df.at[i,"BB_mid"]
-
-        if bb_cond == "상한선":
-            # 가격이 상한선을 '초과'했을 때만 신호 (종가 기준)
-            return pd.notna(up) and (close_i > float(up))
-
-        if bb_cond == "하한선":
-            # 가격이 하한선을 '초과'(아래로 벗어남)했을 때만 신호 (종가 기준)
-            return pd.notna(lo) and (close_i < float(lo))
-
-        if bb_cond == "중앙선":
-            # 중앙선 '초과' 또는 '근처'에서 신호 판별
-            if pd.isna(mid) or pd.isna(up) or pd.isna(lo):
-                return False
-            band_w = max(1e-9, float(up) - float(lo))
-            near_eps = 0.1 * band_w  # 밴드폭의 10%를 근처로 간주
-            return (close_i >= float(mid)) or (abs(close_i - float(mid)) <= near_eps)
-
-        return False
-
-    # --- RSI 판정: 모드에 따라 계산 ---
+    # RSI 판정
     if rsi_mode == "없음":
         rsi_idx = []
     elif rsi_mode == "현재(과매도/과매수 중 하나)":
         idx_low  = df.index[df["RSI13"] <= float(rsi_low)].tolist()
         idx_high = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-        rsi_idx = sorted(set(idx_low) | set(idx_high))  # OR
+        rsi_idx = sorted(set(idx_low) | set(idx_high))
     elif rsi_mode == "과매도 기준":
         rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
     elif rsi_mode == "과매수 기준":
@@ -262,48 +225,93 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     else:
         rsi_idx = []
 
-    # --- BB 판정 ---
+    # BB 판정
+    def bb_ok(i):
+        close_i = float(df.at[i,"close"])
+        up, lo, mid = df.at[i,"BB_up"], df.at[i,"BB_low"], df.at[i,"BB_mid"]
+        if bb_cond == "상한선":
+            return pd.notna(up) and (close_i > float(up))
+        if bb_cond == "하한선":
+            return pd.notna(lo) and (close_i < float(lo))
+        if bb_cond == "중앙선":
+            if pd.isna(mid) or pd.isna(up) or pd.isna(lo): return False
+            band_w = max(1e-9, float(up) - float(lo))
+            near_eps = 0.1 * band_w
+            return (close_i >= float(mid)) or (abs(close_i - float(mid)) <= near_eps)
+        return False
+
     bb_idx = [i for i in df.index if bb_ok(i)] if bb_cond != "없음" else []
 
-    # --- 1차 조건 결합 ---
+    # 1차 조건 결합
     if rsi_mode != "없음" and bb_cond != "없음":
-        base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))  # AND
+        base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
     elif rsi_mode != "없음":
         base_sig_idx = rsi_idx
     elif bb_cond != "없음":
         base_sig_idx = bb_idx
     else:
-        base_sig_idx = []
+        # 1차 조건이 모두 없음 → 2차 조건 단독 적용 허용: 전체 캔들 후보
+        base_sig_idx = list(range(n))
 
-    # --- 2차 조건: 양봉 2개 연속 상승 ---
-    def bullish_two_in_a_row_anywhere(i, end_idx):
-        """i+1 ~ end_idx 사이에 연속 양봉(두 캔들 모두 종가>시가이며, 종가가 연속 상승)이 한 번이라도 존재하는지"""
-        if i+2 > end_idx:
-            return False
-        sub = df.loc[i+1:end_idx, ["open","close"]].reset_index(drop=True)
-        for k in range(len(sub)-1):
-            c0, o0 = float(sub.at[k,"close"]), float(sub.at[k,"open"])
-            c1, o1 = float(sub.at[k+1,"close"]), float(sub.at[k+1,"open"])
-            if (c0 > o0) and (c1 > o1) and (c1 > c0):
-                return True
-        return False
+    # 2차 조건 함수
+    def bullish_two_in_a_row(i):
+        # i+1, i+2 두 캔들이 모두 양봉이고 두 번째 종가 > 첫 번째 종가
+        if i+2 > n-1: return False
+        c0, o0 = float(df.at[i+1,"close"]), float(df.at[i+1,"open"])
+        c1, o1 = float(df.at[i+2,"close"]), float(df.at[i+2,"open"])
+        return (c0 > o0) and (c1 > o1) and (c1 > c0)
 
-    # 최종 시그널 후보
-    sig_idx = base_sig_idx
+    def bb_first_bull_entry(i):
+        # BB 기준선 이후 첫 양봉이 기준선의 50% 이상 진입
+        # ref: 기준선 가격 (i 시점의 선택된 BB 값)
+        if bb_cond == "없음": return None
+        if i+1 > n-1: return None
+        if bb_cond == "상한선": ref = float(df.at[i,"BB_up"])
+        elif bb_cond == "중앙선": ref = float(df.at[i,"BB_mid"])
+        elif bb_cond == "하한선": ref = float(df.at[i,"BB_low"])
+        else: return None
+        if pd.isna(ref): return None
+        o, c = float(df.at[i+1,"open"]), float(df.at[i+1,"close"])
+        # '기준선 50% 이상 진입' 해석: 만약 오픈이 기준선 아래라면
+        # 목표 = o + 0.5*(ref - o); 오픈이 기준선 위라면 최소 ref 이상 종가
+        if c <= o:  # 양봉 아님
+            return None
+        if o < ref:
+            target = o + 0.5*(ref - o)
+            ok = c >= target
+        else:
+            ok = c >= ref
+        return c if ok else None
 
+    # 메인 루프
     i = 0
     while i < n:
-        if i in sig_idx:
+        if i in base_sig_idx:
             end = i + lookahead
             if end >= n: break
 
-            # --- 2차 조건 적용 (BB 여부와 무관하게 적용)
-            if use_bull2:
-                if not bullish_two_in_a_row_anywhere(i, end):
+            # 2차 조건 처리 + 매수가(기준가) 결정
+            if sec_cond == "양봉 2개 연속 상승":
+                if not bullish_two_in_a_row(i):
                     i += 1
                     continue
+                base = (float(df.at[i,"open"]) + float(df.at[i,"low"])) / 2.0  # 기존 기준가 유지(매수가 개념 없음)
+            elif sec_cond == "BB 기반 첫 양봉 50% 진입":
+                buy_price = bb_first_bull_entry(i)
+                if buy_price is None:
+                    # 조건 미충족 → 실패가 아니라 신호 자체가 없음
+                    i += 1
+                    continue
+                # 이후 양봉 2개 연속 확인 (신규 정의에 따라 추가 확인)
+                if not bullish_two_in_a_row(i+1):
+                    i += 1
+                    continue
+                base = buy_price  # 매수가 = 첫 양봉 종가
+            else:
+                # 2차 조건 없음 → 기존 기준가
+                base = (float(df.at[i,"open"]) + float(df.at[i,"low"])) / 2.0
 
-            base = (float(df.at[i,"open"]) + float(df.at[i,"low"])) / 2.0
+            # 성과 계산
             closes = df.loc[i+1:end, ["time","close"]]
             final_ret = (closes.iloc[-1]["close"]/base - 1) * 100 if not closes.empty else 0.0
             min_ret   = (closes["close"].min()/base - 1) * 100 if not closes.empty else 0.0
@@ -321,11 +329,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     hit_time = first_hit.iloc[0]["time"]
                     reach_min = int((hit_time - df.at[i,"time"]).total_seconds()//60)
                     end_time = hit_time
-                    idx_hit = df.index[df["time"] == hit_time]
-                    if len(idx_hit) > 0:
-                        end_close = float(df.at[int(idx_hit[0]), "close"])
-                    else:
-                        end_close = float(first_hit.iloc[0]["close"])
+                    end_close = float(first_hit.iloc[0]["close"])
                 result = "성공"
             elif final_ret < 0:
                 result = "실패"
@@ -350,6 +354,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 "최고수익률(%)": round(max_ret,2)
             })
 
+            # 중복 처리
             if dedup_mode.startswith("중복 제거"):
                 i = end
             else:
@@ -369,14 +374,6 @@ try:
     start_dt=datetime.combine(start_date, datetime.min.time())
     end_dt=datetime.combine(end_date, datetime.max.time())
 
-    # RSI/BB 모두 없음이면 대기
-    if (rsi_mode=="없음") and (bb_cond=="없음"):
-        st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
-        st.info("대기중..")
-        st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-        st.info("대기중..")
-        st.stop()
-
     df=fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty:
         st.error("데이터가 없습니다.")
@@ -385,9 +382,7 @@ try:
     df=add_indicators(df, bb_window, bb_dev)
     bb_cond=st.session_state.get("bb_cond", bb_cond)
 
-    # (변경) BB 미설정이어도 2차 조건 사용 가능 → 에러 팝업 제거
-
-    # 조건 요약 (측정 구간 + 1차/2차 구분 표시)
+    # 조건 요약
     total_min = lookahead * minutes_per_bar
     hh, mm = divmod(int(total_min), 60)
     look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
@@ -404,8 +399,9 @@ try:
         rsi_txt = "없음"
 
     bb_txt  = bb_cond if bb_cond!="없음" else "없음"
-    sec_txt = f"양봉 2개 연속 상승: {'적용' if use_bull2 else '미적용'}"
+    sec_txt = f"{sec_cond}"
 
+    st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
     st.info(
         "설정 요약\n"
         f"- 측정 구간: {look_str}\n"
@@ -413,26 +409,28 @@ try:
         f"- 2차 조건 · {sec_txt}"
     )
 
+    # 시뮬레이션 실행 (중복 포함/제거)
     res_all=simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
-        "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
-        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
+        "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev, sec_cond=sec_cond
     )
     res_dedup=simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
-        "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
-        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
+        "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev, sec_cond=sec_cond
     )
     res=res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # 요약 메트릭
     def _summarize(df_in):
         if df_in is None or df_in.empty: return 0,0,0,0,0.0,0.0
-        total=len(df_in); succ=(df_in["결과"]=="성공").sum(); fail=(df_in["결과"]=="실패").sum(); neu=(df_in["결과"]=="중립").sum()
-        win=succ/total*100 if total else 0.0; total_final=df_in["최종수익률(%)"].sum()
+        total=len(df_in)
+        succ=(df_in["결과"]=="성공").sum()
+        fail=(df_in["결과"]=="실패").sum()
+        neu=(df_in["결과"]=="중립").sum()
+        win=succ/total*100 if total else 0.0
+        total_final=df_in["최종수익률(%)"].sum()
         return total,succ,fail,neu,win,total_final
 
-    st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
     for label, data in [("중복 포함 (연속 신호 모두)",res_all),("중복 제거 (연속 동일 결과 1개)",res_dedup)]:
         total,succ,fail,neu,win,total_final=_summarize(data)
         st.markdown(f"**{label}**")
@@ -459,7 +457,7 @@ try:
     fig.add_trace(go.Scatter(x=df["time"],y=df["BB_mid"],mode="lines",line=dict(color="#8D99AE",width=1.1,dash="dot"),name="BB 중앙"))
 
     if not res.empty:
-        # 시작 마커 (기존 유지)
+        # 시작 마커
         for _label,_color in [("성공","red"),("실패","blue"),("중립","#FF9800")]:
             sub = res[res["결과"] == _label]
             if sub.empty: continue
@@ -492,12 +490,9 @@ try:
             legend_emitted[grp] = True
 
             if grp == "성공":
-                # 성공 별마크: 캔들 막대(해당 봉의 high) "정확히 최상단"에 표시
+                # 성공 별마크: 해당 봉의 high 최상단
                 hit_row = df.loc[df["time"]==end_x]
-                if not hit_row.empty:
-                    star_y = float(hit_row.iloc[0]["high"])  # 정확히 high 위치
-                else:
-                    star_y = end_close  # 예외: 해당 시점 캔들을 못 찾은 경우 종가로 대체
+                star_y = float(hit_row.iloc[0]["high"]) if not hit_row.empty else end_close
                 fig.add_trace(go.Scatter(
                     x=[end_x], y=[star_y],
                     mode="markers", name="목표 도달",
@@ -505,7 +500,7 @@ try:
                     showlegend=False
                 ))
             else:
-                # 실패/중립: 도착 지점은 작은 X 마커
+                # 실패/중립: 작은 X
                 fig.add_trace(go.Scatter(
                     x=[end_x], y=[end_close],
                     mode="markers", name=f"도착-{grp}",
@@ -513,7 +508,7 @@ try:
                     showlegend=False
                 ))
 
-    # RSI (네온 느낌 이중선 유지)
+    # RSI (네온 느낌 이중선)
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",
                              line=dict(color="rgba(42,157,143,0.3)",width=6),yaxis="y2",showlegend=False))
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",
@@ -552,7 +547,6 @@ try:
             for i in range(len(res))
         ]
         if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
-        # 컬럼 구성
         tbl = tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
 
         def style_result(val):
