@@ -22,7 +22,6 @@ st.markdown("""
   .hint {color:#6b7280;}
   .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
   .fail-cell {background-color:#FFCDD2; color:#1E40AF; font-weight:600;}
-  /* 요청: 중립 연두색 */
   .neutral-cell {background-color:#CCFFCC; color:#1E7D22; font-weight:600;}
 </style>
 """, unsafe_allow_html=True)
@@ -56,12 +55,28 @@ with c7:
     first_signal_bullish = st.checkbox("첫 신호 양봉으로 표시", value=False)
 
 # -----------------------------
+# Upbit 헬퍼
+# -----------------------------
+def normalize_interval(interval: str) -> str:
+    # 허용: "minute15", "minutes/15", "days", "weeks", "months"
+    if interval.startswith("minutes/"):
+        return interval
+    if interval.startswith("minute"):
+        unit = "".join(ch for ch in interval if ch.isdigit())
+        if unit:
+            return f"minutes/{int(unit)}"
+    if interval in ("days", "weeks", "months"):
+        return interval
+    raise ValueError(f"지원하지 않는 interval: {interval}")
+
+# -----------------------------
 # 데이터 불러오기
 # -----------------------------
 def get_upbit_data(market="KRW-BTC", interval="minute15", count=200):
     base = "https://api.upbit.com/v1/candles"
-    url = f"{base}/{interval}"
-    params = {"market": market, "count": count}
+    interval_path = normalize_interval(interval)  # <-- 404 방지
+    url = f"{base}/{interval_path}"
+    params = {"market": market, "count": int(max(1, min(200, count)))}
 
     session = requests.Session()
     retry = Retry(total=3, connect=3, backoff_factor=0.6, status_forcelist=(429, 500, 502, 503, 504))
@@ -88,14 +103,11 @@ def get_upbit_data(market="KRW-BTC", interval="minute15", count=200):
     }
     df = df.rename(columns=rename_map)
 
-    # 필수 컬럼 검증
     needed = {"open", "high", "low", "close", "time"}
     missing = needed - set(df.columns)
     if missing:
-        # 디버깅을 위해 일부 컬럼 미리 보여주고 실패
         raise KeyError(f"필수 컬럼 누락: {missing}. 실제 컬럼: {list(df.columns)[:10]}")
 
-    # 정렬 및 타입
     df["time"] = pd.to_datetime(df["time"])
     df = df.sort_values("time").reset_index(drop=True)
     return df
@@ -110,7 +122,7 @@ def style_result_col(s: pd.Series):
             styles.append("background-color:#FFF59D; color:#E53935; font-weight:600;")
         elif v == "실패":
             styles.append("background-color:#FFCDD2; color:#1E40AF; font-weight:600;")
-        else:  # 중립
+        else:
             styles.append("background-color:#CCFFCC; color:#1E7D22; font-weight:600;")
     return styles
 
@@ -123,13 +135,11 @@ def simulate(df: pd.DataFrame):
 
     signals = []
     for i in range(len(df)):
-        # RSI 조건
         cond_rsi = True
         if use_rsi == "있음":
             rsi_now = df["rsi"].iloc[i]
             cond_rsi = (rsi_now >= rsi_overbought) or (rsi_now <= rsi_oversold)
 
-        # 양봉 2개 연속
         cond_bullish = True
         if use_bullish_candles and i >= 1:
             prev_green = df["close"].iloc[i-1] > df["open"].iloc[i-1]
@@ -144,25 +154,20 @@ def simulate(df: pd.DataFrame):
     for i in signals:
         base_price = df["close"].iloc[i]
         end_idx = min(i + n_candles, len(df) - 1)
-        window = df.iloc[i+1:end_idx+1]  # 다음 봉부터 N봉까지
-
+        window = df.iloc[i+1:end_idx+1]
         if len(window) == 0:
             continue
 
-        # 최고/최저 수익률
         max_ret = (window["high"].max() - base_price) / base_price * 100.0
         min_ret = (window["low"].min() - base_price) / base_price * 100.0
 
-        # 도달시간 계산
         hit_time = "-"
-        # 성공 우선 체크
         hit_idx = None
         for j in range(1, end_idx - i + 1):
             r = (df["high"].iloc[i + j] - base_price) / base_price * 100.0
             if r >= success_threshold:
                 hit_idx = j
                 break
-        # 실패 도달시간(선택)
         fail_hit_idx = None
         for j in range(1, end_idx - i + 1):
             r = (df["low"].iloc[i + j] - base_price) / base_price * 100.0
@@ -203,44 +208,34 @@ def simulate(df: pd.DataFrame):
 # 실행
 # -----------------------------
 try:
-    df = get_upbit_data()  # 기본: KRW-BTC, 15분봉, 200개
+    df = get_upbit_data(market="KRW-BTC", interval="minute15", count=200)
     signals, results_df = simulate(df)
 
-    # 차트
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3])
 
-    # 메인 캔들
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="Candlestick"), row=1, col=1
-    )
+        name="Candlestick"), row=1, col=1)
 
-    # RSI
     fig.add_trace(go.Scatter(x=df["time"], y=df["rsi"], mode="lines", name="RSI(13)"),
                   row=2, col=1)
 
-    # 시그널: 점선 + ★마크(고가 위)
     y_min, y_max = df["low"].min(), df["high"].max()
     for i in signals:
         t = df["time"].iloc[i]
         hi = df["high"].iloc[i]
         fig.add_shape(type="line",
-                      x0=t, x1=t,
-                      y0=y_min, y1=y_max,
+                      x0=t, x1=t, y0=y_min, y1=y_max,
                       line=dict(color="blue", dash="dot"),
                       row=1, col=1)
         fig.add_trace(go.Scatter(
-            x=[t], y=[hi * 1.0015],  # 고가 바로 위
-            mode="text",
-            text=["★"],
-            textposition="top center",
-            name="신호",
-            showlegend=False
+            x=[t], y=[hi * 1.0015],
+            mode="text", text=["★"], textposition="top center",
+            name="신호", showlegend=False
         ), row=1, col=1)
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # 결과표
     if not results_df.empty:
         styled = results_df.style.apply(style_result_col, subset=["결과"])
         st.write(styled)
