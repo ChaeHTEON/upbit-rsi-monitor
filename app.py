@@ -3,7 +3,8 @@
 import streamlit as st
 import pandas as pd
 import requests
-from requests.adapters import HTTPAdapter, Retry)
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import ta
@@ -91,9 +92,9 @@ with c1:
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
-    default_start = datetime.today() - timedelta(days=1)
+    default_start = (datetime.today() - timedelta(days=1)).date()
     start_date = st.date_input("시작 날짜", value=default_start)
-    end_date = st.date_input("종료 날짜", value=datetime.today())
+    end_date = st.date_input("종료 날짜", value=datetime.today().date())
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 
@@ -357,8 +358,8 @@ try:
     if start_date > end_date:
         st.error("시작 날짜가 종료 날짜보다 이후입니다.")
         st.stop()
-    start_dt=datetime.combine(start_date, datetime.min.time())
-    end_dt=datetime.combine(end_date, datetime.max.time())
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt   = datetime.combine(end_date,   datetime.max.time())
 
     if rsi_mode=="없음" and bb_cond=="없음":
         st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
@@ -367,13 +368,13 @@ try:
         st.info("대기중..")
         st.stop()
 
-    df=fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
+    df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty:
         st.error("데이터가 없습니다.")
         st.stop()
 
-    df=add_indicators(df, bb_window, bb_dev)
-    bb_cond=st.session_state.get("bb_cond", bb_cond)
+    df = add_indicators(df, bb_window, bb_dev)
+    bb_cond = st.session_state.get("bb_cond", bb_cond)
 
     # 볼린저밴드 미설정 + 양봉 2연속 요구 시 에러 팝업
     if (bb_cond == "없음") and use_bull2:
@@ -389,17 +390,13 @@ try:
     sec_str = " / ".join(sec_txt) if sec_txt else "2차 조건: 없음"
     st.info(f"설정 요약 · {rsi_txt} · {bb_txt} · {sec_str}")
 
-    res_all=simulate(
-        df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
-        "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
-        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
-    )
-    res_dedup=simulate(
-        df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
-        "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
-        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
-    )
-    res=res_all if dup_mode.startswith("중복 포함") else res_dedup
+    res_all  = simulate(df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
+                        "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
+                        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary)
+    res_dedup= simulate(df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
+                        "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
+                        use_bull2=use_bull2, allow_other_secondary=allow_other_secondary)
+    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # 요약 메트릭
     def _summarize(df_in):
@@ -423,7 +420,7 @@ try:
         st.markdown("---")
 
     # 차트
-    fig=make_subplots(rows=1,cols=1)
+    fig = make_subplots(rows=1,cols=1)
 
     # 캔들 & BB
     fig.add_trace(go.Candlestick(
@@ -495,8 +492,16 @@ try:
                              line=dict(color="rgba(42,157,143,0.3)",width=6),yaxis="y2",showlegend=False))
     fig.add_trace(go.Scatter(x=df["time"],y=df["RSI13"],mode="lines",
                              line=dict(color="#2A9D8F",width=2.4,dash="dot"),name="RSI(13)",yaxis="y2"))
-    fig.add_hline(y=70,line_dash="dash",line_color="#E63946",line_width=1.1,yref="y2")
-    fig.add_hline(y=30,line_dash="dash",line_color="#457B9D",line_width=1.1,yref="y2")
+
+    # RSI 기준선(30, 70) — add_hline 대신 shape 사용(secondary y 지원)
+    t0 = df["time"].min()
+    t1 = df["time"].max()
+    fig.add_shape(type="line", x0=t0, x1=t1, y0=70, y1=70,
+                  xref="x", yref="y2",
+                  line=dict(dash="dash", color="#E63946", width=1.1))
+    fig.add_shape(type="line", x0=t0, x1=t1, y0=30, y1=30,
+                  xref="x", yref="y2",
+                  line=dict(dash="dash", color="#457B9D", width=1.1))
 
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
