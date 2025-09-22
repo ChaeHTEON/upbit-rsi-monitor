@@ -3,7 +3,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-from requests.adapters import HTTPAdapter, Retry
+from requests.adapters import HTTPAdapter, Retry)
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import ta
