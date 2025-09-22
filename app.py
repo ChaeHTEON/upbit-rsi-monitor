@@ -7,7 +7,6 @@ from urllib3.util.retry import Retry
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import ta
-from datetime import datetime, timedelta
 import numpy as np
 
 # -----------------------------
@@ -22,6 +21,7 @@ st.markdown("""
   .hint {color:#6b7280;}
   .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
   .fail-cell {background-color:#FFCDD2; color:#1E40AF; font-weight:600;}
+  /* 요청: 중립 연두색 */
   .neutral-cell {background-color:#CCFFCC; color:#1E7D22; font-weight:600;}
 </style>
 """, unsafe_allow_html=True)
@@ -29,54 +29,45 @@ st.markdown("""
 st.title("📊 Upbit RSI(13) + Bollinger Band 시뮬레이터")
 
 # -----------------------------
-# 사용자 입력 (UI/UX 정렬 3줄)
+# 사용자 입력
 # -----------------------------
-# 1번째 줄
-c1, c2 = st.columns(2)
-with c1:
-    n_candles = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 7, 1)
-with c2:
-    success_threshold = st.slider("성공/실패 기준 값(%)", 0.1, 3.0, 1.0, 0.1)
+col1, col2 = st.columns(2)
+with col1:
+    n_candles = st.number_input("측정 캔들 수 (기준 이후 N봉)", min_value=1, value=5)
+with col2:
+    success_threshold = st.number_input("성공/실패 기준 값(%)", min_value=1, max_value=100, value=10)
 
-# 2번째 줄
-c3, c4, c5 = st.columns(3)
-with c3:
+col3, col4, col5 = st.columns(3)
+with col3:
     use_rsi = st.selectbox("RSI 조건", ["없음", "있음"])
-with c4:
-    rsi_overbought = st.slider("RSI 과매수 기준 (매도 조건)", 50, 100, 70, 1)
-with c5:
-    rsi_oversold = st.slider("RSI 과매도 기준 (매수 조건)", 0, 50, 30, 1)
+with col4:
+    rsi_overbought = st.number_input("RSI 과매수 기준 (매도 조건)", min_value=50, max_value=100, value=70)
+with col5:
+    rsi_oversold = st.number_input("RSI 과매도 기준 (매수 조건)", min_value=0, max_value=50, value=30)
 
-# 3번째 줄 (양봉 관련)
-c6, c7 = st.columns(2)
-with c6:
-    use_bullish_candles = st.checkbox("양봉 2개 연속 상승 체크", value=False)
-with c7:
-    first_signal_bullish = st.checkbox("첫 신호 양봉으로 표시", value=False)
+col6, col7 = st.columns(2)
+with col6:
+    use_bullish_candles = st.checkbox("양봉 2개 연속 상승 체크")
+with col7:
+    first_signal_bullish = st.checkbox("첫 신호 양봉으로 표시")
 
 # -----------------------------
-# Upbit 헬퍼
+# Upbit interval 보정
 # -----------------------------
 def normalize_interval(interval: str) -> str:
-    # 허용: "minute15", "minutes/15", "days", "weeks", "months"
-    if interval.startswith("minutes/"):
-        return interval
-    if interval.startswith("minute"):
+    if interval.startswith("minute") and not interval.startswith("minutes/"):
         unit = "".join(ch for ch in interval if ch.isdigit())
-        if unit:
-            return f"minutes/{int(unit)}"
-    if interval in ("days", "weeks", "months"):
-        return interval
-    raise ValueError(f"지원하지 않는 interval: {interval}")
+        return f"minutes/{unit}"
+    return interval
 
 # -----------------------------
 # 데이터 불러오기
 # -----------------------------
 def get_upbit_data(market="KRW-BTC", interval="minute15", count=200):
     base = "https://api.upbit.com/v1/candles"
-    interval_path = normalize_interval(interval)  # <-- 404 방지
+    interval_path = normalize_interval(interval)
     url = f"{base}/{interval_path}"
-    params = {"market": market, "count": int(max(1, min(200, count)))}
+    params = {"market": market, "count": count}
 
     session = requests.Session()
     retry = Retry(total=3, connect=3, backoff_factor=0.6, status_forcelist=(429, 500, 502, 503, 504))
@@ -91,8 +82,6 @@ def get_upbit_data(market="KRW-BTC", interval="minute15", count=200):
         raise ValueError("Upbit 응답이 비어 있습니다.")
 
     df = pd.DataFrame(data)
-
-    # 'time' 컬럼 보장 (KST 우선, 없으면 UTC 폴백)
     time_col = "candle_date_time_kst" if "candle_date_time_kst" in df.columns else "candle_date_time_utc"
     rename_map = {
         "opening_price": "open",
@@ -122,7 +111,7 @@ def style_result_col(s: pd.Series):
             styles.append("background-color:#FFF59D; color:#E53935; font-weight:600;")
         elif v == "실패":
             styles.append("background-color:#FFCDD2; color:#1E40AF; font-weight:600;")
-        else:
+        else:  # 중립 → 연두색
             styles.append("background-color:#CCFFCC; color:#1E7D22; font-weight:600;")
     return styles
 
@@ -130,7 +119,6 @@ def style_result_col(s: pd.Series):
 # 시뮬레이션
 # -----------------------------
 def simulate(df: pd.DataFrame):
-    # RSI 계산
     df["rsi"] = ta.momentum.RSIIndicator(df["close"], window=13).rsi()
 
     signals = []
@@ -149,7 +137,6 @@ def simulate(df: pd.DataFrame):
         if cond_rsi and cond_bullish:
             signals.append(i)
 
-    # 결과표 생성
     rows = []
     for i in signals:
         base_price = df["close"].iloc[i]
@@ -208,17 +195,14 @@ def simulate(df: pd.DataFrame):
 # 실행
 # -----------------------------
 try:
-    df = get_upbit_data(market="KRW-BTC", interval="minute15", count=200)
+    df = get_upbit_data()
     signals, results_df = simulate(df)
 
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3])
-
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
         name="Candlestick"), row=1, col=1)
-
-    fig.add_trace(go.Scatter(x=df["time"], y=df["rsi"], mode="lines", name="RSI(13)"),
-                  row=2, col=1)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["rsi"], mode="lines", name="RSI(13)"), row=2, col=1)
 
     y_min, y_max = df["low"].min(), df["high"].max()
     for i in signals:
