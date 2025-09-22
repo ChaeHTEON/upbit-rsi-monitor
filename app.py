@@ -401,7 +401,7 @@ try:
                        bb_cond, "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev, sec_cond=sec_cond)
     res_dedup = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
                          bb_cond, "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev, sec_cond=sec_cond)
-    res = res_all if dup_mode.startswith("중복 포함") else res_dedup)
+    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # 요약 메트릭
     def _summarize(df_in):
