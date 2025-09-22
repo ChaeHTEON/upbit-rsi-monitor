@@ -110,9 +110,14 @@ with c4:
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
 with c6:
-    # RSI 1단위 세밀 조정
-    rsi_mode = st.selectbox("RSI 조건", ["없음", "≤", "≥"], index=0)
-    rsi_level = st.slider("RSI 기준값(정수)", 0, 100, 30, step=1)
+    # RSI: 없음/설정 + 과매도/과매수 기준값(정수) — BB와 동일 정렬
+    r1, r2, r3 = st.columns(3)
+    with r1:
+        rsi_use = st.selectbox("RSI 조건", ["없음", "설정"], index=0, help="설정 시 아래 기준값 적용")
+    with r2:
+        rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1, help="RSI ≤ 값")
+    with r3:
+        rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1, help="RSI ≥ 값")
 
 c7, c8, c9 = st.columns(3)
 with c7:
@@ -211,7 +216,7 @@ def _to_float_safe(x):
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
-def simulate(df, rsi_mode, rsi_level, lookahead, thr_pct, bb_cond, dedup_mode,
+def simulate(df, rsi_use, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, use_bull2=False, allow_other_secondary=False):
     res=[]
     n=len(df); thr=float(thr_pct)
@@ -238,11 +243,11 @@ def simulate(df, rsi_mode, rsi_level, lookahead, thr_pct, bb_cond, dedup_mode,
 
         return False
 
-    # --- RSI 판정 (1단위 정수 기준) ---
-    if rsi_mode == "≤":
-        rsi_idx = df.index[df["RSI13"] <= float(rsi_level)].tolist()
-    elif rsi_mode == "≥":
-        rsi_idx = df.index[df["RSI13"] >= float(rsi_level)].tolist()
+    # --- RSI 판정: 설정 시 (RSI ≤ 과매도) OR (RSI ≥ 과매수) 충족 ---
+    if rsi_use == "설정":
+        idx_low  = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+        idx_high = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+        rsi_idx = sorted(set(idx_low) | set(idx_high))
     else:
         rsi_idx = []
 
@@ -250,9 +255,9 @@ def simulate(df, rsi_mode, rsi_level, lookahead, thr_pct, bb_cond, dedup_mode,
     bb_idx = [i for i in df.index if bb_ok(i)] if bb_cond != "없음" else []
 
     # --- 1차 조건 결합 ---
-    if rsi_mode != "없음" and bb_cond != "없음":
+    if rsi_use != "없음" and bb_cond != "없음":
         base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
-    elif rsi_mode != "없음":
+    elif rsi_use != "없음":
         base_sig_idx = rsi_idx
     elif bb_cond != "없음":
         base_sig_idx = bb_idx
@@ -360,7 +365,7 @@ try:
     start_dt=datetime.combine(start_date, datetime.min.time())
     end_dt=datetime.combine(end_date, datetime.max.time())
 
-    if rsi_mode=="없음" and bb_cond=="없음":
+    if (rsi_use=="없음") and (bb_cond=="없음"):
         st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
         st.info("대기중..")
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
@@ -381,7 +386,7 @@ try:
         st.stop()
 
     # 조건 요약 출력
-    rsi_txt = "없음" if rsi_mode=="없음" else f"RSI {rsi_mode} {int(rsi_level)}"
+    rsi_txt = "RSI: 없음" if rsi_use=="없음" else f"RSI: 과매도≤{int(rsi_low)}, 과매수≥{int(rsi_high)}"
     bb_txt  = f"볼린저밴드: {bb_cond}" if bb_cond!="없음" else "볼린저밴드: 없음"
     sec_txt = []
     if use_bull2: sec_txt.append("양봉 2개 연속 상승")
@@ -390,12 +395,12 @@ try:
     st.info(f"설정 요약 · {rsi_txt} · {bb_txt} · {sec_str}")
 
     res_all=simulate(
-        df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
+        df, rsi_use, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
         "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
         use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
     )
     res_dedup=simulate(
-        df, rsi_mode, rsi_level, lookahead, threshold_pct, bb_cond,
+        df, rsi_use, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
         "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
         use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
     )
@@ -468,13 +473,12 @@ try:
             legend_emitted[grp] = True
 
             if grp == "성공":
-                # 목표 도달 캔들의 '최고가' 바로 위에 ⭐ (중복 마커 방지: X는 표시하지 않음)
+                # 성공 별마크: 캔들 막대(해당 봉의 high) "정확히 최상단"에 표시
                 hit_row = df.loc[df["time"]==end_x]
                 if not hit_row.empty:
-                    high_at_hit = float(hit_row.iloc[0]["high"])
-                    star_y = high_at_hit * 1.001
+                    star_y = float(hit_row.iloc[0]["high"])  # 정확히 high 위치
                 else:
-                    star_y = end_close * 1.002
+                    star_y = end_close  # 예외: 해당 시점 캔들을 못 찾은 경우 종가로 대체
                 fig.add_trace(go.Scatter(
                     x=[end_x], y=[star_y],
                     mode="markers", name="목표 도달",
@@ -482,7 +486,7 @@ try:
                     showlegend=False
                 ))
             else:
-                # 실패/중립: 도착 지점은 작은 X 마커, 원형 마커는 사용하지 않음
+                # 실패/중립: 도착 지점은 작은 X 마커
                 fig.add_trace(go.Scatter(
                     x=[end_x], y=[end_close],
                     mode="markers", name=f"도착-{grp}",
