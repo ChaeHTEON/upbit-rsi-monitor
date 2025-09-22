@@ -1,4 +1,5 @@
 # app.py
+from pytz import timezone
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
@@ -90,12 +91,11 @@ with c1:
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
-from pytz import timezone
-KST = timezone("Asia/Seoul")
-today_kst = datetime.now(KST).date()
-default_start = today_kst - timedelta(days=1)
-start_date = st.date_input("시작 날짜", value=default_start)
-end_date   = st.date_input("종료 날짜", value=today_kst)
+    KST = timezone("Asia/Seoul")
+    today_kst = datetime.now(KST).date()
+    default_start = today_kst - timedelta(days=1)
+    start_date = st.date_input("시작 날짜", value=default_start)
+    end_date   = st.date_input("종료 날짜", value=today_kst)
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
