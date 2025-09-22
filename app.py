@@ -90,9 +90,12 @@ with c1:
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
-    default_start = (datetime.today().date() - timedelta(days=1))  # ✅ 어제
-    start_date = st.date_input("시작 날짜", value=default_start)
-    end_date = st.date_input("종료 날짜", value=datetime.today().date())  # ✅ 오늘
+from pytz import timezone
+KST = timezone("Asia/Seoul")
+today_kst = datetime.now(KST).date()
+default_start = today_kst - timedelta(days=1)
+start_date = st.date_input("시작 날짜", value=default_start)
+end_date   = st.date_input("종료 날짜", value=today_kst)
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
@@ -501,35 +504,35 @@ try:
     )
     st.plotly_chart(fig,use_container_width=True,config={"scrollZoom":True,"doubleClick":"reset"})
 
-    # 표
-    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    if not res.empty:
-        tbl=res.sort_values("신호시간",ascending=False).reset_index(drop=True).copy()
-        tbl["신호시간"]=pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        tbl["기준시가"]=tbl["기준시가"].map(lambda v:f"{int(v):,}")
-        if "RSI(13)" in tbl: tbl["RSI(13)"]=tbl["RSI(13)"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
-        if "BB값" in tbl: tbl["BB값"]=tbl["BB값"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
-        for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
-            if col in tbl: tbl[col]=tbl[col].map(lambda v:f"{v:.2f}%" if pd.notna(v) else "")
-        def fmt_hhmm(start_str, end_str):
-            if pd.isna(start_str) or pd.isna(end_str): return "-"
-            try:
-                s=pd.to_datetime(start_str); e=pd.to_datetime(end_str)
-                m=int((e-s).total_seconds()//60); h,mm=divmod(m,60)
-                return f"{h:02d}:{mm:02d}"
-            except Exception: return "-"
-        tbl["도달시간"]=[fmt_hhmm(res.loc[i,"신호시간"], res.loc[i,"종료시간"]) for i in range(len(res))]
-        if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
-        tbl=tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
-        def style_result(val):
-            if val=="성공": return "background-color: #FFF59D; color: #E53935;"
-            if val=="실패": return "color: #1E40AF;"
-            if val=="중립": return "color: #FF9800;"
-            return ""
-        styled_tbl=tbl.style.applymap(style_result, subset=["결과"])
-        st.dataframe(styled_tbl, use_container_width=True)
-    else:
-        st.info("조건을 만족하는 신호가 없습니다.")
+# 표
+st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+if res is None or res.empty:
+    st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
+else:
+    tbl=res.sort_values("신호시간",ascending=False).reset_index(drop=True).copy()
+    tbl["신호시간"]=pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+    tbl["기준시가"]=tbl["기준시가"].map(lambda v:f"{int(v):,}")
+    if "RSI(13)" in tbl: tbl["RSI(13)"]=tbl["RSI(13)"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
+    if "BB값" in tbl: tbl["BB값"]=tbl["BB값"].map(lambda v:f"{v:.1f}" if pd.notna(v) else "")
+    for col in ["성공기준(%)","최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
+        if col in tbl: tbl[col]=tbl[col].map(lambda v:f"{v:.2f}%" if pd.notna(v) else "")
+    def fmt_hhmm(start_str, end_str):
+        if pd.isna(start_str) or pd.isna(end_str): return "-"
+        try:
+            s=pd.to_datetime(start_str); e=pd.to_datetime(end_str)
+            m=int((e-s).total_seconds()//60); h,mm=divmod(m,60)
+            return f"{h:02d}:{mm:02d}"
+        except Exception: return "-"
+    tbl["도달시간"]=[fmt_hhmm(res.loc[i,"신호시간"], res.loc[i,"종료시간"]) for i in range(len(res))]
+    if "도달분" in tbl: tbl=tbl.drop(columns=["도달분"])
+    tbl=tbl[["신호시간","기준시가","RSI(13)","성공기준(%)","결과","최종수익률(%)","최저수익률(%)","최고수익률(%)","도달시간"]]
+    def style_result(val):
+        if val=="성공": return "background-color: #FFF59D; color: #E53935;"
+        if val=="실패": return "color: #1E40AF;"
+        if val=="중립": return "color: #FF9800;"
+        return ""
+    styled_tbl=tbl.style.applymap(style_result, subset=["결과"])
+    st.dataframe(styled_tbl, use_container_width=True)
 
 except Exception as e:
     st.error(f"오류: {e}")
