@@ -110,10 +110,15 @@ with c4:
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
 with c6:
-    # RSI: 없음/설정 + 과매도/과매수 기준값(정수) — BB와 동일 정렬
+    # RSI: 없음 / 현재(과매도·과매수 중 하나) / 과매도 기준 / 과매수 기준  (BB와 동일 정렬)
     r1, r2, r3 = st.columns(3)
     with r1:
-        rsi_use = st.selectbox("RSI 조건", ["없음", "설정"], index=0, help="설정 시 아래 기준값 적용")
+        rsi_mode = st.selectbox(
+            "RSI 조건",
+            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
+            index=0,
+            help="현재: RSI≤과매도 또는 RSI≥과매수 중 하나라도 충족"
+        )
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1, help="RSI ≤ 값")
     with r3:
@@ -216,7 +221,7 @@ def _to_float_safe(x):
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
-def simulate(df, rsi_use, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
+def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, use_bull2=False, allow_other_secondary=False):
     res=[]
     n=len(df); thr=float(thr_pct)
@@ -243,11 +248,17 @@ def simulate(df, rsi_use, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_
 
         return False
 
-    # --- RSI 판정: 설정 시 (RSI ≤ 과매도) OR (RSI ≥ 과매수) 충족 ---
-    if rsi_use == "설정":
+    # --- RSI 판정: 모드에 따라 계산 ---
+    if rsi_mode == "없음":
+        rsi_idx = []
+    elif rsi_mode == "현재(과매도/과매수 중 하나)":
         idx_low  = df.index[df["RSI13"] <= float(rsi_low)].tolist()
         idx_high = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-        rsi_idx = sorted(set(idx_low) | set(idx_high))
+        rsi_idx = sorted(set(idx_low) | set(idx_high))  # OR
+    elif rsi_mode == "과매도 기준":
+        rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+    elif rsi_mode == "과매수 기준":
+        rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
     else:
         rsi_idx = []
 
@@ -255,9 +266,9 @@ def simulate(df, rsi_use, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_
     bb_idx = [i for i in df.index if bb_ok(i)] if bb_cond != "없음" else []
 
     # --- 1차 조건 결합 ---
-    if rsi_use != "없음" and bb_cond != "없음":
-        base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
-    elif rsi_use != "없음":
+    if rsi_mode != "없음" and bb_cond != "없음":
+        base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))  # AND
+    elif rsi_mode != "없음":
         base_sig_idx = rsi_idx
     elif bb_cond != "없음":
         base_sig_idx = bb_idx
@@ -286,12 +297,8 @@ def simulate(df, rsi_use, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_
             end = i + lookahead
             if end >= n: break
 
-            # --- 2차 조건 적용 시 필터링 ---
+            # --- 2차 조건 적용 (BB 여부와 무관하게 적용)
             if use_bull2:
-                if bb_cond == "없음":
-                    # 2차 조건을 쓸 수 없으므로 신호 무효화
-                    i += 1
-                    continue
                 if not bullish_two_in_a_row_anywhere(i, end):
                     i += 1
                     continue
@@ -313,7 +320,6 @@ def simulate(df, rsi_use, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_
                 if not first_hit.empty:
                     hit_time = first_hit.iloc[0]["time"]
                     reach_min = int((hit_time - df.at[i,"time"]).total_seconds()//60)
-                    # 종료 시점/가격을 "도달 캔들의 종가"로 설정
                     end_time = hit_time
                     idx_hit = df.index[df["time"] == hit_time]
                     if len(idx_hit) > 0:
@@ -321,10 +327,8 @@ def simulate(df, rsi_use, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_
                     else:
                         end_close = float(first_hit.iloc[0]["close"])
                 result = "성공"
-            # 실패: 최종수익률 음수
             elif final_ret < 0:
                 result = "실패"
-            # 그 외 중립: end_time/end_close는 기본값 유지
 
             bb_value = None
             if bb_cond=="상한선": bb_value = df.at[i,"BB_up"]
@@ -365,7 +369,8 @@ try:
     start_dt=datetime.combine(start_date, datetime.min.time())
     end_dt=datetime.combine(end_date, datetime.max.time())
 
-    if (rsi_use=="없음") and (bb_cond=="없음"):
+    # RSI/BB 모두 없음이면 대기
+    if (rsi_mode=="없음") and (bb_cond=="없음"):
         st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
         st.info("대기중..")
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
@@ -380,27 +385,41 @@ try:
     df=add_indicators(df, bb_window, bb_dev)
     bb_cond=st.session_state.get("bb_cond", bb_cond)
 
-    # 볼린저밴드 미설정 + 양봉 2연속 요구 시 에러 팝업
-    if (bb_cond == "없음") and use_bull2:
-        st.error("볼린저밴드 설정이 없음 상태입니다")
-        st.stop()
+    # (변경) BB 미설정이어도 2차 조건 사용 가능 → 에러 팝업 제거
 
-    # 조건 요약 출력
-    rsi_txt = "RSI: 없음" if rsi_use=="없음" else f"RSI: 과매도≤{int(rsi_low)}, 과매수≥{int(rsi_high)}"
-    bb_txt  = f"볼린저밴드: {bb_cond}" if bb_cond!="없음" else "볼린저밴드: 없음"
-    sec_txt = []
-    if use_bull2: sec_txt.append("양봉 2개 연속 상승")
-    if allow_other_secondary: sec_txt.append("기타 2차 조건 확장 허용")
-    sec_str = " / ".join(sec_txt) if sec_txt else "2차 조건: 없음"
-    st.info(f"설정 요약 · {rsi_txt} · {bb_txt} · {sec_str}")
+    # 조건 요약 (측정 구간 + 1차/2차 구분 표시)
+    total_min = lookahead * minutes_per_bar
+    hh, mm = divmod(int(total_min), 60)
+    look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
+
+    if rsi_mode == "없음":
+        rsi_txt = "없음"
+    elif rsi_mode == "현재(과매도/과매수 중 하나)":
+        rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
+    elif rsi_mode == "과매도 기준":
+        rsi_txt = f"과매도≤{int(rsi_low)}"
+    elif rsi_mode == "과매수 기준":
+        rsi_txt = f"과매수≥{int(rsi_high)}"
+    else:
+        rsi_txt = "없음"
+
+    bb_txt  = bb_cond if bb_cond!="없음" else "없음"
+    sec_txt = f"양봉 2개 연속 상승: {'적용' if use_bull2 else '미적용'}"
+
+    st.info(
+        "설정 요약\n"
+        f"- 측정 구간: {look_str}\n"
+        f"- 1차 조건 · RSI: {rsi_txt} · BB: {bb_txt}\n"
+        f"- 2차 조건 · {sec_txt}"
+    )
 
     res_all=simulate(
-        df, rsi_use, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
         "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
         use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
     )
     res_dedup=simulate(
-        df, rsi_use, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
         "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
         use_bull2=use_bull2, allow_other_secondary=allow_other_secondary
     )
