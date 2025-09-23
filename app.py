@@ -31,7 +31,7 @@ st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 마우스 휠 버튼 더블 클릭 → 소프트 리프레시
+# 마우스 휠 버튼 더블 클릭 → 소프트 리프레시 (구버전 호환: key 인자 사용 안함)
 # ──────────────────────────────────────────────────────────────────────────────
 refresh_token = components.html("""
 <script src="https://unpkg.com/@streamlit/component-lib/dist/index.js"></script>
@@ -72,7 +72,25 @@ refresh_token = components.html("""
   }
 })();
 </script>
-""", height=0, key="soft_refresh")
+""", height=0)  # ← key 제거
+
+# 토큰/플래그 초기화
+if "soft_refresh_token" not in st.session_state:
+    st.session_state["soft_refresh_token"] = 0
+if "soft_refresh_pending" not in st.session_state:
+    st.session_state["soft_refresh_pending"] = False
+
+# 값이 실제로 바뀐 최초 한 번만 rerun (무한루프 방지)
+if refresh_token is not None:
+    if refresh_token != st.session_state["soft_refresh_token"] and not st.session_state["soft_refresh_pending"]:
+        st.session_state["soft_refresh_token"] = refresh_token
+        st.session_state["soft_refresh_pending"] = True
+        st.cache_data.clear()
+        st.experimental_rerun()
+
+# rerun 1회 후 플래그 해제
+if st.session_state.get("soft_refresh_pending", False):
+    st.session_state["soft_refresh_pending"] = False
 
 if "soft_refresh_token" not in st.session_state:
     st.session_state["soft_refresh_token"] = None
