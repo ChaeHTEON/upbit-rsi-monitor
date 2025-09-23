@@ -1,3 +1,4 @@
+### 최종 파이널 app.py
 # app.py
 # -*- coding: utf-8 -*-
 import streamlit as st
@@ -10,6 +11,7 @@ import ta
 from datetime import datetime, timedelta
 import numpy as np
 from pytz import timezone  # ✅ 한국시간 반영
+import streamlit.components.v1 as components
 
 # -----------------------------
 # 페이지/스타일
@@ -31,6 +33,64 @@ st.markdown("""
 
 st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
+
+# -----------------------------
+# Soft Refresh (PC: 휠 버튼 더블클릭 / Mobile: 세 손가락 터치)
+# 쿼리 파라미터 soft_refresh를 토글해 rerun 유도(하드 리로드 X)
+# -----------------------------
+if "last_soft_refresh_ts" not in st.session_state:
+    st.session_state["last_soft_refresh_ts"] = 0
+
+# 1) JS 삽입: 이벤트 감지 → URL에 soft_refresh 파라미터 부여(디바운스 1.2초)
+components.html(
+    """
+    <script>
+      (function(){
+        let lastClick = 0;
+        let locked = false;
+        function triggerSoftRefresh(){
+          if(locked) return;
+          locked = true;
+          const url = new URL(window.location.href);
+          url.searchParams.set("soft_refresh", Date.now().toString());
+          window.history.replaceState({}, "", url.toString());
+          // Streamlit은 URL 변경 시 rerun되므로 추가 조치 불필요
+          setTimeout(()=>{ locked = false; }, 1200);
+        }
+        // PC: 마우스 휠 버튼(중간 버튼) 더블클릭
+        document.addEventListener("mousedown", function(e){
+          if(e.button === 1){ // middle
+            const now = Date.now();
+            if(now - lastClick < 400){ triggerSoftRefresh(); }
+            lastClick = now;
+          }
+        }, {passive:true});
+
+        // Mobile: 세 손가락 터치
+        document.addEventListener("touchstart", function(e){
+          if(e.touches && e.touches.length === 3){ triggerSoftRefresh(); }
+        }, {passive:true});
+      })();
+    </script>
+    """,
+    height=0
+)
+
+# 2) Python: soft_refresh 파라미터 감지 → cache만 비우고, 파라미터 제거
+qp = st.query_params
+if "soft_refresh" in qp:
+    try:
+        ts = int(qp.get("soft_refresh"))
+    except Exception:
+        ts = 0
+    if ts != st.session_state.get("last_soft_refresh_ts", 0):
+        st.cache_data.clear()
+        st.session_state["last_soft_refresh_ts"] = ts
+    # 파라미터 제거(뷰 상태 유지)
+    new_q = {k:v for k,v in qp.items() if k != "soft_refresh"}
+    st.query_params.clear()
+    if new_q:
+        st.query_params.update(new_q)
 
 # -----------------------------
 # 업비트 마켓 로드
@@ -232,7 +292,7 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 시뮬레이션 (디버깅 출력 포함, 최대 5개)
+# 시뮬레이션 (디버깅 출력 제거)
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
@@ -411,20 +471,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             bb_value = df.at[anchor_idx, "BB_low"]
         else:
             bb_value = None
-
-        # ✅ Debug: 신호 검증용 출력 (최대 5개, 테스트 후 제거)
-        if len(res) < 5:
-            st.write({
-                "anchor_idx": anchor_idx,
-                "lookahead": lookahead,
-                "hit_idx": hit_idx,
-                "bars_after": (hit_idx - anchor_idx) if hit_idx is not None else None,
-                "signal_time": str(signal_time),
-                "end_time": str(end_time),
-                "hit_basis": hit_basis,
-                "miss_policy": miss_policy,
-                "result": result
-            })
 
         # 결과 저장
         res.append({
@@ -606,7 +652,8 @@ try:
         legend_orientation="h", legend_y=1.05,
         margin=dict(l=60, r=40, t=60, b=40),
         yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100])
+        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
+        uirevision="constant"  # ✅ 차트 뷰(줌/스크롤) 상태 유지
     )
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
 
