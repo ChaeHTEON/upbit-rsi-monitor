@@ -33,6 +33,19 @@ st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
 # -----------------------------
+# 자동 새로고침 주기 선택
+# -----------------------------
+refresh_sec = st.selectbox(
+    "자동 새로고침 주기",
+    [1, 3, 5, 10],
+    index=2,
+    format_func=lambda x: f"{x}초"
+)
+
+from streamlit_autorefresh import st_autorefresh
+st_autorefresh(interval=refresh_sec * 1000, key="refresh")
+
+# -----------------------------
 # 업비트 마켓 로드
 # -----------------------------
 @st.cache_data(ttl=3600)
