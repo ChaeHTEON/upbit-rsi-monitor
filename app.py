@@ -211,7 +211,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     n = len(df)
     thr = float(thr_pct)
 
-    # RSI 인덱스
+    # RSI 조건 인덱스
     if rsi_mode == "없음":
         rsi_idx = []
     elif rsi_mode == "현재(과매도/과매수 중 하나)":
@@ -225,14 +225,14 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     else:
         rsi_idx = []
 
-    # BB 인덱스
+    # BB 조건 인덱스
     def bb_ok(i):
         close_i = float(df.at[i, "close"])
         up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
         if bb_cond == "상한선":
             return pd.notna(up) and (close_i > float(up))
         if bb_cond == "하한선":
-            return pd.notna(lo) and (close_i <= float(lo))
+            return pd.notna(lo) and (close_i <= float(lo))  # 스침 포함
         if bb_cond == "중앙선":
             if pd.isna(mid) or pd.isna(up) or pd.isna(lo):
                 return False
@@ -243,7 +243,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
     bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
 
-    # 1차 결합
+    # 1차 조건 결합
     if rsi_mode != "없음" and bb_cond != "없음":
         base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
     elif rsi_mode != "없음":
@@ -277,20 +277,15 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     i = 0
     while i < n:
         if i in base_sig_idx:
-            entry_idx = i + 1
-            if entry_idx >= n:
-                break
-
-            # 기본 anchor: 신호봉(i)
             anchor_idx = i
             signal_time = df.at[i, "time"]
             base_price = float(df.at[i, "close"])
 
             # 2차 조건 처리
             if sec_cond == "양봉 2개 연속 상승":
-                if entry_idx + 1 <= n - 1:
-                    c0, o0 = float(df.at[entry_idx, "close"]), float(df.at[entry_idx, "open"])
-                    c1, o1 = float(df.at[entry_idx + 1, "close"]), float(df.at[entry_idx + 1, "open"])
+                if i + 2 < n:
+                    c0, o0 = float(df.at[i+1, "close"]), float(df.at[i+1, "open"])
+                    c1, o1 = float(df.at[i+2, "close"]), float(df.at[i+2, "open"])
                     if not ((c0 > o0) and (c1 > o1) and (c1 > c0)):
                         i += 1
                         continue
@@ -299,8 +294,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     continue
 
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
+                # B1: 50% 진입 첫 양봉
                 B1_idx, B1_close = None, None
-                for j in range(i + 1, n):
+                for j in range(i+1, n):
                     if b1_pass(j):
                         v = df.at[j, "close"]
                         if pd.notna(v):
@@ -311,9 +307,10 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     i += 1
                     continue
 
+                # 양봉 2개 탐색 (연속 아님)
                 bull_count, B3_idx = 0, None
-                j_end = min(B1_idx + lookahead, n - 1)
-                for j in range(B1_idx + 1, j_end + 1):
+                j_end = min(B1_idx + lookahead, n-1)
+                for j in range(B1_idx+1, j_end+1):
                     if is_bull(j):
                         bull_count += 1
                         if bull_count == 2:
@@ -323,8 +320,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     i += 1
                     continue
 
+                # T: B3 이후, 종가 ≥ B1 종가
                 T_idx = None
-                for j in range(B3_idx + 1, n):
+                for j in range(B3_idx+1, n):
                     v = df.at[j, "close"]
                     if pd.notna(v) and float(v) >= B1_close:
                         T_idx = j
@@ -337,32 +335,28 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 signal_time = df.at[T_idx, "time"]
                 base_price = float(df.at[T_idx, "close"])
 
-            # -------- 성과 측정 --------
+            # ---- 성과 측정 ----
             end_idx = anchor_idx + lookahead
             if end_idx >= n:
                 i += 1
                 continue
 
-            check_df = df.loc[anchor_idx + 1:end_idx, ["time", "close"]].copy()
+            closes = df.loc[anchor_idx+1:end_idx, ["time", "close"]]
 
-            # 기본 종료값 = N번째 캔들
+            result, reach_min = "중립", None
             end_time = df.at[end_idx, "time"]
             end_close = float(df.at[end_idx, "close"])
-            result, reach_min = "중립", None
-
             final_ret = (end_close / base_price - 1) * 100 if pd.notna(end_close) else 0.0
-            min_ret = (check_df["close"].min() / base_price - 1) * 100 if not check_df.empty else 0.0
-            max_ret = (check_df["close"].max() / base_price - 1) * 100 if not check_df.empty else 0.0
+            min_ret = (closes["close"].min() / base_price - 1) * 100 if not closes.empty else 0.0
+            max_ret = (closes["close"].max() / base_price - 1) * 100 if not closes.empty else 0.0
 
-            # 성공 여부 체크
+            # 목표가 달성 → 조기 성공
             target_price = base_price * (1 + thr / 100)
-            if not check_df.empty:
-                first_hit = check_df[check_df["close"] >= target_price]
+            if not closes.empty:
+                first_hit = closes[closes["close"] >= target_price]
                 if not first_hit.empty:
-                    hit_row = first_hit.iloc[0]
-                    hit_time = hit_row["time"]
-                    if pd.notna(hit_time) and pd.notna(signal_time):
-                        reach_min = int((hit_time - signal_time).total_seconds() // 60)
+                    hit_time = first_hit.iloc[0]["time"]
+                    reach_min = int((hit_time - signal_time).total_seconds() // 60)
                     end_time = hit_time
                     end_close = target_price
                     final_ret = thr
@@ -372,9 +366,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         result = "실패"
                     else:
                         result = "중립"
-            else:
-                result = "중립"
 
+            # BB 값 기록
             bb_value = None
             if bb_cond == "상한선":
                 bb_value = df.at[i, "BB_up"]
@@ -398,6 +391,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 "최고수익률(%)": round(max_ret, 2)
             })
 
+            # 중복 제거 처리
             if dedup_mode.startswith("중복 제거"):
                 i = end_idx
             else:
