@@ -301,8 +301,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         res.append({
             "신호시간": signal_time,
             "종료시간": end_time,
-            ...
-        })
             "기준시가": int(round(base_price)),
             "종료가": end_close,
             "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
