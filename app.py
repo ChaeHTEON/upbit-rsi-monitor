@@ -31,66 +31,56 @@ st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 마우스 휠 2번 터치 → 소프트 리프레시(데이터만 갱신, 스크롤/줌 유지)
+# 마우스 휠 버튼 더블 클릭 → 소프트 리프레시
 # ──────────────────────────────────────────────────────────────────────────────
 refresh_token = components.html("""
 <script src="https://unpkg.com/@streamlit/component-lib/dist/index.js"></script>
 <script>
 (function(){
-  // 우클릭 메뉴 방지
   document.addEventListener('contextmenu', e => e.preventDefault(), true);
 
-// 마우스 휠 버튼(중간 버튼) 더블 클릭 감지 (button==1, 400ms 이내 두 번)
-let counter = 0;
-let lastClick = 0;
-let streak = 0;
+  // 휠 버튼(중간 버튼) 더블 클릭 감지
+  let counter = 0;
+  let lastClick = 0;
+  let streak = 0;
 
-function triggerRefresh(e){
-    if (window.Streamlit && window.Streamlit.setComponentValue) {
-        window.Streamlit.setComponentValue(++counter);
-    }
-    if (e) e.preventDefault();  // 트리거 시에만 기본 동작 방지
-}
+  function triggerRefresh(e){
+      if (window.Streamlit && window.Streamlit.setComponentValue) {
+          window.Streamlit.setComponentValue(++counter);
+      }
+      if (e) e.preventDefault();
+  }
 
-document.addEventListener('mousedown', function(e){
-    if (e.button === 1) {  // 1 = middle button (wheel click)
-        const now = Date.now();
-        if (now - lastClick <= 400) {
-            streak += 1;
-            if (streak >= 2) {
-                streak = 0;
-                triggerRefresh(e);
-            }
-        } else {
-            streak = 1;
-        }
-        lastClick = now;
-    }
-}, true);
+  document.addEventListener('mousedown', function(e){
+      if (e.button === 1) {  // 1 = middle button
+          const now = Date.now();
+          if (now - lastClick <= 400) {
+              streak += 1;
+              if (streak >= 2) {
+                  streak = 0;
+                  triggerRefresh(e);
+              }
+          } else {
+              streak = 1;
+          }
+          lastClick = now;
+      }
+  }, true);
 
-// 컴포넌트 높이 최소화
-if (window.Streamlit && window.Streamlit.setFrameHeight) {
-    window.Streamlit.setFrameHeight(0);
-}
+  if (window.Streamlit && window.Streamlit.setFrameHeight) {
+      window.Streamlit.setFrameHeight(0);
+  }
 })();
 </script>
-""", height=0)
+""", height=0, key="soft_refresh")
 
 if "soft_refresh_token" not in st.session_state:
-    st.session_state["soft_refresh_token"] = 0
-if "soft_refresh_pending" not in st.session_state:
-    st.session_state["soft_refresh_pending"] = False
+    st.session_state["soft_refresh_token"] = None
 
-if refresh_token is not None:
-    if refresh_token != st.session_state["soft_refresh_token"] and not st.session_state["soft_refresh_pending"]:
-        st.session_state["soft_refresh_token"] = refresh_token
-        st.session_state["soft_refresh_pending"] = True
-        st.cache_data.clear()
-        st.experimental_rerun()
-
-# rerun 후 플래그 해제 (무한루프 방지)
-if st.session_state.get("soft_refresh_pending", False):
-    st.session_state["soft_refresh_pending"] = False
+if refresh_token and refresh_token != st.session_state["soft_refresh_token"]:
+    st.session_state["soft_refresh_token"] = refresh_token
+    st.cache_data.clear()
+    st.experimental_rerun()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 업비트 마켓
@@ -139,21 +129,18 @@ dup_mode = st.radio(
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ① 기본 설정 (종목 선택을 세션에 저장/복원하여 BTC 고정 이슈 방지)
+# ① 기본 설정
 # ──────────────────────────────────────────────────────────────────────────────
 st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 with c1:
-    # 이전 선택 복원 (없으면 BTC 인덱스)
     prev_code = st.session_state.get("market_code", None)
     idx = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == prev_code), default_idx)
     selected = st.selectbox("종목 선택", MARKET_LIST, index=idx, key="market_sel", format_func=lambda x: x[0])
     market_label, market_code = selected
-    # 선택 변경 시 세션 저장 + 캐시 무효화(새 종목 데이터 강제 갱신)
-    if prev_code != market_code:
-        st.session_state["market_code"] = market_code
-        st.session_state["market_label"] = market_label
-        st.cache_data.clear()
+    # 항상 세션에 저장
+    st.session_state["market_code"] = market_code
+    st.session_state["market_label"] = market_label
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
@@ -441,10 +428,9 @@ try:
         st.stop()
 
     start_dt = datetime.combine(start_date, datetime.min.time())
-    end_dt   = datetime.combine(end_date,   datetime.max.time())
+    end_dt   = datetime.combine(end_date, datetime.max.time())
 
     warmup_bars = max(13, bb_window) * 5
-    # 세션에 저장된 종목 코드 우선 사용, 없으면 현재 선택값 사용
     selected_code = st.session_state.get("market_code", market_code)
     df_raw = fetch_upbit_paged(selected_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=warmup_bars)
     if df_raw.empty:
@@ -463,173 +449,51 @@ try:
     total_min = lookahead * bar_min
     hh, mm = divmod(int(total_min), 60)
     look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
-    if rsi_mode == "없음":
-        rsi_txt = "없음"
-    elif rsi_mode == "현재(과매도/과매수 중 하나)":
-        rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
-    elif rsi_mode == "과매도 기준":
-        rsi_txt = f"과매도≤{int(rsi_low)}"
-    elif rsi_mode == "과매수 기준":
-        rsi_txt = f"과매수≥{int(rsi_high)}"
-    else:
-        rsi_txt = "없음"
-    bb_txt = bb_cond if bb_cond != "없음" else "없음"
-    sec_txt = f"{sec_cond}"
-    latest_kst = pd.to_datetime(df["time"].max()).strftime("%Y-%m-%d %H:%M")
 
+    # --- 요약 ---
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
     st.info(
         "설정 요약\n"
         f"- 측정 구간: {look_str}\n"
-        f"- 1차 조건 · RSI: {rsi_txt} · BB: {bb_txt}\n"
-        f"- 2차 조건 · {sec_txt}\n"
-        f"- 성공 판정 기준: 종가 기준 (고정)\n"
-        f"- 미도달 규칙: 마지막 종가 수익 +면 중립, 0 이하 실패\n"
-        f"- 워밍업: {warmup_bars}봉\n"
-        f"- 데이터 최신 캔들(KST): {latest_kst}"
+        f"- RSI 조건: {rsi_mode}\n"
+        f"- BB 조건: {bb_cond}\n"
+        f"- 2차 조건: {sec_cond}\n"
+        f"- 성공 판정: 종가 기준\n"
+        f"- 미도달: 마지막 종가 양수=중립, 0 이하=실패\n"
+        f"- 데이터 최신 캔들(KST): {pd.to_datetime(df['time'].max()).strftime('%Y-%m-%d %H:%M')}"
     )
 
+    # --- 시뮬레이션 ---
     res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                       bb_cond, "중복 포함 (연속 신호 모두)", bar_min, selected_code, bb_window, bb_dev,
-                       sec_cond=sec_cond)
+                       bb_cond, "중복 포함 (연속 신호 모두)", bar_min, selected_code, bb_window, bb_dev, sec_cond)
     res_dedup = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                         bb_cond, "중복 제거 (연속 동일 결과 1개)", bar_min, selected_code, bb_window, bb_dev,
-                         sec_cond=sec_cond)
+                         bb_cond, "중복 제거 (연속 동일 결과 1개)", bar_min, selected_code, bb_window, bb_dev, sec_cond)
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
+    # --- 결과 요약 ---
     def _summarize(df_in):
-        if df_in is None or df_in.empty:
-            return 0, 0, 0, 0, 0.0, 0.0
-        total = len(df_in)
+        if df_in.empty:
+            return 0, 0, 0
         succ = (df_in["결과"] == "성공").sum()
         fail = (df_in["결과"] == "실패").sum()
         neu  = (df_in["결과"] == "중립").sum()
-        win = succ / total * 100 if total else 0.0
-        total_final = df_in["최종수익률(%)"].sum()
-        return total, succ, fail, neu, win, total_final
+        return succ, fail, neu
 
-    for label, data in [("중복 포함 (연속 신호 모두)", res_all),
-                        ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
-        total, succ, fail, neu, win, total_final = _summarize(data)
-        st.markdown(f"**{label}**")
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("신호 수", f"{total}")
-        m2.metric("성공", f"{succ}")
-        m3.metric("실패", f"{fail}")
-        m4.metric("중립", f"{neu}")
-        m5.metric("승률", f"{win:.1f}%")
-        col = "red" if total_final > 0 else "blue" if total_final < 0 else "black"
-        m6.markdown(
-            f"<div style='font-weight:600;'>최종수익률 합계: "
-            f"<span style='color:{col}; font-size:1.1rem'>{total_final:.1f}%</span></div>",
-            unsafe_allow_html=True
-        )
+    succ, fail, neu = _summarize(res)
+    st.metric("성공", succ)
+    st.metric("실패", fail)
+    st.metric("중립", neu)
 
-    st.markdown("---")
-
+    # --- 차트 ---
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
+        name="가격", increasing_line_color="red", decreasing_line_color="blue"
     ))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines", line=dict(color="#FFB703", width=1.4), name="BB 상단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="#219EBC", width=1.4), name="BB 하단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"))
-
-    if not res.empty:
-        for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
-            sub = res[res["결과"] == _label]
-            if not sub.empty:
-                fig.add_trace(go.Scatter(
-                    x=sub["신호시간"], y=sub["기준시가"], mode="markers",
-                    name=f"신호({_label})",
-                    marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-                ))
-
-        legend_emitted = {"성공": False, "실패": False, "중립": False}
-        for _, row in res.iterrows():
-            start_x = pd.to_datetime(row["신호시간"]); start_y = float(row["기준시가"])
-            end_x = pd.to_datetime(row["종료시간"]); end_close = float(row["종료가"])
-            grp = row["결과"]; color = "red" if grp == "성공" else ("blue" if grp == "실패" else "#FF9800")
-            fig.add_trace(go.Scatter(
-                x=[start_x, end_x], y=[start_y, end_close], mode="lines",
-                line=dict(color=color, width=1.6 if grp == "성공" else 1.0, dash="dot"),
-                opacity=0.9 if grp == "성공" else 0.5,
-                showlegend=(not legend_emitted[grp]),
-                name=f"신호(점선)-{grp}"
-            ))
-            legend_emitted[grp] = True
-            if grp == "성공":
-                hit_row = df.loc[df["time"] == end_x]
-                star_y = float(hit_row.iloc[0]["high"]) if not hit_row.empty else end_close
-                fig.add_trace(go.Scatter(
-                    x=[end_x], y=[star_y], mode="markers", name="목표 도달",
-                    marker=dict(size=15, color="orange", symbol="star", line=dict(width=1, color="black")),
-                    showlegend=False
-                ))
-            else:
-                fig.add_trace(go.Scatter(
-                    x=[end_x], y=[end_close], mode="markers", name=f"도착-{grp}",
-                    marker=dict(size=8, color=color, symbol="x", line=dict(width=1, color="black")),
-                    showlegend=False
-                ))
-
-    fig.update_layout(
-        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="zoom", xaxis_rangeslider_visible=False, height=600,
-        legend_orientation="h", legend_y=1.05,
-        margin=dict(l=60, r=40, t=60, b=40),
-        yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
-        uirevision="keep-view"
-    )
-
-    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
-                             line=dict(color="rgba(42,157,143,0.3)", width=6),
-                             yaxis="y2", showlegend=False))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
-                             line=dict(color="#2A9D8F", width=2.4, dash="dot"),
-                             name="RSI(13)", yaxis="y2"))
-    fig.add_hline(y=70, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
-    fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
-
-    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
-
-    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    if res is None or res.empty:
-        st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
-    else:
-        tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-        s_series = pd.to_datetime(tbl["신호시간"])
-        e_series = pd.to_datetime(tbl["종료시간"])
-        diff_min = ((e_series - s_series).dt.total_seconds() / 60).round().astype(int)
-
-        bars_after = (diff_min / bar_min).round().astype(int)
-        tbl["도달캔들"] = bars_after
-        tbl.loc[tbl["결과"] != "성공", "도달캔들"] = lookahead
-        tbl["도달시간"] = diff_min.apply(lambda m: f"{m//60:02d}:{m%60:02d}")
-
-        tbl["신호시간"] = s_series.dt.strftime("%Y-%m-%d %H:%M")
-        tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
-        if "RSI(13)" in tbl:
-            tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        if "BB값" in tbl:
-            tbl["BB값"] = tbl["BB값"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        for col in ["성공기준(%)", "최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
-            if col in tbl:
-                tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-
-        tbl = tbl[["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
-                   "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]]
-
-        def style_result(val):
-            if val == "성공": return "background-color: #FFF59D; color: #E53935; font-weight:600;"
-            if val == "실패": return "color: #1E40AF; font-weight:600;"
-            if val == "중립": return "color: #FF9800; font-weight:600;"
-            return ""
-
-        styled_tbl = tbl.style.applymap(style_result, subset=["결과"])
-        st.dataframe(styled_tbl, use_container_width=True)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines", name="BB 상단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", name="BB 하단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", name="BB 중앙"))
+    st.plotly_chart(fig, use_container_width=True)
 
 except Exception as e:
     st.error(f"오류: {e}")
