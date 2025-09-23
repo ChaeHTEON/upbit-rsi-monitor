@@ -486,6 +486,19 @@ try:
 
     df_ind = add_indicators(df_raw, bb_window, bb_dev)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+    
+    # -----------------------------
+    # 실시간 현재가 보정 (마지막 봉 close 덮어쓰기)
+    # -----------------------------
+    try:
+        ticker_url = f"https://api.upbit.com/v1/ticker?markets={market_code}"
+        r = requests.get(ticker_url, timeout=3)
+        if r.status_code == 200:
+            cur_price = r.json()[0]["trade_price"]
+            if not df.empty:
+                df.at[df.index[-1], "close"] = float(cur_price)
+    except Exception as e:
+        st.warning(f"실시간 가격 갱신 실패: {e}")
 
     bb_cond = st.session_state.get("bb_cond", bb_cond)
 
