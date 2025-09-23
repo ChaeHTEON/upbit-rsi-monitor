@@ -257,6 +257,16 @@ try:
     df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty:
         st.error("데이터가 없습니다. (조회된 캔들이 없음)")
+
+        # 빈 차트 기본 뼈대 출력
+        fig = make_subplots(rows=1, cols=1)
+        fig.update_layout(
+            title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13)+BB 시뮬",
+            dragmode="zoom",
+            xaxis_rangeslider_visible=False,
+            height=600
+        )
+        st.plotly_chart(fig, use_container_width=True)
         st.stop()
     df = add_indicators(df, bb_window, bb_dev)
     res = simulate(df, lookahead, threshold_pct, bb_cond, dup_mode, sec_cond, bb_strength)
