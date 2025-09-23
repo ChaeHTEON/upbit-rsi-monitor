@@ -338,7 +338,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 base_price = float(df.at[T_idx, "close"])
 
             # -----------------------------
-            # 성과 측정 (공통: 목표가 미도달 시 마지막 종가)
+            # 성과 측정 (A안: 조기 성공, 미도달 시 마지막 종가 판정)
             # -----------------------------
             end = entry_idx + lookahead
             if end >= n:
@@ -347,23 +347,22 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
             closes = df.loc[entry_idx + 1:end, ["time", "close"]]
 
-            if closes.empty or closes["close"].isna().all():
-                last_close = base_price
-                end_time, end_close = signal_time, base_price
-                final_ret, min_ret, max_ret = 0.0, 0.0, 0.0
-            else:
+            result, reach_min = "중립", None
+            final_ret, min_ret, max_ret = 0.0, 0.0, 0.0
+            end_time, end_close = signal_time, base_price
+
+            if not closes.empty and not closes["close"].isna().all():
+                # 기본값: 마지막 종가 기준
                 last_row = closes.iloc[-1]
                 last_close = float(last_row["close"])
-                end_time = last_row["time"] if pd.notna(last_row["time"]) else signal_time
+                end_time = last_row["time"]
                 end_close = last_close
                 final_ret = (last_close / base_price - 1) * 100
                 min_ret = (closes["close"].min() / base_price - 1) * 100
                 max_ret = (closes["close"].max() / base_price - 1) * 100
 
-            result, reach_min = "중립", None
-            target_price = base_price * (1 + thr / 100)
-
-            if not closes.empty:
+                # 목표가 달성 여부 확인 (조기 성공)
+                target_price = base_price * (1 + thr / 100)
                 first_hit = closes[closes["close"] >= target_price]
                 if not first_hit.empty:
                     hit_time = first_hit.iloc[0]["time"]
@@ -371,8 +370,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         reach_min = int((hit_time - signal_time).total_seconds() // 60)
                     end_time, end_close = hit_time, target_price
                     result, final_ret = "성공", thr
-                elif final_ret <= -thr:
-                    result = "실패"
+                else:
+                    # 목표가 미달성 → 마지막 종가로 판정
+                    if final_ret <= -thr:
+                        result = "실패"
+                    else:
+                        result = "중립"
 
             bb_value = None
             if bb_cond == "상한선":
