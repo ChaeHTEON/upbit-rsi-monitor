@@ -23,14 +23,14 @@ st.markdown("""
   .hint {color:#6b7280;}
   .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
   .fail-cell {color:#1E40AF; font-weight:600;}
-  .neutral-cell {color:#059669; font-weight:600;}
+  .neutral-cell {color:#FF9800; font-weight:600;}
   table {border-collapse:collapse; width:100%;}
   th, td {border:1px solid #ddd; padding:6px; text-align:center;}
 </style>
 """, unsafe_allow_html=True)
 
 st.title("📊 코인 시뮬레이션")
-st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 내 점선은 신호 흐름선, 성공 시 도달 지점에 ⭐ 별표 표시</div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
 # -----------------------------
 # 업비트 마켓 로드
@@ -93,7 +93,7 @@ with c2:
 with c3:
     KST = timezone("Asia/Seoul")  # ✅ 한국시간 적용
     today_kst = datetime.now(KST).date()
-    default_start = today_kst - timedelta(days=1)
+    default_start = today_kst - timedelta(days=1)  # 시작: 어제, 종료: 오늘
     start_date = st.date_input("시작 날짜", value=default_start)
     end_date = st.date_input("종료 날짜", value=today_kst)
 
@@ -109,12 +109,11 @@ with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-    # ✅ 성공 판정 기준 옵션 추가
     hit_basis = st.selectbox(
         "성공 판정 기준",
         ["종가 기준", "고가 기준(스침 인정)", "종가 또는 고가"],
         index=0,
-        help="목표가 도달 판정에 사용할 가격. 고가 기준은 인트라캔들 스침도 성공 처리."
+        help="목표가 도달 판정에 사용할 가격. '고가 기준'은 인트라캔들 스침도 성공 처리."
     )
 with c6:
     r1, r2, r3 = st.columns(3)
@@ -137,6 +136,14 @@ with c8:
     bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
+
+# ✅ 미도달 처리 정책
+miss_policy = st.selectbox(
+    "미도달 처리",
+    ["실패(권장)", "중립(예전 로직)"],
+    index=0,
+    help="목표가 미도달 시 N번째 캔들의 '종가'로 최종 판정. '실패(권장)'은 미도달=실패로 기록, '중립'은 -thr 이하만 실패."
+)
 
 st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반)</div>', unsafe_allow_html=True)
 sec_cond = st.selectbox("2차 조건 선택", ["없음", "양봉 2개 연속 상승", "BB 기반 첫 양봉 50% 진입"], index=0)
@@ -167,7 +174,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     max_calls = min(calls_est + 2, 60)
     req_count = 200
     all_data = []
-    to_time = None  # ✅ 첫 호출은 to 없이
+    to_time = None  # ✅ 첫 호출은 to 없이 전체에서 과거로 페이징
 
     try:
         for _ in range(max_calls):
@@ -213,7 +220,8 @@ def add_indicators(df, bb_window, bb_dev):
 # 시뮬레이션 (디버깅 출력 포함, 최대 5개)
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음", hit_basis="종가 기준"):
+             minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
+             hit_basis="종가 기준", miss_policy="실패(권장)"):
     res = []
     n = len(df)
     thr = float(thr_pct)
@@ -370,8 +378,14 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             final_ret = thr
             result = "성공"
         else:
-            if final_ret <= -thr:
+            # ✅ 미도달이면 N번째 캔들의 '종가'로 최종 판정 (end_time/end_close 이미 설정됨)
+            if miss_policy.startswith("실패"):
                 result = "실패"
+            else:
+                if final_ret <= -thr:
+                    result = "실패"
+                else:
+                    result = "중립"
 
         # 표시용 BB 값 (앵커 시점)
         if bb_cond == "상한선":
@@ -393,6 +407,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 "signal_time": str(signal_time),
                 "end_time": str(end_time),
                 "hit_basis": hit_basis,
+                "miss_policy": miss_policy,
                 "result": result
             })
 
@@ -459,16 +474,17 @@ try:
         f"- 측정 구간: {look_str}\n"
         f"- 1차 조건 · RSI: {rsi_txt} · BB: {bb_txt}\n"
         f"- 2차 조건 · {sec_txt}\n"
-        f"- 성공 판정 기준: {hit_basis}"
+        f"- 성공 판정 기준: {hit_basis}\n"
+        f"- 미도달 처리: {miss_policy}"
     )
 
     # 시뮬레이션 실행
     res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
                        bb_cond, "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
-                       sec_cond=sec_cond, hit_basis=hit_basis)
+                       sec_cond=sec_cond, hit_basis=hit_basis, miss_policy=miss_policy)
     res_dedup = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
                          bb_cond, "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
-                         sec_cond=sec_cond, hit_basis=hit_basis)
+                         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy=miss_policy)
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup  # ✅ 라디오 선택 반영
 
     # 요약 메트릭
@@ -558,7 +574,7 @@ try:
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
                              line=dict(color="#2A9D8F", width=2.4, dash="dot"),
                              name="RSI(13)", yaxis="y2"))
-    # 보조축 레벨 가이드 (버전 호환 이슈 시 무시)
+    # (버전별 동작 차이 있을 수 있음)
     fig.add_hline(y=70, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
 
@@ -572,12 +588,15 @@ try:
     )
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
 
-    # 표
+    # -----------------------------
+    # ④ 신호 결과 (테이블)
+    # -----------------------------
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
     if res is None or res.empty:
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+        # 표시는 문자열로
         tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
         if "RSI(13)" in tbl:
@@ -587,6 +606,8 @@ try:
         for col in ["성공기준(%)", "최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
             if col in tbl:
                 tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
+
+        # 도달시간/도달캔들 계산
         def fmt_hhmm(start_str, end_str):
             if pd.isna(start_str) or pd.isna(end_str):
                 return "-"
@@ -596,16 +617,32 @@ try:
                 return f"{h:02d}:{mm:02d}"
             except Exception:
                 return "-"
+
+        def calc_bars_after(start_str, end_str):
+            try:
+                s = pd.to_datetime(start_str); e = pd.to_datetime(end_str)
+                mins = int(round((e - s).total_seconds() / 60))
+                return int(round(mins / minutes_per_bar))
+            except Exception:
+                return None
+
         tbl["도달시간"] = [fmt_hhmm(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
-        if "도달분" in tbl:
+        tbl["도달캔들"] = [calc_bars_after(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
+
+        if "도달분" in tbl:  # 내부값 노출 방지
             tbl = tbl.drop(columns=["도달분"])
+
+        # 컬럼 순서
         tbl = tbl[["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
-                   "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달시간"]]
+                   "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]]
+
+        # 스타일
         def style_result(val):
             if val == "성공": return "background-color: #FFF59D; color: #E53935;"
             if val == "실패": return "color: #1E40AF;"
             if val == "중립": return "color: #FF9800;"
             return ""
+
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"])
         st.dataframe(styled_tbl, use_container_width=True)
 
