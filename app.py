@@ -280,8 +280,14 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             entry_idx = i + 1
             if entry_idx >= n:
                 break
-            signal_time = df.at[entry_idx, "time"]
-            base_price = float(df.at[entry_idx, "close"])
+
+            # 기본 기준 매수가 (조건별 분리)
+            if sec_cond == "BB 기반 첫 양봉 50% 진입":
+                signal_time = df.at[entry_idx, "time"]
+                base_price = float(df.at[entry_idx, "close"])
+            else:
+                signal_time = df.at[i, "time"]
+                base_price = float(df.at[i, "close"])
 
             # 2차 조건
             if sec_cond == "양봉 2개 연속 상승":
@@ -338,7 +344,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 base_price = float(df.at[T_idx, "close"])
 
             # -----------------------------
-            # 성과 측정 (A안: 조기 성공, 미도달 시 마지막 종가 판정)
+            # 성과 측정 (성공은 조기 종료, 중립/실패는 N봉 끝까지 판정)
             # -----------------------------
             end = entry_idx + lookahead
             if end >= n:
@@ -352,7 +358,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             end_time, end_close = signal_time, base_price
 
             if not closes.empty and not closes["close"].isna().all():
-                # 기본값: 마지막 종가 기준
+                # 기본값: 마지막 캔들까지 확인
                 last_row = closes.iloc[-1]
                 last_close = float(last_row["close"])
                 end_time = last_row["time"]
@@ -361,7 +367,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 min_ret = (closes["close"].min() / base_price - 1) * 100
                 max_ret = (closes["close"].max() / base_price - 1) * 100
 
-                # 목표가 달성 여부 확인 (조기 성공)
+                # 목표가 달성 시 → 조기 성공 종료
                 target_price = base_price * (1 + thr / 100)
                 first_hit = closes[closes["close"] >= target_price]
                 if not first_hit.empty:
