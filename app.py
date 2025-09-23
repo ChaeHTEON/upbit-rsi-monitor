@@ -256,7 +256,7 @@ try:
     end_dt = datetime.combine(end_date, datetime.max.time())
     df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty:
-        st.warning("조회된 데이터가 없습니다. 날짜/종목/봉 설정을 확인해주세요.")
+        st.error("데이터가 없습니다. (조회된 캔들이 없음)")
         st.stop()
     df = add_indicators(df, bb_window, bb_dev)
     res = simulate(df, lookahead, threshold_pct, bb_cond, dup_mode, sec_cond, bb_strength)
@@ -292,9 +292,9 @@ try:
         tbl = res.copy()
         tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
         tbl["종료시간"] = pd.to_datetime(tbl["종료시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        st.dataframe(tbl,use_container_width=True)
+        st.dataframe(tbl, use_container_width=True)
     else:
-        st.info("조건을 만족하는 신호가 없습니다.")
+        st.info("조건을 만족하는 신호가 없습니다. (데이터는 불러왔지만 조건 불충족)")
 
 except Exception as e:
     msg = (str(e) or "").strip()
