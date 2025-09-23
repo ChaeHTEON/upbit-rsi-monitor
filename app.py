@@ -33,6 +33,23 @@ st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
 # -----------------------------
+# 자동 새로고침 주기 선택
+# -----------------------------
+refresh_sec = st.selectbox(
+    "자동 새로고침 주기",
+    [1, 3, 5, 10],
+    index=2,
+    format_func=lambda x: f"{x}초"
+)
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=refresh_sec * 1000, key="refresh")
+except Exception:
+    # 패키지 미설치 시에도 앱 중단 없이 동작 (자동 새로고침만 비활성화)
+    pass
+
+# -----------------------------
 # 업비트 마켓 로드
 # -----------------------------
 @st.cache_data(ttl=3600)
@@ -469,6 +486,19 @@ try:
 
     df_ind = add_indicators(df_raw, bb_window, bb_dev)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+    
+    # -----------------------------
+    # 실시간 현재가 보정 (마지막 봉 close 덮어쓰기)
+    # -----------------------------
+    try:
+        ticker_url = f"https://api.upbit.com/v1/ticker?markets={market_code}"
+        r = requests.get(ticker_url, timeout=3)
+        if r.status_code == 200:
+            cur_price = r.json()[0]["trade_price"]
+            if not df.empty:
+                df.at[df.index[-1], "close"] = float(cur_price)
+    except Exception as e:
+        st.warning(f"실시간 가격 갱신 실패: {e}")
 
     bb_cond = st.session_state.get("bb_cond", bb_cond)
 
