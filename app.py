@@ -277,20 +277,17 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     i = 0
     while i < n:
         if i in base_sig_idx:
-            # 기본 entry 기준(조건 확인을 위한 지점)
             entry_idx = i + 1
             if entry_idx >= n:
                 break
 
-            # --- 기준 매수가 & 측정 시작(anchor) ---
-            # BB 50%만 T_idx 종가를 기준/앵커로, 그 외는 신호봉(i)의 종가를 기준/앵커로
-            anchor_idx = i           # 기본은 신호봉
+            # 기본 anchor: 신호봉(i)
+            anchor_idx = i
             signal_time = df.at[i, "time"]
             base_price = float(df.at[i, "close"])
 
-            # 2차 조건
+            # 2차 조건 처리
             if sec_cond == "양봉 2개 연속 상승":
-                # 신호 이후 바로 다음 2개 봉이 연속 양봉 + 상승
                 if entry_idx + 1 <= n - 1:
                     c0, o0 = float(df.at[entry_idx, "close"]), float(df.at[entry_idx, "open"])
                     c1, o1 = float(df.at[entry_idx + 1, "close"]), float(df.at[entry_idx + 1, "open"])
@@ -302,7 +299,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     continue
 
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
-                # B1: i 이후 조건 충족 양봉
                 B1_idx, B1_close = None, None
                 for j in range(i + 1, n):
                     if b1_pass(j):
@@ -315,7 +311,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     i += 1
                     continue
 
-                # B2/B3: B1 이후 양봉 2개(연속 아님)
                 bull_count, B3_idx = 0, None
                 j_end = min(B1_idx + lookahead, n - 1)
                 for j in range(B1_idx + 1, j_end + 1):
@@ -328,7 +323,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     i += 1
                     continue
 
-                # T: B3 이후 종가 ≥ B1 종가 첫 캔들
                 T_idx = None
                 for j in range(B3_idx + 1, n):
                     v = df.at[j, "close"]
@@ -339,36 +333,34 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     i += 1
                     continue
 
-                # BB 조건은 T_idx를 기준(앵커)으로 전환
                 anchor_idx = T_idx
                 signal_time = df.at[T_idx, "time"]
                 base_price = float(df.at[T_idx, "close"])
 
-            # -------- 성과 측정: 성공은 조기 종료, 중립/실패는 N번째 캔들에서 종료 --------
+            # -------- 성과 측정 --------
             end_idx = anchor_idx + lookahead
             if end_idx >= n:
                 i += 1
                 continue
 
-            closes = df.loc[anchor_idx + 1:end_idx, ["time", "close"]]
+            check_df = df.loc[anchor_idx + 1:end_idx, ["time", "close"]].copy()
 
-            result, reach_min = "중립", None
-            end_time = df.at[end_idx, "time"]       # 중립/실패 기본 종료 위치는 항상 N번째 캔들
+            # 기본 종료값 = N번째 캔들
+            end_time = df.at[end_idx, "time"]
             end_close = float(df.at[end_idx, "close"])
+            result, reach_min = "중립", None
+
             final_ret = (end_close / base_price - 1) * 100 if pd.notna(end_close) else 0.0
+            min_ret = (check_df["close"].min() / base_price - 1) * 100 if not check_df.empty else 0.0
+            max_ret = (check_df["close"].max() / base_price - 1) * 100 if not check_df.empty else 0.0
 
-            if not closes.empty and not closes["close"].isna().all():
-                min_ret = (closes["close"].min() / base_price - 1) * 100
-                max_ret = (closes["close"].max() / base_price - 1) * 100
-            else:
-                min_ret = max_ret = 0.0
-
-            # 목표가 도달 시 → 조기 성공 종료(해당 캔들에서 종료)
+            # 성공 여부 체크
             target_price = base_price * (1 + thr / 100)
-            if not closes.empty:
-                first_hit = closes[closes["close"] >= target_price]
+            if not check_df.empty:
+                first_hit = check_df[check_df["close"] >= target_price]
                 if not first_hit.empty:
-                    hit_time = first_hit.iloc[0]["time"]
+                    hit_row = first_hit.iloc[0]
+                    hit_time = hit_row["time"]
                     if pd.notna(hit_time) and pd.notna(signal_time):
                         reach_min = int((hit_time - signal_time).total_seconds() // 60)
                     end_time = hit_time
@@ -376,16 +368,13 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     final_ret = thr
                     result = "성공"
                 else:
-                    # 미달성 → N번째 캔들에서 판정(중립/실패)
                     if final_ret <= -thr:
                         result = "실패"
                     else:
                         result = "중립"
             else:
-                # 데이터 비어있으면 중립 유지
                 result = "중립"
 
-            # 표시용 BB 값
             bb_value = None
             if bb_cond == "상한선":
                 bb_value = df.at[i, "BB_up"]
@@ -409,7 +398,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 "최고수익률(%)": round(max_ret, 2)
             })
 
-            # 중복 제거 모드면 현재 앵커의 N번째 이후로 점프
             if dedup_mode.startswith("중복 제거"):
                 i = end_idx
             else:
