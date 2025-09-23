@@ -158,8 +158,72 @@ st.markdown("---")
 # ⑥ 실행
 # ──────────────────────────────────────────────────────────────────────────────
 try:
-    # ... (데이터 수집, 시뮬레이션 실행, 차트 그리기, 결과 표 출력 등 기존과 동일)
-    pass
+    if start_date > end_date:
+        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
+        st.stop()
+
+    start_dt = datetime.combine(start_date, datetime.min.time())
+    end_dt   = datetime.combine(end_date, datetime.max.time())
+
+    warmup_bars = max(13, bb_window) * 5
+    selected_code = st.session_state.get("market_code", market_code)
+
+    df_raw = fetch_upbit_paged(selected_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=warmup_bars)
+    if df_raw.empty:
+        st.error(f"{selected_code} 데이터가 없습니다.")
+        st.stop()
+
+    df_ind = add_indicators(df_raw, bb_window, bb_dev)
+    df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+    bb_cond = st.session_state.get("bb_cond", bb_cond)
+
+    _bar_diff = df["time"].diff().dropna()
+    bar_min = int(round(_bar_diff.median().total_seconds() / 60)) if not _bar_diff.empty else minutes_per_bar
+    if bar_min <= 0:
+        bar_min = minutes_per_bar
+
+    total_min = lookahead * bar_min
+    hh, mm = divmod(int(total_min), 60)
+    look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
+
+    # --- 요약 ---
+    st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
+    st.info(
+        "설정 요약\n"
+        f"- 측정 구간: {look_str}\n"
+        f"- RSI 조건: {rsi_mode}\n"
+        f"- BB 조건: {bb_cond}\n"
+        f"- 2차 조건: {sec_cond}\n"
+        f"- 성공 판정: 종가 기준\n"
+        f"- 미도달: 마지막 종가 양수=중립, 0 이하=실패\n"
+        f"- 데이터 최신 캔들(KST): {pd.to_datetime(df['time'].max()).strftime('%Y-%m-%d %H:%M')}"
+    )
+
+    # --- 시뮬레이션 ---
+    res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+                       bb_cond, "중복 포함 (연속 신호 모두)", bar_min, selected_code, bb_window, bb_dev, sec_cond)
+    res_dedup = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+                         bb_cond, "중복 제거 (연속 동일 결과 1개)", bar_min, selected_code, bb_window, bb_dev, sec_cond)
+    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+
+    # --- 결과 요약 ---
+    succ = (res["결과"] == "성공").sum()
+    fail = (res["결과"] == "실패").sum()
+    neu  = (res["결과"] == "중립").sum()
+    st.metric("성공", succ)
+    st.metric("실패", fail)
+    st.metric("중립", neu)
+
+    # --- 차트 ---
+    fig = make_subplots(rows=1, cols=1)
+    fig.add_trace(go.Candlestick(
+        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        name="가격", increasing_line_color="red", decreasing_line_color="blue"
+    ))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines", name="BB 상단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", name="BB 하단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", name="BB 중앙"))
+    st.plotly_chart(fig, use_container_width=True)
 
 except Exception as e:
     st.error(f"오류: {e}")
