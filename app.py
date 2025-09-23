@@ -58,7 +58,7 @@ refresh_token = components.html("""
   }
 })();
 </script>
-""", height=0, key="soft_refresh_signal")
+""", height=0)
 
 if "soft_refresh_token" not in st.session_state:
     st.session_state["soft_refresh_token"] = 0
