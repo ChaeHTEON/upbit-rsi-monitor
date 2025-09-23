@@ -381,13 +381,15 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
         # ✅ Debug: 신호 검증용 출력 (최대 5개, 테스트 후 제거 예정)
         if len(res) < 5:
+        # ✅ Debug: 신호 검증용 출력 (최대 5개, 테스트 후 제거 예정)
+        if len(res) < 5:
             st.write({
                 "anchor_idx": anchor_idx,
                 "lookahead": lookahead,
                 "hit_idx": hit_idx,
                 "bars_after": (hit_idx - anchor_idx) if hit_idx is not None else None,
-                "signal_time": signal_time,
-                "end_time": end_time
+                "signal_time": str(signal_time),
+                "end_time": str(end_time)
             })
 
         res.append({
