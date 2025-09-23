@@ -359,7 +359,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 result, final_ret = "성공", thr
             elif final_ret <= -thr:
                 result = "실패"
-
             bb_value = None
             if bb_cond == "상한선":
                 bb_value = df.at[i, "BB_up"]
