@@ -72,11 +72,14 @@ refresh_token = components.html("""
 </script>
 """, height=0)
 
-if refresh_token is not None:
-    if refresh_token != st.session_state.get("soft_refresh_token", None):
-        st.session_state["soft_refresh_token"] = refresh_token
+# 소프트 리프레시 이벤트 처리 (무한루프 방지)
+if refresh_token:
+    if not st.session_state.get("soft_refresh_triggered", False):
+        st.session_state["soft_refresh_triggered"] = True
         st.cache_data.clear()
         st.experimental_rerun()
+else:
+    st.session_state["soft_refresh_triggered"] = False
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 업비트 마켓
