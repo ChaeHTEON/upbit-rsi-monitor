@@ -115,7 +115,8 @@ with c6:
         rsi_mode = st.selectbox(
             "RSI 조건",
             ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
-            index=0
+            index=0,
+            help="현재: RSI≤과매도 또는 RSI≥과매수 중 하나라도 충족"
         )
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
@@ -159,7 +160,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     max_calls = min(calls_est + 2, 60)
     req_count = 200
     all_data = []
-    to_time = None
+    to_time = None  # ✅ 첫 호출은 to 없이
 
     try:
         for _ in range(max_calls):
@@ -196,9 +197,9 @@ def add_indicators(df, bb_window, bb_dev):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
     bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-    out["BB_up"] = bb.bollinger_hband()
-    out["BB_low"] = bb.bollinger_lband()
-    out["BB_mid"] = bb.bollinger_mavg()
+    out["BB_up"] = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
+    out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
+    out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
     return out
 
 # -----------------------------
@@ -210,20 +211,104 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     n = len(df)
     thr = float(thr_pct)
 
-    def is_bull(idx):
-        return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
+    # RSI 조건
+    if rsi_mode == "없음":
+        rsi_idx = []
+    elif rsi_mode == "현재(과매도/과매수 중 하나)":
+        rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)]) |
+                         set(df.index[df["RSI13"] >= float(rsi_high)]))
+    elif rsi_mode == "과매도 기준":
+        rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+    else:
+        rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+
+    # BB 조건
+    def bb_ok(i):
+        close_i = float(df.at[i, "close"])
+        up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
+        if bb_cond == "상한선": return pd.notna(up) and close_i > float(up)
+        if bb_cond == "하한선": return pd.notna(lo) and close_i <= float(lo)
+        if bb_cond == "중앙선":
+            if pd.isna(mid): return False
+            band_w = max(1e-9, float(up) - float(lo))
+            return abs(close_i - float(mid)) <= 0.1 * band_w
+        return False
+
+    bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
+
+    # 신호 후보
+    if rsi_mode != "없음" and bb_cond != "없음":
+        base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
+    elif rsi_mode != "없음":
+        base_sig_idx = rsi_idx
+    elif bb_cond != "없음":
+        base_sig_idx = bb_idx
+    else:
+        base_sig_idx = []
+
+    def is_bull(idx): return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
+
+    def b1_pass(j):
+        if not is_bull(j): return False
+        if bb_cond == "상한선": ref = df.at[j, "BB_up"]
+        elif bb_cond == "중앙선": ref = df.at[j, "BB_mid"]
+        elif bb_cond == "하한선": ref = df.at[j, "BB_low"]
+        else: return False
+        if pd.isna(ref): return False
+        o, c = df.at[j, "open"], df.at[j, "close"]
+        return c >= o + 0.5 * (ref - o) if o < ref else c >= ref
 
     i = 0
     while i < n:
-        # 디버그: 루프 시작
-        st.write("loop start:", i, "n:", n)
+        if i not in base_sig_idx:
+            i += 1
+            continue
 
-        # 예시 anchor_idx/end_idx 디버그
-        anchor_idx = i
+        anchor_idx, signal_time, base_price = i, df.at[i, "time"], float(df.at[i, "close"])
+
+        # 2차 조건
+        if sec_cond == "양봉 2개 연속 상승":
+            if not (i + 2 < n and is_bull(i+1) and is_bull(i+2) and df.at[i+2,"close"]>df.at[i+1,"close"]):
+                i += 1; continue
+        elif sec_cond == "BB 기반 첫 양봉 50% 진입":
+            B1_idx = next((j for j in range(i+1,n) if b1_pass(j)), None)
+            if B1_idx is None: i+=1; continue
+            bulls=[j for j in range(B1_idx+1,min(B1_idx+lookahead,n)) if is_bull(j)]
+            if len(bulls)<2: i+=1; continue
+            B3_idx=bulls[1]
+            T_idx = next((j for j in range(B3_idx+1,n) if df.at[j,"close"]>=df.at[B1_idx,"close"]),None)
+            if T_idx is None: i+=1; continue
+            anchor_idx, signal_time, base_price = T_idx, df.at[T_idx,"time"], float(df.at[T_idx,"close"])
+
         end_idx = anchor_idx + lookahead
-        st.write(f"anchor_idx={anchor_idx}, end_idx={end_idx}")
+        if end_idx >= n: break
+        window = df.iloc[anchor_idx+1:end_idx+1]
 
-        i += 1
+        end_time, end_close = df.at[end_idx,"time"], float(df.at[end_idx,"close"])
+        final_ret=(end_close/base_price-1)*100
+        min_ret=(window["close"].min()/base_price-1)*100 if not window.empty else 0
+        max_ret=(window["close"].max()/base_price-1)*100 if not window.empty else 0
+
+        result, reach_min="중립",None
+        target=base_price*(1+thr/100)
+        hits=window[window["close"]>=target]
+        if not hits.empty:
+            hit_time=hits.iloc[0]["time"]
+            reach_min=int((hit_time-signal_time).total_seconds()//60)
+            end_time,end_close,target,final_ret,result=hit_time,target,thr,thr,"성공"
+        elif final_ret<=-thr: result="실패"
+
+        res.append({
+            "신호시간":signal_time,"종료시간":end_time,
+            "기준시가":int(round(base_price)),"종료가":end_close,
+            "RSI(13)":round(df.at[i,"RSI13"],1) if pd.notna(df.at[i,"RSI13"]) else None,
+            "BB값":round(df.at[i,"BB_mid"],1) if bb_cond=="중앙선" else None,
+            "성공기준(%)":round(thr,1),"결과":result,"도달분":reach_min,
+            "최종수익률(%)":round(final_ret,2),"최저수익률(%)":round(min_ret,2),"최고수익률(%)":round(max_ret,2)
+        })
+
+        i=end_idx if dedup_mode.startswith("중복 제거") else i+1
+
     return pd.DataFrame(res)
 
 # -----------------------------
@@ -231,21 +316,21 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 # -----------------------------
 try:
     if start_date > end_date:
-        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
-        st.stop()
+        st.error("시작 날짜가 종료 날짜보다 이후입니다."); st.stop()
 
-    start_dt = datetime.combine(start_date, datetime.min.time())
-    end_dt = datetime.combine(end_date, datetime.max.time())
+    start_dt=datetime.combine(start_date, datetime.min.time())
+    end_dt=datetime.combine(end_date, datetime.max.time())
+    df=fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
+    if df.empty: st.error("데이터가 없습니다."); st.stop()
+    df=add_indicators(df, bb_window, bb_dev)
+    bb_cond=st.session_state.get("bb_cond",bb_cond)
 
-    df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
-    if df.empty:
-        st.error("데이터가 없습니다.")
-        st.stop()
+    res_all=simulate(df,rsi_mode,rsi_low,rsi_high,lookahead,threshold_pct,bb_cond,
+                     "중복 포함 (연속 신호 모두)",minutes_per_bar,market_code,bb_window,bb_dev,sec_cond)
+    res_dedup=simulate(df,rsi_mode,rsi_low,rsi_high,lookahead,threshold_pct,bb_cond,
+                       "중복 제거 (연속 동일 결과 1개)",minutes_per_bar,market_code,bb_window,bb_dev,sec_cond)
+    res=res_all if dup_mode.startswith("중복 포함") else res_dedup
 
-    df = add_indicators(df, bb_window, bb_dev)
-
-    res = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                   bb_cond, dup_mode, minutes_per_bar, market_code, bb_window, bb_dev, sec_cond)
-
+    st.dataframe(res)
 except Exception as e:
     st.error(f"오류: {e}")
