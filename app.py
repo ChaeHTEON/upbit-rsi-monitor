@@ -33,17 +33,13 @@ st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 점선: 신호~판
 # ──────────────────────────────────────────────────────────────────────────────
 # 좌/우 동시 클릭 → 소프트 리프레시(데이터만 갱신, 스크롤/줌 유지)
 # ──────────────────────────────────────────────────────────────────────────────
-# 컴포넌트 값 변화를 파이썬에서 감지하여 rerun
 refresh_token = components.html("""
 <script src="https://unpkg.com/@streamlit/component-lib/dist/index.js"></script>
 <script>
 (function(){
-  // 우클릭 메뉴 방지
   document.addEventListener('contextmenu', e => e.preventDefault(), true);
-
   let counter = 0;
   document.addEventListener('mousedown', function(e){
-    // 좌(1) + 우(2) = 3  → 동시 클릭
     if (e.buttons === 3) {
       counter += 1;
       if (window.Streamlit && window.Streamlit.setComponentValue) {
@@ -51,8 +47,6 @@ refresh_token = components.html("""
       }
     }
   }, true);
-
-  // 컴포넌트 높이 최소화
   if (window.Streamlit && window.Streamlit.setFrameHeight) {
     window.Streamlit.setFrameHeight(0);
   }
@@ -67,15 +61,11 @@ if "soft_refresh_pending" not in st.session_state:
 
 if refresh_token is not None:
     if refresh_token != st.session_state["soft_refresh_token"] and not st.session_state["soft_refresh_pending"]:
-        # 토큰 업데이트
         st.session_state["soft_refresh_token"] = refresh_token
         st.session_state["soft_refresh_pending"] = True
-
-        # 데이터 캐시 비우고 rerun
         st.cache_data.clear()
         st.experimental_rerun()
 
-# rerun 후 초기화 (무한 루프 방지)
 if st.session_state.get("soft_refresh_pending", False):
     st.session_state["soft_refresh_pending"] = False
 
@@ -145,7 +135,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ② 조건 설정 (UI/UX 기존 유지, hit_basis/miss_policy 제거)
+# ② 조건 설정
 # ──────────────────────────────────────────────────────────────────────────────
 st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
 c4, c5, c6 = st.columns(3)
@@ -185,7 +175,7 @@ st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ③ 데이터 수집(워밍업 포함)
+# ③ 데이터 수집
 # ──────────────────────────────────────────────────────────────────────────────
 def estimate_calls(start_dt, end_dt, minutes_per_bar):
     mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
@@ -198,10 +188,7 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-    # 워밍업 컷오프
     start_cutoff = start_dt - timedelta(minutes=(warmup_bars or 0) * minutes_per_bar)
-
-    # 엔드포인트
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
@@ -212,7 +199,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     max_calls = min(calls_est + 2, 60)
     req_count = 200
     all_data = []
-    to_time = None  # 최신 → 과거 방향
+    to_time = None
 
     try:
         for _ in range(max_calls):
@@ -240,8 +227,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         "low_price": "low", "trade_price": "close", "candle_acc_trade_volume": "volume"})
     df["time"] = pd.to_datetime(df["time"])
     df = df[["time", "open", "high", "low", "close", "volume"]].sort_values("time").drop_duplicates("time").reset_index(drop=True)
-
-    # 워밍업 포함 범위로 반환
     return df[(df["time"] >= start_cutoff) & (df["time"] <= end_dt)]
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -257,7 +242,7 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ⑤ 시뮬레이션 (성공=종가, 미도달=+중립/≤0 실패, 2차 조건 포함)
+# ⑤ 시뮬레이션
 # ──────────────────────────────────────────────────────────────────────────────
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음"):
@@ -273,7 +258,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                          set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
     elif rsi_mode == "과매도 기준":
         rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
-    else:  # 과매수 기준
+    else:
         rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
 
     def bb_ok(i):
@@ -295,7 +280,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     else:
         base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
-    # 보조
     def is_bull(idx):
         return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
 
@@ -310,7 +294,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 return j, float(df.at[j, "close"])
         return None, None
 
-    # 메인 루프
     i = 0
     while i < n:
         if i not in base_sig_idx:
@@ -321,7 +304,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         signal_time = df.at[i, "time"]
         base_price  = float(df.at[i, "close"])
 
-        # 2차 조건
         if sec_cond == "양봉 2개 연속 상승":
             if i + 2 >= n:
                 i += 1; continue
@@ -363,7 +345,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             signal_time = df.at[T_idx, "time"]
             base_price  = float(df.at[T_idx, "close"])
 
-        # 성과 측정
         end_idx = anchor_idx + lookahead
         if end_idx >= n:
             i += 1
@@ -374,7 +355,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         end_close = float(df.at[end_idx, "close"])
         final_ret = (end_close / base_price - 1) * 100
 
-        # 조기 성공(종가 기준)
         target = base_price * (1.0 + thr / 100.0)
         hit_idx = None
         for j in range(anchor_idx + 1, end_idx + 1):
@@ -383,18 +363,15 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 break
 
         if hit_idx is not None:
-            # 성공
             end_time  = df.at[hit_idx, "time"]
             end_close = target
             final_ret = thr
             result    = "성공"
             reach_min = (hit_idx - anchor_idx) * minutes_per_bar
         else:
-            # 미도달: 마지막 종가 수익이 +면 중립, 0 이하이면 실패
             result    = "중립" if final_ret > 0 else "실패"
             reach_min = None
 
-        # 표시용 BB값(앵커 시점)
         if bb_cond == "상한선":
             bb_value = df.at[anchor_idx, "BB_up"]
         elif bb_cond == "중앙선":
@@ -413,13 +390,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
-            "도달분": reach_min,  # 성공 시 분 단위
+            "도달분": reach_min,
             "최종수익률(%)": round(final_ret, 2),
             "최저수익률(%)": round(((win_slice["close"].min()/base_price - 1)*100) if not win_slice.empty else 0.0, 2),
             "최고수익률(%)": round(((win_slice["close"].max()/base_price - 1)*100) if not win_slice.empty else 0.0, 2),
         })
 
-        # 중복 제거면 창 점프
         i = end_idx if dup_mode.startswith("중복 제거") else i + 1
 
     return pd.DataFrame(res)
@@ -435,20 +411,23 @@ try:
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt   = datetime.combine(end_date,   datetime.max.time())
 
-    # 워밍업: 지표 안정화(기간 바뀌어도 동일 구간 신호 일관성)
     warmup_bars = max(13, bb_window) * 5
-    df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=warmup_bars)
+    selected_code = market_code
+    df_raw = fetch_upbit_paged(selected_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=warmup_bars)
     if df_raw.empty:
-        st.error("데이터가 없습니다.")
+        st.error(f"{selected_code} 데이터가 없습니다.")
         st.stop()
 
     df_ind = add_indicators(df_raw, bb_window, bb_dev)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
-
     bb_cond = st.session_state.get("bb_cond", bb_cond)
 
-    # 요약
-    total_min = lookahead * minutes_per_bar
+    _bar_diff = df["time"].diff().dropna()
+    bar_min = int(round(_bar_diff.median().total_seconds() / 60)) if not _bar_diff.empty else minutes_per_bar
+    if bar_min <= 0:
+        bar_min = minutes_per_bar
+
+    total_min = lookahead * bar_min
     hh, mm = divmod(int(total_min), 60)
     look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
     if rsi_mode == "없음":
@@ -463,6 +442,7 @@ try:
         rsi_txt = "없음"
     bb_txt = bb_cond if bb_cond != "없음" else "없음"
     sec_txt = f"{sec_cond}"
+    latest_kst = pd.to_datetime(df["time"].max()).strftime("%Y-%m-%d %H:%M")
 
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
     st.info(
@@ -472,24 +452,18 @@ try:
         f"- 2차 조건 · {sec_txt}\n"
         f"- 성공 판정 기준: 종가 기준 (고정)\n"
         f"- 미도달 규칙: 마지막 종가 수익 +면 중립, 0 이하 실패\n"
-        f"- 워밍업: {warmup_bars}봉"
+        f"- 워밍업: {warmup_bars}봉\n"
+        f"- 데이터 최신 캔들(KST): {latest_kst}"
     )
 
-    # 시뮬레이션
     res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                       bb_cond, "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
+                       bb_cond, "중복 포함 (연속 신호 모두)", bar_min, selected_code, bb_window, bb_dev,
                        sec_cond=sec_cond)
-    res_dedup = simulate(df, rsi_mode, rsi_high, rsi_high, lookahead, threshold_pct,  # rsi_high 오타? 방지용: rsi_low 전달
-                         bb_cond, "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
-                         sec_cond=sec_cond)
-    # 위 줄 오타 수정
     res_dedup = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                         bb_cond, "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
+                         bb_cond, "중복 제거 (연속 동일 결과 1개)", bar_min, selected_code, bb_window, bb_dev,
                          sec_cond=sec_cond)
-
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
-    # 요약 메트릭
     def _summarize(df_in):
         if df_in is None or df_in.empty:
             return 0, 0, 0, 0, 0.0, 0.0
@@ -520,7 +494,6 @@ try:
 
     st.markdown("---")
 
-    # 차트 (기존 UI 유지)
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
@@ -533,13 +506,12 @@ try:
     if not res.empty:
         for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
             sub = res[res["결과"] == _label]
-            if sub.empty:
-                continue
-            fig.add_trace(go.Scatter(
-                x=sub["신호시간"], y=sub["기준시가"], mode="markers",
-                name=f"신호({_label})",
-                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-            ))
+            if not sub.empty:
+                fig.add_trace(go.Scatter(
+                    x=sub["신호시간"], y=sub["기준시가"], mode="markers",
+                    name=f"신호({_label})",
+                    marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
+                ))
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
         for _, row in res.iterrows():
@@ -569,7 +541,6 @@ try:
                     showlegend=False
                 ))
 
-    # 줌/팬 뷰 유지
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="zoom", xaxis_rangeslider_visible=False, height=600,
@@ -577,10 +548,9 @@ try:
         margin=dict(l=60, r=40, t=60, b=40),
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
-        uirevision="keep-view"  # ⬅️ 줌/이동 상태 유지
+        uirevision="keep-view"
     )
 
-    # RSI 라인은 기존처럼 보조축에 겹쳐 표시
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
                              line=dict(color="rgba(42,157,143,0.3)", width=6),
                              yaxis="y2", showlegend=False))
@@ -592,26 +562,20 @@ try:
 
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # ⑦ 신호 결과 (최신 순) — 기존 UI 유지 + 도달캔들 계산(성공=실제바, 비성공=N)
-    # ──────────────────────────────────────────────────────────────────────────
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
     if res is None or res.empty:
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-
-        # 도달시간/도달캔들: 정렬된 tbl로 직접 계산
         s_series = pd.to_datetime(tbl["신호시간"])
         e_series = pd.to_datetime(tbl["종료시간"])
         diff_min = ((e_series - s_series).dt.total_seconds() / 60).round().astype(int)
 
-        bars_after = (diff_min / minutes_per_bar).round().astype(int)
+        bars_after = (diff_min / bar_min).round().astype(int)
         tbl["도달캔들"] = bars_after
-        tbl.loc[tbl["결과"] != "성공", "도달캔들"] = lookahead  # 비성공=N 고정
+        tbl.loc[tbl["결과"] != "성공", "도달캔들"] = lookahead
         tbl["도달시간"] = diff_min.apply(lambda m: f"{m//60:02d}:{m%60:02d}")
 
-        # 표시 포맷
         tbl["신호시간"] = s_series.dt.strftime("%Y-%m-%d %H:%M")
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
         if "RSI(13)" in tbl:
@@ -622,11 +586,9 @@ try:
             if col in tbl:
                 tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
-        # 컬럼 순서 (기존 표 형태 유지)
         tbl = tbl[["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
                    "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]]
 
-        # 색 스타일
         def style_result(val):
             if val == "성공": return "background-color: #FFF59D; color: #E53935; font-weight:600;"
             if val == "실패": return "color: #1E40AF; font-weight:600;"
