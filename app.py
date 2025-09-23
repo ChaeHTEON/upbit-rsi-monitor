@@ -62,12 +62,22 @@ refresh_token = components.html("""
 
 if "soft_refresh_token" not in st.session_state:
     st.session_state["soft_refresh_token"] = 0
+if "soft_refresh_pending" not in st.session_state:
+    st.session_state["soft_refresh_pending"] = False
 
-if refresh_token is not None and refresh_token != st.session_state["soft_refresh_token"]:
-    st.session_state["soft_refresh_token"] = refresh_token
-    # 데이터만 새로 받기 위해 캐시 비우고 스크립트 재실행 (브라우저 리로드 X)
-    st.cache_data.clear()
-    st.experimental_rerun()
+if refresh_token is not None:
+    if refresh_token != st.session_state["soft_refresh_token"] and not st.session_state["soft_refresh_pending"]:
+        # 토큰 업데이트
+        st.session_state["soft_refresh_token"] = refresh_token
+        st.session_state["soft_refresh_pending"] = True
+
+        # 데이터 캐시 비우고 rerun
+        st.cache_data.clear()
+        st.experimental_rerun()
+
+# rerun 후 초기화 (무한 루프 방지)
+if st.session_state.get("soft_refresh_pending", False):
+    st.session_state["soft_refresh_pending"] = False
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 업비트 마켓
