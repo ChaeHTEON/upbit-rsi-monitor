@@ -296,5 +296,14 @@ try:
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
+import streamlit.runtime.scriptrunner as scriptrunner
+
+...
+
 except Exception as e:
-    st.error(f"예상치 못한 오류 발생: {str(e)}")
+    if isinstance(e, SystemExit):
+        raise
+    if str(e) in ("0", ""):
+        st.warning("데이터가 없거나 실행이 중단되었습니다. (오류 아님)")
+    else:
+        st.error(f"예상치 못한 오류 발생: {str(e)}")
