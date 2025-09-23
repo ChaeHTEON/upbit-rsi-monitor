@@ -31,22 +31,42 @@ st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 좌/우 동시 클릭 → 소프트 리프레시(데이터만 갱신, 스크롤/줌 유지)
+# 마우스 휠 2번 터치 → 소프트 리프레시(데이터만 갱신, 스크롤/줌 유지)
 # ──────────────────────────────────────────────────────────────────────────────
 refresh_token = components.html("""
 <script src="https://unpkg.com/@streamlit/component-lib/dist/index.js"></script>
 <script>
 (function(){
+  // 우클릭 메뉴 방지
   document.addEventListener('contextmenu', e => e.preventDefault(), true);
+
+  // 휠 더블 터치 감지 (두 번의 wheel 이벤트가 400ms 이내면 리프레시)
   let counter = 0;
-  document.addEventListener('mousedown', function(e){
-    if (e.buttons === 3) {
-      counter += 1;
-      if (window.Streamlit && window.Streamlit.setComponentValue) {
-        window.Streamlit.setComponentValue(counter);
-      }
+  let lastWheel = 0;
+  let streak = 0;
+
+  function triggerRefresh(e){
+    if (window.Streamlit && window.Streamlit.setComponentValue) {
+      window.Streamlit.setComponentValue(++counter);
+      if (e) e.preventDefault();  // 트리거 시에만 스크롤 방지
     }
-  }, true);
+  }
+
+  document.addEventListener('wheel', function(e){
+    const now = Date.now();
+    if (now - lastWheel <= 400) {
+      streak += 1;
+      if (streak >= 2) {
+        streak = 0;
+        triggerRefresh(e);
+      }
+    } else {
+      streak = 1;
+    }
+    lastWheel = now;
+  }, {passive:false});
+
+  // 컴포넌트 높이 최소화
   if (window.Streamlit && window.Streamlit.setFrameHeight) {
     window.Streamlit.setFrameHeight(0);
   }
@@ -57,6 +77,17 @@ refresh_token = components.html("""
 if "soft_refresh_token" not in st.session_state:
     st.session_state["soft_refresh_token"] = 0
 if "soft_refresh_pending" not in st.session_state:
+    st.session_state["soft_refresh_pending"] = False
+
+if refresh_token is not None:
+    if refresh_token != st.session_state["soft_refresh_token"] and not st.session_state["soft_refresh_pending"]:
+        st.session_state["soft_refresh_token"] = refresh_token
+        st.session_state["soft_refresh_pending"] = True
+        st.cache_data.clear()
+        st.experimental_rerun()
+
+# rerun 후 플래그 해제 (무한루프 방지)
+if st.session_state.get("soft_refresh_pending", False):
     st.session_state["soft_refresh_pending"] = False
 
 if refresh_token is not None:
@@ -116,12 +147,21 @@ dup_mode = st.radio(
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# ① 기본 설정
+# ① 기본 설정 (종목 선택을 세션에 저장/복원하여 BTC 고정 이슈 방지)
 # ──────────────────────────────────────────────────────────────────────────────
 st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
 c1, c2, c3 = st.columns(3)
 with c1:
-    market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
+    # 이전 선택 복원 (없으면 BTC 인덱스)
+    prev_code = st.session_state.get("market_code", None)
+    idx = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == prev_code), default_idx)
+    selected = st.selectbox("종목 선택", MARKET_LIST, index=idx, key="market_sel", format_func=lambda x: x[0])
+    market_label, market_code = selected
+    # 선택 변경 시 세션 저장 + 캐시 무효화(새 종목 데이터 강제 갱신)
+    if prev_code != market_code:
+        st.session_state["market_code"] = market_code
+        st.session_state["market_label"] = market_label
+        st.cache_data.clear()
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
@@ -412,7 +452,8 @@ try:
     end_dt   = datetime.combine(end_date,   datetime.max.time())
 
     warmup_bars = max(13, bb_window) * 5
-    selected_code = market_code
+    # 세션에 저장된 종목 코드 우선 사용, 없으면 현재 선택값 사용
+    selected_code = st.session_state.get("market_code", market_code)
     df_raw = fetch_upbit_paged(selected_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=warmup_bars)
     if df_raw.empty:
         st.error(f"{selected_code} 데이터가 없습니다.")
