@@ -82,15 +82,10 @@ if "soft_refresh_pending" not in st.session_state:
 
 # 값이 실제로 바뀐 최초 한 번만 rerun (무한루프 방지)
 if refresh_token is not None:
-    if refresh_token != st.session_state["soft_refresh_token"] and not st.session_state["soft_refresh_pending"]:
+    if refresh_token != st.session_state["soft_refresh_token"]:
         st.session_state["soft_refresh_token"] = refresh_token
-        st.session_state["soft_refresh_pending"] = True
         st.cache_data.clear()
         st.experimental_rerun()
-
-# rerun 1회 후 플래그 해제
-if st.session_state.get("soft_refresh_pending", False):
-    st.session_state["soft_refresh_pending"] = False
 
 if "soft_refresh_token" not in st.session_state:
     st.session_state["soft_refresh_token"] = None
