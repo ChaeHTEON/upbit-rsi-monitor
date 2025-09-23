@@ -255,10 +255,11 @@ try:
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
     df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
-    if df.empty: st.error("데이터가 없습니다."); st.stop()
+    if df.empty:
+        st.warning("조회된 데이터가 없습니다. 날짜/종목/봉 설정을 확인해주세요.")
+        st.stop()
     df = add_indicators(df, bb_window, bb_dev)
     res = simulate(df, lookahead, threshold_pct, bb_cond, dup_mode, sec_cond, bb_strength)
-
     # 요약
     total, succ, fail, neu = len(res), (res["결과"]=="성공").sum(), (res["결과"]=="실패").sum(), (res["결과"]=="중립").sum()
     win_rate = succ/total*100 if total>0 else 0
@@ -296,4 +297,4 @@ try:
         st.info("조건을 만족하는 신호가 없습니다.")
 
 except Exception as e:
-    st.error(f"오류: {e}")
+    st.error(f"예상치 못한 오류 발생: {str(e)}")
