@@ -109,6 +109,13 @@ with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
+    # ✅ 성공 판정 기준 옵션 추가
+    hit_basis = st.selectbox(
+        "성공 판정 기준",
+        ["종가 기준", "고가 기준(스침 인정)", "종가 또는 고가"],
+        index=0,
+        help="목표가 도달 판정에 사용할 가격. 고가 기준은 인트라캔들 스침도 성공 처리."
+    )
 with c6:
     r1, r2, r3 = st.columns(3)
     with r1:
@@ -203,10 +210,10 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 시뮬레이션 (패치본: 디버깅 출력 포함, 최대 5개)
+# 시뮬레이션 (디버깅 출력 포함, 최대 5개)
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음"):
+             minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음", hit_basis="종가 기준"):
     res = []
     n = len(df)
     thr = float(thr_pct)
@@ -251,9 +258,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
 
     def first_bull_50_over_bb(start_i):
-        """
-        B1: start_i 이후 첫 '양봉'이면서 '종가가 선택 BB선 이상'인 캔들 인덱스와 그 종가 반환
-        """
+        """start_i 이후 첫 '양봉'이면서 '종가가 선택 BB선 이상'인 캔들 인덱스와 그 종가."""
         for j in range(start_i + 1, n):
             if not is_bull(j):
                 continue
@@ -293,13 +298,10 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 continue
 
         elif sec_cond == "BB 기반 첫 양봉 50% 진입":
-            # B1: 양봉 + 종가가 선택 BB선 이상
             B1_idx, B1_close = first_bull_50_over_bb(i)
             if B1_idx is None:
                 i += 1
                 continue
-
-            # 이후 아무 위치의 양봉 2개(B2,B3)
             bull_cnt, B3_idx = 0, None
             scan_end = min(B1_idx + lookahead, n - 1)
             for j in range(B1_idx + 1, scan_end + 1):
@@ -311,8 +313,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if B3_idx is None:
                 i += 1
                 continue
-
-            # T: B3 이후 '종가 ≥ B1_close'가 되는 첫 캔들
             T_idx = None
             for j in range(B3_idx + 1, n):
                 cj = df.at[j, "close"]
@@ -322,8 +322,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if T_idx is None:
                 i += 1
                 continue
-
-            # 신호(앵커)는 T로 업데이트
             anchor_idx = T_idx
             signal_time = df.at[T_idx, "time"]
             base_price = float(df.at[T_idx, "close"])
@@ -334,39 +332,48 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             i += 1
             continue
 
-        # 정확히 N개 창: (anchor 다음) ~ (anchor+N) 총 N개
+        # 창: (anchor 다음) ~ (anchor+N) 총 N개
         win_slice = df.iloc[anchor_idx + 1:end_idx + 1]
 
-        # 기본(미도달) 종료는 "N번째 캔들 종가"
+        # 기본(미도달) 종료는 N번째 캔들 종가
         end_time = df.at[end_idx, "time"]
         end_close = float(df.at[end_idx, "close"])
         final_ret = (end_close / base_price - 1) * 100
 
-        # 고저 수익률 (동일 창 기준)
+        # 고저 수익률
         min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
         max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
         # 목표가(조기 성공) 체크
         target = base_price * (1.0 + thr / 100.0)
         result, reach_min, hit_idx = "중립", None, None
+
+        def _price_for_hit(j):
+            c = float(df.at[j, "close"])
+            h = float(df.at[j, "high"])
+            if hit_basis.startswith("고가"):
+                return h
+            if hit_basis.startswith("종가 또는 고가"):
+                return max(c, h)
+            return c  # 종가 기준
+
         for j in range(anchor_idx + 1, end_idx + 1):
-            if float(df.at[j, "close"]) >= target:
+            if _price_for_hit(j) >= target:
                 hit_idx = j
                 break
 
         if hit_idx is not None:
             bars_after = hit_idx - anchor_idx           # 1..N
-            reach_min = bars_after * minutes_per_bar    # 분 단위 고정 계산
+            reach_min = bars_after * minutes_per_bar    # 분 단위
             end_time = df.at[hit_idx, "time"]
             end_close = target
             final_ret = thr
             result = "성공"
         else:
-            # 목표 미도달 → N번째 봉 종가로 판정
             if final_ret <= -thr:
                 result = "실패"
 
-        # 표시용 RSI/BB는 '신호(앵커) 시점'
+        # 표시용 BB 값 (앵커 시점)
         if bb_cond == "상한선":
             bb_value = df.at[anchor_idx, "BB_up"]
         elif bb_cond == "중앙선":
@@ -385,6 +392,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 "bars_after": (hit_idx - anchor_idx) if hit_idx is not None else None,
                 "signal_time": str(signal_time),
                 "end_time": str(end_time),
+                "hit_basis": hit_basis,
                 "result": result
             })
 
@@ -404,7 +412,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             "최고수익률(%)": round(max_ret, 2),
         })
 
-        # 중복 제거면 윈도우가 겹치지 않게 건너뛰기(다음 후보는 항상 N번째 이후)
+        # 중복 제거면 윈도우 겹치지 않게 점프
         i = end_idx if dedup_mode.startswith("중복 제거") else i + 1
 
     return pd.DataFrame(res)
@@ -450,14 +458,17 @@ try:
         "설정 요약\n"
         f"- 측정 구간: {look_str}\n"
         f"- 1차 조건 · RSI: {rsi_txt} · BB: {bb_txt}\n"
-        f"- 2차 조건 · {sec_txt}"
+        f"- 2차 조건 · {sec_txt}\n"
+        f"- 성공 판정 기준: {hit_basis}"
     )
 
     # 시뮬레이션 실행
     res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                       bb_cond, "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev, sec_cond=sec_cond)
+                       bb_cond, "중복 포함 (연속 신호 모두)", minutes_per_bar, market_code, bb_window, bb_dev,
+                       sec_cond=sec_cond, hit_basis=hit_basis)
     res_dedup = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                         bb_cond, "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev, sec_cond=sec_cond)
+                         bb_cond, "중복 제거 (연속 동일 결과 1개)", minutes_per_bar, market_code, bb_window, bb_dev,
+                         sec_cond=sec_cond, hit_basis=hit_basis)
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup  # ✅ 라디오 선택 반영
 
     # 요약 메트릭
@@ -540,12 +551,14 @@ try:
                     showlegend=False
                 ))
 
+    # RSI 보조축
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
                              line=dict(color="rgba(42,157,143,0.3)", width=6),
                              yaxis="y2", showlegend=False))
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
                              line=dict(color="#2A9D8F", width=2.4, dash="dot"),
                              name="RSI(13)", yaxis="y2"))
+    # 보조축 레벨 가이드 (버전 호환 이슈 시 무시)
     fig.add_hline(y=70, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
 
