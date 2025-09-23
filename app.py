@@ -294,16 +294,18 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     continue
 
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
-                # B1: 50% 이상 진입한 '첫 양봉'
                 B1_idx, B1_close = None, None
                 for j in range(n):
                     if b1_pass(j):
-                        B1_idx = j; B1_close = float(df.at[j, "close"])
-                        break
-                if B1_idx is None or B1_close is None:
-                    i += 1; continue
+                        val = df.at[j, "close"]
+                        if pd.notna(val):
+                            B1_idx = j
+                            B1_close = float(val)
+                            break
+                if B1_idx is None or B1_close is None or np.isnan(B1_close):
+                    i += 1
+                    continue
 
-                # B2, B3: B1 이후 lookahead 내 양봉 2개
                 bull_count, B3_idx = 0, None
                 j_end = min(B1_idx + lookahead, n - 1)
                 for j in range(B1_idx + 1, j_end + 1):
@@ -313,16 +315,18 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                             B3_idx = j
                             break
                 if B3_idx is None:
-                    i += 1; continue
+                    i += 1
+                    continue
 
-                # T: B3 이후 종가 ≥ B1 종가인 첫 캔들
                 T_idx = None
                 for j in range(B3_idx + 1, n):
-                    if float(df.at[j, "close"]) >= B1_close:
+                    val = df.at[j, "close"]
+                    if pd.notna(val) and float(val) >= B1_close:
                         T_idx = j
                         break
                 if T_idx is None:
-                    i += 1; continue
+                    i += 1
+                    continue
 
                 entry_idx = T_idx
                 signal_time = df.at[T_idx, "time"]
