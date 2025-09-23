@@ -9,7 +9,7 @@ from plotly.subplots import make_subplots
 import ta
 from datetime import datetime, timedelta
 import numpy as np
-from pytz import timezone  # ✅ 한국시간 반영
+from pytz import timezone
 
 # -----------------------------
 # 페이지/스타일
@@ -17,19 +17,19 @@ from pytz import timezone  # ✅ 한국시간 반영
 st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
 st.markdown("""
 <style>
-  .block-container {padding-top: 0.8rem; padding-bottom: 0.8rem; max-width: 1200px;}
+  .block-container {padding-top: 0.8rem; padding-bottom: 0.8rem; max-width: 1150px;}
   .stMetric {text-align:center;}
-  .section-title {font-size:1.1rem; font-weight:700; margin: 0.8rem 0 0.4rem;}
+  .section-title {font-size:1.05rem; font-weight:700; margin: 0.6rem 0 0.2rem;}
   .hint {color:#6b7280;}
   .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
   .fail-cell {color:#1E40AF; font-weight:600;}
-  .neutral-cell {color:#059669; font-weight:600;}
+  .neutral-cell {color:#FF9800; font-weight:600;}
   table {border-collapse:collapse; width:100%;}
   th, td {border:1px solid #ddd; padding:6px; text-align:center;}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📊 코인 시뮬레이터")
+st.title("📊 Upbit RSI(13) + Bollinger Band 시뮬레이터")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 내 점선은 신호 흐름선, 성공 시 도달 지점에 ⭐ 별표 표시</div>", unsafe_allow_html=True)
 
 # -----------------------------
@@ -50,11 +50,9 @@ def get_upbit_krw_markets():
                 label = f'{it.get("korean_name","")} ({sym}) — {mk}'
                 rows.append((label, mk))
         rows.sort(key=lambda x: (x[1] != "KRW-BTC", x[1]))
-        if rows:
-            return rows
+        return rows
     except Exception:
-        pass
-    return [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
+        return [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
 
 MARKET_LIST = get_upbit_krw_markets()
 default_idx = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == "KRW-BTC"), 0)
@@ -73,7 +71,7 @@ TF_MAP = {
 }
 
 # -----------------------------
-# 상단: 신호 중복 처리
+# 신호 중복 처리
 # -----------------------------
 dup_mode = st.radio(
     "신호 중복 처리",
@@ -91,7 +89,7 @@ with c1:
 with c2:
     tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
 with c3:
-    KST = timezone("Asia/Seoul")  # ✅ 한국시간 적용
+    KST = timezone("Asia/Seoul")
     today_kst = datetime.now(KST).date()
     default_start = today_kst - timedelta(days=1)
     start_date = st.date_input("시작 날짜", value=default_start)
@@ -129,8 +127,6 @@ with c9:
 st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반)</div>', unsafe_allow_html=True)
 sec_cond = st.selectbox("2차 조건 선택", ["없음", "양봉 2개 연속 상승", "BB 기반 첫 양봉 진입"], index=0)
 bb_strength = st.slider("BB 양봉 진입 강도 (%)", 10, 90, 50, step=5)
-
-st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
 
 # -----------------------------
@@ -147,25 +143,20 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
         url = "https://api.upbit.com/v1/candles/days"
-
-    all_data, to_time = [], None
+    all_data, to_time = [], end_dt
     try:
         for _ in range(60):
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+            params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
             r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
             r.raise_for_status()
             batch = r.json()
-            if not batch:
-                break
+            if not batch: break
             all_data.extend(batch)
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
             if last_ts <= start_dt: break
             to_time = last_ts - timedelta(seconds=1)
     except Exception:
         return pd.DataFrame()
-
     if not all_data: return pd.DataFrame()
     df = pd.DataFrame(all_data).rename(columns={
         "candle_date_time_kst": "time", "opening_price": "open", "high_price": "high",
@@ -189,7 +180,7 @@ def add_indicators(df, bb_window, bb_dev):
 # -----------------------------
 # 시뮬레이션
 # -----------------------------
-def simulate(df, lookahead, thr_pct, bb_cond, dedup_mode, sec_cond="없음", bb_strength=50):
+def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode, sec_cond="없음", bb_strength=50):
     res, n = [], len(df)
     thr = float(thr_pct)
 
@@ -257,70 +248,53 @@ try:
     df = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar)
     if df.empty:
         st.error("데이터가 없습니다. (조회된 캔들이 없음)")
-
-        # 빈 차트 기본 뼈대 출력
+        # 빈 차트 기본 뼈대
         fig = make_subplots(rows=1, cols=1)
         fig.update_layout(
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13)+BB 시뮬",
-            dragmode="zoom",
-            xaxis_rangeslider_visible=False,
-            height=600
+            dragmode="zoom", xaxis_rangeslider_visible=False, height=600
         )
         st.plotly_chart(fig, use_container_width=True)
-        st.stop()
-    df = add_indicators(df, bb_window, bb_dev)
-    res = simulate(df, lookahead, threshold_pct, bb_cond, dup_mode, sec_cond, bb_strength)
-    # 요약
-    total, succ, fail, neu = len(res), (res["결과"]=="성공").sum(), (res["결과"]=="실패").sum(), (res["결과"]=="중립").sum()
-    win_rate = succ/total*100 if total>0 else 0
-    st.markdown('<div class="section-title">③ 요약</div>', unsafe_allow_html=True)
-    m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("총 신호",total); m2.metric("성공",succ); m3.metric("실패",fail); m4.metric("중립",neu); m5.metric("승률",f"{win_rate:.1f}%")
-
-    # 차트
-    st.markdown('<div class="section-title">④ 차트</div>', unsafe_allow_html=True)
-    fig = make_subplots(rows=1, cols=1)
-
-    # 캔들 + BB는 항상 출력
-    fig.add_trace(go.Candlestick(
-        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1)
-    ))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"],  mode="lines", line=dict(color="orange", width=1),  name="BB 상단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="skyblue", width=1), name="BB 하단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="gray", dash="dot", width=1), name="BB 중앙"))
-
-    # 신호가 있을 때만 마커 표시
-    if not res.empty:
-        for _, row in res.iterrows():
-            color = "red" if row["결과"]=="성공" else "blue" if row["결과"]=="실패" else "orange"
-            fig.add_trace(go.Scatter(
-                x=[row["신호시간"]], y=[row["기준시가"]], mode="markers",
-                marker=dict(size=9, color=color, symbol="circle", line=dict(width=1,color="black")),
-                name=f"신호({row['결과']})"
-            ))
-
-    fig.update_layout(
-        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13)+BB 시뮬",
-        dragmode="zoom", xaxis_rangeslider_visible=False, height=600
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # 결과 테이블
-    st.markdown('<div class="section-title">⑤ 결과 테이블</div>', unsafe_allow_html=True)
-    if not res.empty:
-        tbl = res.copy()
-        tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        tbl["종료시간"] = pd.to_datetime(tbl["종료시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        st.dataframe(tbl, use_container_width=True)
     else:
-        st.info("조건을 만족하는 신호가 없습니다. (데이터는 불러왔지만 조건 불충족)")
+        df = add_indicators(df, bb_window, bb_dev)
+        res = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dup_mode, sec_cond, bb_strength)
+
+        # 요약
+        total, succ, fail, neu = len(res), (res["결과"]=="성공").sum(), (res["결과"]=="실패").sum(), (res["결과"]=="중립").sum()
+        win_rate = succ/total*100 if total>0 else 0
+        st.markdown('<div class="section-title">③ 요약</div>', unsafe_allow_html=True)
+        m1,m2,m3,m4,m5 = st.columns(5)
+        m1.metric("총 신호",total); m2.metric("성공",succ); m3.metric("실패",fail); m4.metric("중립",neu); m5.metric("승률",f"{win_rate:.1f}%")
+
+        # 차트
+        st.markdown('<div class="section-title">④ 차트</div>', unsafe_allow_html=True)
+        fig = make_subplots(rows=1, cols=1)
+        fig.add_trace(go.Candlestick(x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+                                     name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1)))
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines", line=dict(color="orange",width=1), name="BB 상단"))
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="skyblue",width=1), name="BB 하단"))
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="gray",dash="dot",width=1), name="BB 중앙"))
+
+        if not res.empty:
+            for _,row in res.iterrows():
+                color = "red" if row["결과"]=="성공" else "blue" if row["결과"]=="실패" else "orange"
+                fig.add_trace(go.Scatter(x=[row["신호시간"]], y=[row["기준시가"]], mode="markers",
+                                         marker=dict(size=9,color=color,symbol="circle",line=dict(width=1,color="black")),
+                                         name=f"신호({row['결과']})"))
+
+        fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13)+BB 시뮬",
+                          dragmode="zoom",xaxis_rangeslider_visible=False,height=600)
+        st.plotly_chart(fig,use_container_width=True)
+
+        # 결과 테이블
+        st.markdown('<div class="section-title">⑤ 결과 테이블</div>', unsafe_allow_html=True)
+        if not res.empty:
+            tbl = res.copy()
+            tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+            tbl["종료시간"] = pd.to_datetime(tbl["종료시간"]).dt.strftime("%Y-%m-%d %H:%M")
+            st.dataframe(tbl,use_container_width=True)
+        else:
+            st.info("조건을 만족하는 신호가 없습니다. (데이터는 불러왔지만 조건 불충족)")
 
 except Exception as e:
-    msg = (str(e) or "").strip()
-    if isinstance(e, SystemExit):
-        raise
-    elif msg in ("0", ""):
-        st.warning("데이터가 없거나 실행이 중단되었습니다. (에러 아님)")
-    else:
-        st.error(f"예상치 못한 오류 발생: {msg}")
+    st.error(f"예상치 못한 오류 발생: {str(e)}")
