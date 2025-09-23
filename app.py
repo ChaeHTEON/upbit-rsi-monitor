@@ -254,7 +254,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
     # 보조 함수
-    def is_bull(idx): return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
+    def is_bull(idx):
+        return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
 
     def b1_pass(j):
         if not is_bull(j):
