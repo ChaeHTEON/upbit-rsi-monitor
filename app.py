@@ -40,36 +40,38 @@ refresh_token = components.html("""
   // 우클릭 메뉴 방지
   document.addEventListener('contextmenu', e => e.preventDefault(), true);
 
-  // 휠 더블 터치 감지 (두 번의 wheel 이벤트가 400ms 이내면 리프레시)
-  let counter = 0;
-  let lastWheel = 0;
-  let streak = 0;
+// 마우스 휠 버튼(중간 버튼) 더블 클릭 감지 (button==1, 400ms 이내 두 번)
+let counter = 0;
+let lastClick = 0;
+let streak = 0;
 
-  function triggerRefresh(e){
+function triggerRefresh(e){
     if (window.Streamlit && window.Streamlit.setComponentValue) {
-      window.Streamlit.setComponentValue(++counter);
-      if (e) e.preventDefault();  // 트리거 시에만 스크롤 방지
+        window.Streamlit.setComponentValue(++counter);
     }
-  }
+    if (e) e.preventDefault();  // 트리거 시에만 기본 동작 방지
+}
 
-  document.addEventListener('wheel', function(e){
-    const now = Date.now();
-    if (now - lastWheel <= 400) {
-      streak += 1;
-      if (streak >= 2) {
-        streak = 0;
-        triggerRefresh(e);
-      }
-    } else {
-      streak = 1;
+document.addEventListener('mousedown', function(e){
+    if (e.button === 1) {  // 1 = middle button (wheel click)
+        const now = Date.now();
+        if (now - lastClick <= 400) {
+            streak += 1;
+            if (streak >= 2) {
+                streak = 0;
+                triggerRefresh(e);
+            }
+        } else {
+            streak = 1;
+        }
+        lastClick = now;
     }
-    lastWheel = now;
-  }, {passive:false});
+}, true);
 
-  // 컴포넌트 높이 최소화
-  if (window.Streamlit && window.Streamlit.setFrameHeight) {
+// 컴포넌트 높이 최소화
+if (window.Streamlit && window.Streamlit.setFrameHeight) {
     window.Streamlit.setFrameHeight(0);
-  }
+}
 })();
 </script>
 """, height=0)
