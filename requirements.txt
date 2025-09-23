@@ -1,6 +1,6 @@
-streamlit==1.25.0
+streamlit>=1.31
 pandas==1.5.3
-numpy==1.26.4
+numpy==1.24.4
 requests==2.32.3
 plotly==5.15.0
 ta==0.11.0
