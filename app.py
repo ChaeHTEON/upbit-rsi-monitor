@@ -379,9 +379,22 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         else:
             bb_value = None
 
+        # ✅ Debug: 신호 검증용 출력 (최대 5개, 테스트 후 제거 예정)
+        if len(res) < 5:
+            st.write({
+                "anchor_idx": anchor_idx,
+                "lookahead": lookahead,
+                "hit_idx": hit_idx,
+                "bars_after": (hit_idx - anchor_idx) if hit_idx is not None else None,
+                "signal_time": signal_time,
+                "end_time": end_time
+            })
+
         res.append({
             "신호시간": signal_time,
             "종료시간": end_time,
+            ...
+        })
             "기준시가": int(round(base_price)),
             "종료가": end_close,
             "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
