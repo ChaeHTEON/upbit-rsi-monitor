@@ -90,16 +90,6 @@ if refresh_token is not None:
 if st.session_state.get("soft_refresh_pending", False):
     st.session_state["soft_refresh_pending"] = False
 
-if refresh_token is not None:
-    if refresh_token != st.session_state["soft_refresh_token"] and not st.session_state["soft_refresh_pending"]:
-        st.session_state["soft_refresh_token"] = refresh_token
-        st.session_state["soft_refresh_pending"] = True
-        st.cache_data.clear()
-        st.experimental_rerun()
-
-if st.session_state.get("soft_refresh_pending", False):
-    st.session_state["soft_refresh_pending"] = False
-
 # ──────────────────────────────────────────────────────────────────────────────
 # 업비트 마켓
 # ──────────────────────────────────────────────────────────────────────────────
