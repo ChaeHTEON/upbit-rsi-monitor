@@ -296,13 +296,8 @@ try:
     else:
         st.info("조건을 만족하는 신호가 없습니다.")
 
-trunner as scriptrunner
-
-...
-
 except Exception as e:
-    msg = str(e).strip()
-    # Streamlit의 stop 제어 예외는 그대로 다시 raise
+    msg = (str(e) or "").strip()
     if isinstance(e, SystemExit):
         raise
     elif msg in ("0", ""):
