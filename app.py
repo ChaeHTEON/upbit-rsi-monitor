@@ -42,8 +42,12 @@ refresh_sec = st.selectbox(
     format_func=lambda x: f"{x}초"
 )
 
-from streamlit_autorefresh import st_autorefresh
-st_autorefresh(interval=refresh_sec * 1000, key="refresh")
+try:
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=refresh_sec * 1000, key="refresh")
+except Exception:
+    # 패키지 미설치 시에도 앱 중단 없이 동작 (자동 새로고침만 비활성화)
+    pass
 
 # -----------------------------
 # 업비트 마켓 로드
