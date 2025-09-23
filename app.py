@@ -295,7 +295,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
                 B1_idx, B1_close = None, None
-                for j in range(n):
+                # 🔑 수정: 현재 i 이후 구간에서만 B1 찾기
+                for j in range(i + 1, n):
                     if b1_pass(j):
                         val = df.at[j, "close"]
                         if pd.notna(val):
