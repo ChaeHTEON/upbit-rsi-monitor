@@ -309,7 +309,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
             # B2, B3 찾기
             bull_cnt, B3_idx = 0, None
-            for j in range(B1_idx + 1, min(B1_idx + lookahead, n)):
+            for j in range(B1_idx + 1, n):
                 if is_bull(j):
                     bull_cnt += 1
                     if bull_cnt == 2:
@@ -341,7 +341,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             i += 1
             continue
 
-        window = df.iloc[anchor_idx + 1:end_idx + 1]  # iloc으로 고정된 개수 확보
+        window = df.iloc[anchor_idx + 1:end_idx + 1]  # ✅ 항상 N개 확보
         end_time = df.at[end_idx, "time"]
         end_close = float(df.at[end_idx, "close"])
         final_ret = (end_close / base_price - 1) * 100
@@ -362,6 +362,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if final_ret <= -thr:
                 result = "실패"
 
+        # BB 표시용 값
         bb_value = None
         if bb_cond == "상한선": bb_value = df.at[i, "BB_up"]
         elif bb_cond == "중앙선": bb_value = df.at[i, "BB_mid"]
