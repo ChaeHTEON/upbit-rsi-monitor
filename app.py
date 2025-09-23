@@ -280,21 +280,31 @@ try:
     # 차트
     st.markdown('<div class="section-title">④ 차트</div>', unsafe_allow_html=True)
     fig = make_subplots(rows=1, cols=1)
-    fig.add_trace(go.Candlestick(x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-                                 name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1)))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines", line=dict(color="orange",width=1), name="BB 상단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="skyblue",width=1), name="BB 하단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="gray",dash="dot",width=1), name="BB 중앙"))
 
-    for _,row in res.iterrows():
-        color = "red" if row["결과"]=="성공" else "blue" if row["결과"]=="실패" else "orange"
-        fig.add_trace(go.Scatter(x=[row["신호시간"]], y=[row["기준시가"]], mode="markers",
-                                 marker=dict(size=9,color=color,symbol="circle",line=dict(width=1,color="black")),
-                                 name=f"신호({row['결과']})"))
+    # 캔들 + BB는 항상 출력
+    fig.add_trace(go.Candlestick(
+        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1)
+    ))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"],  mode="lines", line=dict(color="orange", width=1),  name="BB 상단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="skyblue", width=1), name="BB 하단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="gray", dash="dot", width=1), name="BB 중앙"))
 
-    fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13)+BB 시뮬",
-                      dragmode="zoom",xaxis_rangeslider_visible=False,height=600)
-    st.plotly_chart(fig,use_container_width=True)
+    # 신호가 있을 때만 마커 표시
+    if not res.empty:
+        for _, row in res.iterrows():
+            color = "red" if row["결과"]=="성공" else "blue" if row["결과"]=="실패" else "orange"
+            fig.add_trace(go.Scatter(
+                x=[row["신호시간"]], y=[row["기준시가"]], mode="markers",
+                marker=dict(size=9, color=color, symbol="circle", line=dict(width=1,color="black")),
+                name=f"신호({row['결과']})"
+            ))
+
+    fig.update_layout(
+        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13)+BB 시뮬",
+        dragmode="zoom", xaxis_rangeslider_visible=False, height=600
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
     # 결과 테이블
     st.markdown('<div class="section-title">⑤ 결과 테이블</div>', unsafe_allow_html=True)
