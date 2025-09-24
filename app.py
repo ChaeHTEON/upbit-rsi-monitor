@@ -470,7 +470,10 @@ try:
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
         customdata=df["profit_pct"],
-        hovertemplate=hover_tmpl,
+        hovertext=df.apply(lambda r: f"{r['time']}<br>가격: {r['close']:.2f}"
+                           + (f"<br>매수가 대비: {r['profit_pct']:.2f}%" if pd.notna(r['profit_pct']) else ""),
+                           axis=1),
+        hoverinfo="text",
         name="가격",
         increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
