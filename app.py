@@ -586,22 +586,15 @@ try:
 # 🔁 차트를 "기본 설정" 바로 아래 chart_box에 출력
 chart_box.plotly_chart(
     fig,
-    width="stretch",                    # ← Streamlit 1.50 경고 대응 (use_container_width 대체)
+    width="stretch",   # ✅ Streamlit 1.50 이후 권장 (use_container_width 대체)
     config={
-        "scrollZoom": False,            # ← 휠 줌 비활성(버튼 눌러서만 줌)
-        "displayModeBar": True,
-        "doubleClick": "reset",
+        "scrollZoom": False,    # 휠 줌 비활성화
+        "displayModeBar": True, # 툴바 표시 (줌/리셋 버튼만 사용)
+        "doubleClick": "reset"  # 더블클릭 시 초기화
     },
 )
 
-    fig,
-    use_container_width=True,
-    config={
-        "scrollZoom": False,        # ✅ 마우스 휠 줌 비활성화
-        "displayModeBar": True,     # ✅ 툴바 표시 (줌/리셋 버튼만 사용)
-        "doubleClick": "reset"      # ✅ 더블클릭 → 초기화
-    }
-)
+st.markdown("---")
 
     st.markdown("---")
 
