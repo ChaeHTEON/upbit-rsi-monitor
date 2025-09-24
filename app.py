@@ -456,12 +456,13 @@ try:
         else:
             df["profit_pct"] = np.nan
 
-        toggle_clicked = st.button("🔧 최적화뷰 / ↺ 기본뷰", help="토글하여 뷰 전환")
-
-    if 'opt_view' not in st.session_state:
-        st.session_state['opt_view'] = False
-    if toggle_clicked:
-        st.session_state['opt_view'] = not st.session_state['opt_view']
+          btn_label = "↺ 기본뷰" if st.session_state.get("opt_view", False) else "🔧 최적화뷰"
+          toggle_clicked = st.button(btn_label, help="토글하여 뷰 전환")
+      
+      if 'opt_view' not in st.session_state:
+          st.session_state['opt_view'] = False
+      if toggle_clicked:
+          st.session_state['opt_view'] = not st.session_state['opt_view']
 
     # -----------------------------
     # 차트 (기본 설정 바로 아래)
@@ -535,14 +536,13 @@ try:
                 ))
 
     # ===== RSI (보조축) =====
-    # RSI 과매도/과매수 zone 강조 (업비트 스타일)
-    fig.add_hrect(y0=0, y1=30, line_width=0, fillcolor="rgba(0,123,255,0.2)", layer="below", yref="y2")
-    fig.add_hrect(y0=70, y1=100, line_width=0, fillcolor="rgba(255,0,0,0.2)", layer="below", yref="y2")
+    # RSI 과매도/과매수 zone 강조 (업비트 스타일, 보조축에 확실히 반영)
+    fig.add_hrect(y0=0, y1=30, line_width=0,
+                  fillcolor="rgba(0,123,255,0.2)", layer="below", yref="y2 domain")
+    fig.add_hrect(y0=70, y1=100, line_width=0,
+                  fillcolor="rgba(255,0,0,0.2)", layer="below", yref="y2 domain")
 
-    # RSI 라인 2중(배경용 연한 → 본선 점선) 유지
-    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
-                             line=dict(color="rgba(42,157,143,0.30)", width=6),
-                             yaxis="y2", showlegend=False))
+    # RSI 라인
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
                              line=dict(color="#2A9D8F", width=2.4, dash="dot"),
                              name="RSI(13)", yaxis="y2"))
