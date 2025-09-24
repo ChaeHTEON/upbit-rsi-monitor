@@ -103,7 +103,6 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
 # ✅ 차트를 "기본 설정" 바로 아래에 그릴 컨테이너
-ctr_tools = st.container()   # 최적화뷰 버튼 등 (UI/UX 추가지만 기존 섹션/표 구성은 그대로 유지)
 chart_box = st.container()
 
 # -----------------------------
@@ -125,7 +124,7 @@ with c6:
     with r1:
         rsi_mode = st.selectbox(
             "RSI 조건",
-            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준", "업비트 기준(13,70,30)"],
+            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
             index=0
         )
     with r2:
@@ -225,11 +224,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                          set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
     elif rsi_mode == "과매도 기준":
         rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
-    elif rsi_mode == "과매수 기준":
+    else:  # 과매수 기준
         rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-    else:  # 업비트 기준(13,70,30)
-        rsi_idx = sorted(set(df.index[df["RSI13"] <= 30].tolist()) |
-                         set(df.index[df["RSI13"] >= 70].tolist()))
 
     def bb_ok(i):
         c = float(df.at[i, "close"])
@@ -432,88 +428,20 @@ try:
         rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
     elif rsi_mode == "과매도 기준":
         rsi_txt = f"과매도≤{int(rsi_low)}"
-    elif rsi_mode == "과매수 기준":
-        rsi_txt = f"과매수≥{int(rsi_high)}"
     else:
-        rsi_txt = "업비트 기준(13,70,30)"
+        rsi_txt = f"과매수≥{int(rsi_high)}"
 
     bb_txt = bb_cond if bb_cond != "없음" else "없음"
     sec_txt = f"{sec_cond}"
 
     # -----------------------------
-    # -----------------------------
-    # 🔧 최적화 뷰 버튼 (아이콘 대안)
-    # -----------------------------
-    with ctr_tools:
-        # 매수가 입력 UI
-        buy_price = st.number_input("매수가 입력", min_value=0.0, value=0.0, step=1.0)
-
-        # 툴팁 % 계산용 hovertemplate 설정
-        if buy_price > 0:
-            df["profit_pct"] = (df["close"] / buy_price - 1) * 100
-        else:
-            df["profit_pct"] = np.nan
-
-        btn_label = "되돌리기" if st.session_state.get("opt_view", False) else "최적화뷰"
-        toggle_clicked = st.button(btn_label, help="토글하여 뷰 전환")
-
-    if 'opt_view' not in st.session_state:
-        st.session_state['opt_view'] = False
-    if toggle_clicked:
-        st.session_state['opt_view'] = not st.session_state['opt_view']
-
-    # -----------------------------
     # 차트 (기본 설정 바로 아래)
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
-    # Candlestick (캔들 hover 시: 기존 정보 + 매수가 대비 수익률)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        customdata=df["profit_pct"],
-        hovertext=df.apply(
-            lambda r: (
-                f"{r['time']}<br>가격: {r['close']:.2f}"
-                + (
-                    f"<br>수익률: <span style='color:red'>{r['profit_pct']:.2f}%</span>"
-                    if r['profit_pct'] > 0 else
-                    f"<br>수익률: <span style='color:blue'>{r['profit_pct']:.2f}%</span>"
-                )
-                if pd.notna(r['profit_pct']) else ""
-            ),
-            axis=1
-        ),
-        hoverinfo="text",
-        name="가격",
-        increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
+        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
-
-    # 빈 영역 hover (매수가 ≥ 1 인 경우만 추가)
-    if buy_price >= 1:
-        fig.add_trace(go.Scatter(
-            x=df["time"],
-            y=[(df["high"].max() + df["low"].min()) / 2.0] * len(df),
-            mode="lines", line=dict(width=0), showlegend=False,
-            hovertext=df["profit_pct"].apply(
-                lambda v: (
-                    f"수익률: <span style='color:red'>{v:.2f}%</span>" if v > 0 else
-                    f"수익률: <span style='color:blue'>{v:.2f}%</span>"
-                ) if pd.notna(v) else ""
-            ),
-            hoverinfo="text", name=""
-        ))
-
-    # 통합 hover 모드
-    fig.update_layout(hovermode="x unified")
-
-    # 빈 영역에서도 수익률(%) 표시되도록 보조 trace + 통합 hover 적용
-    fig.add_trace(go.Scatter(
-        x=df["time"],
-        y=[(df["high"].max() + df["low"].min()) / 2.0] * len(df),  # 안 보이는 가이드 라인
-        mode="lines", line=dict(width=0), showlegend=False,
-        hovertext=df["profit_pct"].apply(lambda v: f"수익률: {v:.2f}%" if pd.notna(v) else "수익률: -"),
-        hoverinfo="text", name=""
-    ))
-    fig.update_layout(hovermode="x unified")
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
                              line=dict(color="#FFB703", width=1.4), name="BB 상단"))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines",
@@ -571,36 +499,21 @@ try:
                     showlegend=False
                 ))
 
-    # ===== RSI (보조축) =====
-    # RSI 과매도/과매수 zone 강조 (업비트 스타일)
-    fig.add_hrect(y0=0, y1=30, line_width=0,
-                  fillcolor="rgba(0,123,255,0.2)", layer="below", yref="y2")
-    fig.add_hrect(y0=70, y1=100, line_width=0,
-                  fillcolor="rgba(255,0,0,0.2)", layer="below", yref="y2")
+    # RSI (보조축)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
+                             line=dict(color="rgba(42,157,143,0.30)", width=6),
+                             yaxis="y2", showlegend=False))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
+                             line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+                             name="RSI(13)", yaxis="y2"))
+    fig.add_hline(y=70, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
+    fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
 
-    # RSI 라인
-    fig.add_trace(go.Scatter(
-        x=df["time"], y=df["RSI13"], mode="lines",
-        line=dict(color="#2A9D8F", width=2.4, dash="dot"),
-        name="RSI(13)", yaxis="y2"
-    ))
-
-    # 보조축 범위 고정 (0~100)
-    fig.update_yaxes(range=[0, 100], secondary_y=True, showgrid=False, title="RSI(13)")
-
-    # RSI 기준선: 슬라이더 값 동기화
-    fig.add_hline(y=rsi_high, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
-    fig.add_hline(y=rsi_low,  line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
-
-    # RSI 20선(개인 하한 기준선)
-    fig.add_hline(y=20, line_dash="solid", line_color="red", line_width=0.8, yref="y2")
-
-    # 레이아웃 / 인터랙션
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="zoom",                           # 기본 드래그=줌
+        dragmode="pan",  # 업비트 유사 UX: 드래그=이동
         xaxis_rangeslider_visible=False,
-        height=600,                                # 요청: 600
+        height=720,
         legend_orientation="h",
         legend_y=1.05,
         margin=dict(l=30, r=30, t=60, b=40),
@@ -608,25 +521,11 @@ try:
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
     )
 
-    # 🔧 최적화뷰 동작: 최신 15% 구간으로 자동 맞춤 (또는 최소 200캔들)
-    if 'opt_view' not in st.session_state:
-        st.session_state['opt_view'] = False
-    if toggle_clicked:
-        st.session_state['opt_view'] = not st.session_state['opt_view']
-
-    x0, x1 = None, None
-    if st.session_state['opt_view'] and len(df) > 5:
-        n = len(df)
-        win = max(int(n * 0.15), min(200, n - 1))
-        x0 = df["time"].iloc[max(0, n - win)]
-        x1 = df["time"].iloc[-1]
-        fig.update_xaxes(range=[x0, x1])
-
-    # ✅ 기본 설정 바로 아래 컨테이너에 출력
+    # ✅ 기본 설정 바로 아래 컨테이너에 출력 (중복 호출 없음)
     chart_box.plotly_chart(
         fig,
         use_container_width=True,
-        config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset"},
+        config={"scrollZoom": False, "displayModeBar": True, "doubleClick": "reset"},
     )
 
     st.markdown("---")
@@ -718,7 +617,7 @@ try:
         if "도달분" in tbl:
             tbl = tbl.drop(columns=["도달분"])
 
-        # 컬럼 순서 (원형 유지)
+        # 컬럼 순서
         keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
                      "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
         keep_cols = [c for c in keep_cols if c in tbl.columns]
