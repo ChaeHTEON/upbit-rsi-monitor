@@ -456,13 +456,13 @@ try:
         else:
             df["profit_pct"] = np.nan
 
-          btn_label = "↺ 기본뷰" if st.session_state.get("opt_view", False) else "🔧 최적화뷰"
-          toggle_clicked = st.button(btn_label, help="토글하여 뷰 전환")
-      
-      if 'opt_view' not in st.session_state:
-          st.session_state['opt_view'] = False
-      if toggle_clicked:
-          st.session_state['opt_view'] = not st.session_state['opt_view']
+        btn_label = "↺ 기본뷰" if st.session_state.get("opt_view", False) else "🔧 최적화뷰"
+        toggle_clicked = st.button(btn_label, help="토글하여 뷰 전환")
+
+    if 'opt_view' not in st.session_state:
+        st.session_state['opt_view'] = False
+    if toggle_clicked:
+        st.session_state['opt_view'] = not st.session_state['opt_view']
 
     # -----------------------------
     # 차트 (기본 설정 바로 아래)
