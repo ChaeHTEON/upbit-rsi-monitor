@@ -441,6 +441,7 @@ try:
     sec_txt = f"{sec_cond}"
 
     # -----------------------------
+    # -----------------------------
     # 🔧 최적화 뷰 버튼 (아이콘 대안)
     # -----------------------------
     with ctr_tools:
@@ -455,16 +456,8 @@ try:
         else:
             df["profit_pct"] = np.nan
 
-        # 캔들스틱에 customdata 적용
-        fig.add_trace(go.Candlestick(
-            x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-            customdata=df["profit_pct"],
-            hovertemplate=hover_tmpl,
-            name="가격",
-            increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
-        ))
-
         toggle_clicked = st.button("🔧 최적화뷰 / ↺ 기본뷰", help="토글하여 뷰 전환")
+
     if 'opt_view' not in st.session_state:
         st.session_state['opt_view'] = False
     if toggle_clicked:
@@ -476,7 +469,10 @@ try:
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
+        customdata=df["profit_pct"],
+        hovertemplate=hover_tmpl,
+        name="가격",
+        increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
                              line=dict(color="#FFB703", width=1.4), name="BB 상단"))
