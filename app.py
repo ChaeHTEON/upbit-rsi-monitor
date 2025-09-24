@@ -108,11 +108,7 @@ chart_box = st.container()
 # 조건 설정
 # -----------------------------
 st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
-# ... (조건 입력 UI 코드 동일)
-
-# -----------------------------
-# fetch_upbit_paged, add_indicators, simulate 함수 정의는 기존과 동일 (생략)
-# -----------------------------
+# ... (조건 입력 UI, 함수 정의 등 기존 코드 동일) ...
 
 # -----------------------------
 # 실행
@@ -138,14 +134,20 @@ try:
     # 차트
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
+
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
         name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines", line=dict(color="#FFB703", width=1.4), name="BB 상단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", line=dict(color="#219EBC", width=1.4), name="BB 하단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines", line=dict(color="#2A9D8F", width=2.4, dash="dot"), name="RSI(13)", yaxis="y2"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
+                             line=dict(color="#FFB703", width=1.4), name="BB 상단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines",
+                             line=dict(color="#219EBC", width=1.4), name="BB 하단"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines",
+                             line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"))
+    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
+                             line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+                             name="RSI(13)", yaxis="y2"))
     fig.add_hline(y=70, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
 
@@ -158,13 +160,16 @@ try:
         legend_y=1.05,
         margin=dict(l=30, r=30, t=60, b=40),
         yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100])
+        yaxis2=dict(
+            overlaying="y", side="right", showgrid=False,
+            title="RSI(13)", range=[0, 100]
+        ),
     )
 
-    # ✅ 중복 제거: chart_box.plotly_chart 한 번만 호출
+    # ✅ chart_box.plotly_chart 중복 제거, 정확히 한 번만 호출
     chart_box.plotly_chart(
         fig,
-        width="stretch",
+        use_container_width=True,
         config={
             "scrollZoom": False,
             "displayModeBar": True,
@@ -179,7 +184,7 @@ try:
     # -----------------------------
     st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
     st.info("설정 요약 ... (기존 로직 유지)")
-    # ... (요약 메트릭, 신호 결과 테이블 출력 로직 동일)
+    # ... (요약 메트릭, 신호 결과 테이블 출력 로직 동일) ...
 
 except Exception as e:
     st.error(f"오류: {e}")
