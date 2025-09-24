@@ -509,23 +509,49 @@ try:
     fig.add_hline(y=70, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
 
+    # =========================
+    # 최적화뷰 토글 상태 관리
+    # =========================
+    if "opt_view" not in st.session_state:
+        st.session_state.opt_view = False  # False=기본뷰, True=최적화뷰
+
+    opt_label = "되돌아가기" if st.session_state.opt_view else "최적화뷰"
+    if st.button(opt_label, key="btn_opt_view"):
+        st.session_state.opt_view = not st.session_state.opt_view
+
+    # =========================
+    # 최적화뷰(최신 15%, 최소 200캔들) 범위 계산
+    # =========================
+    if st.session_state.opt_view and len(df) > 0:
+        window_n = max(int(len(df) * 0.15), 200)
+        start_idx = max(len(df) - window_n, 0)
+        try:
+            x_start = df.iloc[start_idx]["time"]
+            x_end = df.iloc[-1]["time"]
+            fig.update_xaxes(range=[x_start, x_end])
+        except Exception:
+            pass  # DatetimeIndex 이외 경우 안전 처리
+
+    # =========================
+    # 차트 레이아웃 & 출력
+    # =========================
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="pan",  # 업비트 유사 UX: 드래그=이동
+        dragmode="zoom",  # ✅ 기본 드래그=확대
         xaxis_rangeslider_visible=False,
-        height=720,
+        height=600,       # ✅ 차트 높이 600
         legend_orientation="h",
         legend_y=1.05,
         margin=dict(l=30, r=30, t=60, b=40),
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
+        uirevision="chart-static",  # ✅ 줌/팬 상태 유지
     )
 
-    # ✅ 기본 설정 바로 아래 컨테이너에 출력 (중복 호출 없음)
     chart_box.plotly_chart(
         fig,
         use_container_width=True,
-        config={"scrollZoom": False, "displayModeBar": True, "doubleClick": "reset"},
+        config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset"},  # ✅ PC 휠/모바일 핀치 확대 지원
     )
 
     st.markdown("---")
