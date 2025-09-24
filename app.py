@@ -450,12 +450,20 @@ try:
     # -----------------------------
     # 차트 (기본 설정 바로 아래)
     # -----------------------------
-    # 매수가 > 0일 경우 수익률 컬럼 추가 (툴팁용)
     df_plot = df.copy()
     if buy_price > 0:
         df_plot["수익률(%)"] = (df_plot["close"] / buy_price - 1) * 100
     else:
-        df_plot["수익률(%)"] = None
+        df_plot["수익률(%)"] = np.nan  # None 대신 NaN으로 안전 처리
+
+    # Candlestick 툴팁 문자열은 항상 문자열이어야 함(조건부로 라인만 추가)
+    hover_tpl = (
+        "시간: %{x}<br>"
+        "시가: %{open}<br>고가: %{high}<br>저가: %{low}<br>종가: %{close}"
+    )
+    if buy_price > 0:
+        hover_tpl += "<br>%{customdata[0]:.2f}%"
+    hover_tpl += "<extra></extra>"
 
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
@@ -463,11 +471,7 @@ try:
         low=df_plot["low"], close=df_plot["close"],
         name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1),
         customdata=df_plot[["수익률(%)"]],
-        hovertemplate=(
-            "시간: %{x}<br>"
-            "시가: %{open}<br>고가: %{high}<br>저가: %{low}<br>종가: %{close}<br>"
-            "%{customdata[0]:.2f}%<extra></extra>"
-        )
+        hovertemplate=hover_tpl
     ))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
                              line=dict(color="#FFB703", width=1.4), name="BB 상단"))
@@ -546,15 +550,9 @@ try:
     # RSI 20선 (빨간 실선)
     fig.add_hline(y=20, line_dash="solid", line_color="red", line_width=1.2, yref="y2")
 
-    # =========================
-    # 최적화뷰 버튼 (차트 위쪽으로 이동)
-    # =========================
-    if "opt_view" not in st.session_state:
-        st.session_state.opt_view = False
-    opt_label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-    if st.button(opt_label, key="btn_opt_view"):
-        st.session_state.opt_view = not st.session_state.opt_view
-    if st.session_state.opt_view and len(df) > 0:
+    # (중복 위젯 제거) — 최적화뷰 버튼/매수가 입력은 이미 차트 위쪽 UI에서 생성됨
+    # 여기서는 최적화뷰가 켜진 경우 x축 범위만 적용
+    if st.session_state.get("opt_view") and len(df) > 0:
         window_n = max(int(len(df) * 0.15), 200)
         start_idx = max(len(df) - window_n, 0)
         try:
@@ -563,11 +561,6 @@ try:
             fig.update_xaxes(range=[x_start, x_end])
         except Exception:
             pass
-
-    # =========================
-    # 매수가 입력 UI
-    # =========================
-    buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1)
 
     # =========================
     # 차트 레이아웃 & 출력
@@ -595,7 +588,7 @@ try:
 
     chart_box.plotly_chart(
         fig,
-        width="stretch",  # ✅ use_container_width 대체
+        width="stretch",  # use_container_width 대체
         config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset"},
     )
 
@@ -700,7 +693,7 @@ try:
             return ""
 
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
-        st.dataframe(styled_tbl, use_container_width=True)
+        st.dataframe(styled_tbl, width="stretch")
 
 except Exception as e:
     st.error(f"오류: {e}")
