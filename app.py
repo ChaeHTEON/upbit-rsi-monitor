@@ -175,7 +175,7 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 시뮬레이션 (원본 UI/UX 로직 유지)
+# 시뮬레이션 (UI/UX 개선 버전 유지)
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
@@ -207,7 +207,7 @@ try:
     if df_raw.empty: st.error("데이터가 없습니다."); st.stop()
     df = add_indicators(df_raw, bb_window, bb_dev)
 
-    # 🔄 차트 컨트롤
+    # 🔄 새로고침 + 차트 근처 종목 선택
     if "last_refresh" not in st.session_state: st.session_state["last_refresh"] = datetime.now()
     st.markdown("### 🔄 차트 컨트롤")
     cc1, cc2 = st.columns([1,2])
@@ -224,7 +224,7 @@ try:
         market_label2, market_code2 = st.selectbox("차트 근처 종목 선택", MARKET_LIST, index=sel_idx, format_func=lambda x:x[0])
         if market_code2 != market_code: market_code=market_code2; st.rerun()
 
-    # 차트 (원본 구조 유지)
+    # 차트 (UI/UX 개선 버전 그대로)
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
                                  name="가격", increasing_line_color="red", decreasing_line_color="blue"))
@@ -232,14 +232,13 @@ try:
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", name="BB 하단"))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", name="BB 중앙"))
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)", yaxis="y2"))
-
     fig.update_layout(title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13)+BB 시뮬레이션",
         dragmode="zoom", xaxis_rangeslider_visible=False, height=600,
         yaxis=dict(title="가격"), yaxis2=dict(overlaying="y", side="right", range=[0,100], title="RSI(13)"),
         uirevision="chart-view")
     st.plotly_chart(fig, config={"scrollZoom":True,"doubleClick":"reset","responsive":True})
 
-    # 신호 결과 (원본 UI/UX 유지)
+    # 신호 결과 (UI/UX 개선 버전 그대로)
     st.markdown("### ④ 신호 결과 (최신 순)")
     res = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dup_mode,
                    minutes_per_bar, market_code, bb_window, bb_dev, sec_cond, hit_basis, miss_policy)
