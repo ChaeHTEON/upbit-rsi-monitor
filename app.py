@@ -588,10 +588,8 @@ try:
     # 🔧 최적화뷰 동작: 최신 15% 구간으로 자동 맞춤 (또는 최소 200캔들)
     if 'opt_view' not in st.session_state:
         st.session_state['opt_view'] = False
-    if opt_clicked:
-        st.session_state['opt_view'] = True
-    if reset_clicked:
-        st.session_state['opt_view'] = False
+    if toggle_clicked:
+        st.session_state['opt_view'] = not st.session_state['opt_view']
 
     x0, x1 = None, None
     if st.session_state['opt_view'] and len(df) > 5:
