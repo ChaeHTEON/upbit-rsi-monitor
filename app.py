@@ -566,13 +566,22 @@ try:
     fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
 
     fig.update_layout(
-        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="zoom", xaxis_rangeslider_visible=False, height=600,
-        legend_orientation="h", legend_y=1.05,
-        margin=dict(l=60, r=40, t=60, b=40),
-        yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100])
+    title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
+    dragmode="zoom",
+    xaxis_rangeslider_visible=False,
+    height=720,  # ✅ 세로 크기 확대 (600 → 720)
+    legend_orientation="h",
+    legend_y=1.05,
+    margin=dict(l=30, r=30, t=60, b=40),  # ✅ 좌우 여백 축소 (60/40 → 30/30)
+    yaxis=dict(title="가격"),
+    yaxis2=dict(
+        overlaying="y",
+        side="right",
+        showgrid=False,
+        title="RSI(13)",
+        range=[0, 100]
     )
+)
     # 🔁 차트를 "기본 설정" 바로 아래 chart_box에 출력
     chart_box.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
 
