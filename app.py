@@ -101,7 +101,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
 # -----------------------------
-# 데이터 수집
+# 데이터 수집/지표 함수
 # -----------------------------
 def estimate_calls(start_dt, end_dt, minutes_per_bar):
     mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
@@ -169,7 +169,7 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 시뮬레이션 (성공=종가 기준 고정, 미도달 처리 고정)
+# 시뮬레이션 (성공=종가 기준, 미도달 고정)
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
              bb_cond, dedup_mode, minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음"):
@@ -177,7 +177,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
     n = len(df)
     thr = float(thr_pct)
 
-    # 1차 조건
     if rsi_mode == "없음":
         rsi_idx = []
     elif rsi_mode == "현재(과매도/과매수 중 하나)":
@@ -221,13 +220,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
         end_close = float(df.at[end_idx, "close"])
         final_ret = (end_close / base_price - 1) * 100
 
-        # 목표 도달 체크 (종가 기준 고정)
-        target = base_price * (1.0 + thr / 100.0)
+        # 목표 도달 (종가 기준)
         result = "중립"
         for j in range(anchor_idx + 1, end_idx + 1):
-            if float(df.at[j, "close"]) >= target:
+            if float(df.at[j, "close"]) >= base_price * (1.0 + thr / 100.0):
                 end_time = df.at[j, "time"]
-                end_close = target
+                end_close = base_price * (1.0 + thr / 100.0)
                 final_ret = thr
                 result = "성공"
                 break
@@ -271,7 +269,7 @@ try:
     df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)].reset_index(drop=True)
 
     # -----------------------------
-    # 차트 (상단으로 이동)
+    # 요약 & 차트 (상단 이동)
     # -----------------------------
     st.markdown('<div class="section-title">② 요약 & 차트</div>', unsafe_allow_html=True)
     fig = make_subplots(rows=1, cols=1)
@@ -282,18 +280,16 @@ try:
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True})
 
     # -----------------------------
-    # 조건 설정 (UI/UX 유지)
+    # 조건 설정 (UI/UX 원형 유지)
     # -----------------------------
     st.markdown('<div class="section-title">③ 조건 설정</div>', unsafe_allow_html=True)
-    # 기존 조건 설정 블록 그대로 유지
-    # ...
+    # (이 부분은 기존 app.py 조건 설정 UI 그대로 유지)
 
     # -----------------------------
     # 신호 결과 (최신순)
     # -----------------------------
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    # 기존 결과 출력 블록 그대로 유지
-    # ...
+    # (이 부분도 기존 app.py 결과 테이블 블록 그대로 유지)
 
 except Exception as e:
     st.error(f"오류: {e}")
