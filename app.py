@@ -567,23 +567,33 @@ try:
 
     fig.update_layout(
     title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-    dragmode="pan",  # ✅ 기본: 드래그 → 이동
+    dragmode="pan",                     # ← 기본은 드래그 이동(Upbit UX 유사)
     xaxis_rangeslider_visible=False,
-    height=720,  # ✅ 세로 크기 확대 유지
+    height=720,
     legend_orientation="h",
     legend_y=1.05,
-    margin=dict(l=10, r=10, t=60, b=40),  # ✅ 좌우 여백 최소화 → 가로 공간 확보
+    margin=dict(l=30, r=30, t=60, b=40),
     yaxis=dict(title="가격"),
     yaxis2=dict(
         overlaying="y",
         side="right",
         showgrid=False,
         title="RSI(13)",
-        range=[0, 100]
-    )
-)
+        range=[0, 100],
+    ),
+)  # ← 반드시 이 줄에서 update_layout 호출을 닫습니다!
+
 # 🔁 차트를 "기본 설정" 바로 아래 chart_box에 출력
 chart_box.plotly_chart(
+    fig,
+    width="stretch",                    # ← Streamlit 1.50 경고 대응 (use_container_width 대체)
+    config={
+        "scrollZoom": False,            # ← 휠 줌 비활성(버튼 눌러서만 줌)
+        "displayModeBar": True,
+        "doubleClick": "reset",
+    },
+)
+
     fig,
     use_container_width=True,
     config={
