@@ -512,6 +512,29 @@ else:
             )
         ]
 
+    # Hovertext 배열 생성 (Candlestick trace 밖에서 미리 준비)
+    if buy_price > 0:
+        hovertext = [
+            f"시간: {t}<br>"
+            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
+            f"수익률: {p:.2f}%"
+            for t, o, h, l, c, p in zip(
+                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"],
+                df_plot["수익률(%)"].fillna(0)
+            )
+        ]
+    else:
+        hovertext = [
+            f"시간: {t}<br>"
+            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}"
+            for t, o, h, l, c in zip(
+                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"]
+            )
+        ]
+
+    # Candlestick trace
     fig.add_trace(go.Candlestick(
         x=df_plot["time"],
         open=df_plot["open"],
