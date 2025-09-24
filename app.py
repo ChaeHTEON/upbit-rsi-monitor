@@ -500,28 +500,33 @@ try:
                 ))
 
     # RSI (보조축)
-    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
-                             line=dict(color="rgba(42,157,143,0.30)", width=6),
-                             yaxis="y2", showlegend=False))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
-                             line=dict(color="#2A9D8F", width=2.4, dash="dot"),
-                             name="RSI(13)", yaxis="y2"))
-    fig.add_hline(y=70, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
-    fig.add_hline(y=30, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
+    # =========================
+    # RSI 시각화 (동기화 + 20선 추가)
+    # =========================
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["RSI13"], mode="lines",
+        line=dict(color="rgba(42,157,143,0.30)", width=6),
+        yaxis="y2", showlegend=False
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["RSI13"], mode="lines",
+        line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+        name="RSI(13)", yaxis="y2"
+    ))
+    # 슬라이더 값 기반 RSI 기준선 표시
+    fig.add_hline(y=rsi_high, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
+    fig.add_hline(y=rsi_low, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
+    # RSI 20선 (빨간 실선)
+    fig.add_hline(y=20, line_dash="solid", line_color="red", line_width=1.2, yref="y2")
 
     # =========================
-    # 최적화뷰 토글 상태 관리
+    # 최적화뷰 버튼 (차트 위쪽으로 이동)
     # =========================
     if "opt_view" not in st.session_state:
-        st.session_state.opt_view = False  # False=기본뷰, True=최적화뷰
-
-    opt_label = "되돌아가기" if st.session_state.opt_view else "최적화뷰"
+        st.session_state.opt_view = False
+    opt_label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
     if st.button(opt_label, key="btn_opt_view"):
         st.session_state.opt_view = not st.session_state.opt_view
-
-    # =========================
-    # 최적화뷰(최신 15%, 최소 200캔들) 범위 계산
-    # =========================
     if st.session_state.opt_view and len(df) > 0:
         window_n = max(int(len(df) * 0.15), 200)
         start_idx = max(len(df) - window_n, 0)
@@ -530,31 +535,42 @@ try:
             x_end = df.iloc[-1]["time"]
             fig.update_xaxes(range=[x_start, x_end])
         except Exception:
-            pass  # DatetimeIndex 이외 경우 안전 처리
+            pass
+
+    # =========================
+    # 매수가 입력 UI
+    # =========================
+    buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1)
 
     # =========================
     # 차트 레이아웃 & 출력
     # =========================
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="zoom",  # ✅ 기본 드래그=확대
+        dragmode="pan",
         xaxis_rangeslider_visible=False,
-        height=600,       # ✅ 차트 높이 600
+        height=720,
         legend_orientation="h",
         legend_y=1.05,
         margin=dict(l=30, r=30, t=60, b=40),
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
-        uirevision="chart-static",  # ✅ 줌/팬 상태 유지
+        uirevision="chart-static"
     )
+
+    # 차트 출력 (매수가 입력 반영된 툴팁 표시)
+    def _custom_hover(x, y):
+        if buy_price > 0:
+            pct = (y / buy_price - 1) * 100
+            color = "red" if pct > 0 else "blue"
+            return f"<b>수익률: <span style='color:{color}'>{pct:.2f}%</span></b>"
+        return None
 
     chart_box.plotly_chart(
         fig,
         use_container_width=True,
-        config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset"},  # ✅ PC 휠/모바일 핀치 확대 지원
+        config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset"},
     )
-
-    st.markdown("---")
 
     # -----------------------------
     # ③ 요약 & 차트
