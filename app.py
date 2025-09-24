@@ -214,8 +214,8 @@ try:
         if st.button("🔄 새로고침"):
             now = datetime.now()
             if (now-st.session_state["last_refresh"]).total_seconds()>=3:
-                st.session_state["last_refresh"]=now; st.experimental_rerun()
-            else: st.warning("새로고침은 3초 간격으로만 가능합니다.")
+              st.session_state["last_refresh"]=now
+              st.rerun()
     with cc2:
         sel_idx = next((i for i,(_,code) in enumerate(MARKET_LIST) if code==market_code),0)
         market_label2, market_code2 = st.selectbox("차트 근처 종목 선택", MARKET_LIST, index=sel_idx, format_func=lambda x:x[0])
