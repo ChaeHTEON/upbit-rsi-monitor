@@ -635,8 +635,13 @@ try:
 
     chart_box.plotly_chart(
         fig,
-        width="stretch",  # use_container_width 대체
-        config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset"},
+        use_container_width=True,
+        config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "doubleClick": "reset",
+            "responsive": True
+        },
     )
 
     # -----------------------------
