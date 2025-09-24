@@ -567,12 +567,12 @@ try:
 
     fig.update_layout(
     title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-    dragmode="zoom",
+    dragmode="pan",  # ✅ 기본: 드래그 → 이동
     xaxis_rangeslider_visible=False,
-    height=720,  # ✅ 세로 크기 확대 (600 → 720)
+    height=720,  # ✅ 세로 크기 확대 유지
     legend_orientation="h",
     legend_y=1.05,
-    margin=dict(l=30, r=30, t=60, b=40),  # ✅ 좌우 여백 축소 (60/40 → 30/30)
+    margin=dict(l=10, r=10, t=60, b=40),  # ✅ 좌우 여백 최소화 → 가로 공간 확보
     yaxis=dict(title="가격"),
     yaxis2=dict(
         overlaying="y",
@@ -582,8 +582,16 @@ try:
         range=[0, 100]
     )
 )
-    # 🔁 차트를 "기본 설정" 바로 아래 chart_box에 출력
-    chart_box.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True, "doubleClick": "reset"})
+# 🔁 차트를 "기본 설정" 바로 아래 chart_box에 출력
+chart_box.plotly_chart(
+    fig,
+    use_container_width=True,
+    config={
+        "scrollZoom": False,        # ✅ 마우스 휠 줌 비활성화
+        "displayModeBar": True,     # ✅ 툴바 표시 (줌/리셋 버튼만 사용)
+        "doubleClick": "reset"      # ✅ 더블클릭 → 초기화
+    }
+)
 
     st.markdown("---")
 
