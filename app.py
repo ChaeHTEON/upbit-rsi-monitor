@@ -466,19 +466,34 @@ try:
     hover_tpl += "<extra></extra>"
 
     fig = make_subplots(rows=1, cols=1)
+
+    # Candlestick: Plotly 규격에 맞게 increasing/decreasing으로 라인 지정
     fig.add_trace(go.Candlestick(
-        x=df_plot["time"], open=df_plot["open"], high=df_plot["high"],
-        low=df_plot["low"], close=df_plot["close"],
-        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1),
-        customdata=df_plot[["수익률(%)"]],
+        x=df_plot["time"],
+        open=df_plot["open"],
+        high=df_plot["high"],
+        low=df_plot["low"],
+        close=df_plot["close"],
+        name="가격",
+        increasing=dict(line=dict(color="red", width=1.1)),
+        decreasing=dict(line=dict(color="blue", width=1.1)),
+        customdata=df_plot[["수익률(%)"]].to_numpy(),
         hovertemplate=hover_tpl
     ))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
-                             line=dict(color="#FFB703", width=1.4), name="BB 상단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines",
-                             line=dict(color="#219EBC", width=1.4), name="BB 하단"))
-    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines",
-                             line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"))
+
+    # BB 라인
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_up"], mode="lines",
+        line=dict(color="#FFB703", width=1.4), name="BB 상단"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_low"], mode="lines",
+        line=dict(color="#219EBC", width=1.4), name="BB 하단"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_mid"], mode="lines",
+        line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"
+    ))
 
     # 시뮬레이션 (중복 포함/제거 두 버전 계산)
     res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
