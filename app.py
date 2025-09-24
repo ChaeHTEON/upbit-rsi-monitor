@@ -444,11 +444,31 @@ try:
     # 🔧 최적화 뷰 버튼 (아이콘 대안)
     # -----------------------------
     with ctr_tools:
-        cols = st.columns([1,6,1,1])
-        with cols[2]:
-            opt_clicked = st.button("🔧 최적화뷰", help="최신 날짜 중심으로 자동 맞춤")
-        with cols[3]:
-            reset_clicked = st.button("↺ 기본뷰", help="기본 보기로 되돌리기")
+    # 매수가 입력 UI
+    buy_price = st.number_input("매수가 입력", min_value=0.0, value=0.0, step=1.0)
+
+    # 툴팁 % 계산용 hovertemplate 설정
+    hover_tmpl = "<b>%{x|%Y-%m-%d %H:%M}</b><br>가격: %{y}"
+    if buy_price > 0:
+        hover_tmpl += "<br>매수가 대비: %{customdata:.2f}%"
+        df["profit_pct"] = (df["close"] / buy_price - 1) * 100
+    else:
+        df["profit_pct"] = np.nan
+
+    # 캔들스틱에 customdata 적용
+    fig.add_trace(go.Candlestick(
+        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        customdata=df["profit_pct"],
+        hovertemplate=hover_tmpl,
+        name="가격",
+        increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
+    ))
+        toggle_clicked = st.button("🔧 최적화뷰 / ↺ 기본뷰", help="토글하여 뷰 전환")
+
+    if 'opt_view' not in st.session_state:
+        st.session_state['opt_view'] = False
+    if toggle_clicked:
+        st.session_state['opt_view'] = not st.session_state['opt_view']
 
     # -----------------------------
     # 차트 (기본 설정 바로 아래)
@@ -516,15 +536,27 @@ try:
                 ))
 
     # ===== RSI (보조축) =====
-    # RSI 배경 zone (업비트 스타일: 과매도 파랑, 과매수 빨강)
-    fig.add_shape(type="rect", xref="x", yref="y2",
-                  x0=df["time"].min(), x1=df["time"].max(),
-                  y0=0, y1=30, fillcolor="rgba(0,123,255,0.15)",
-                  line=dict(width=0), layer="below")
-    fig.add_shape(type="rect", xref="x", yref="y2",
-                  x0=df["time"].min(), x1=df["time"].max(),
-                  y0=70, y1=100, fillcolor="rgba(255,0,0,0.12)",
-                  line=dict(width=0), layer="below")
+    # RSI 과매도/과매수 → 캔들 라인 마커 표시
+    over_sold = df[df["RSI13"] <= 30]
+    over_bought = df[df["RSI13"] >= 70]
+
+    # 과매도(파란 박스)
+    if not over_sold.empty:
+        fig.add_trace(go.Scatter(
+            x=over_sold["time"], y=over_sold["close"],
+            mode="markers",
+            marker=dict(size=12, color="rgba(0,123,255,0.4)", symbol="square"),
+            name="과매도"
+        ))
+
+    # 과매수(빨간 박스)
+    if not over_bought.empty:
+        fig.add_trace(go.Scatter(
+            x=over_bought["time"], y=over_bought["close"],
+            mode="markers",
+            marker=dict(size=12, color="rgba(255,0,0,0.4)", symbol="square"),
+            name="과매수"
+        ))
 
     # RSI 라인 2중(배경용 연한 → 본선 점선) 유지
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
