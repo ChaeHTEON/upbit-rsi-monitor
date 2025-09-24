@@ -101,7 +101,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
 # -----------------------------
-# 데이터 수집/지표 함수
+# 데이터 수집
 # -----------------------------
 def estimate_calls(start_dt, end_dt, minutes_per_bar):
     mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
@@ -169,7 +169,7 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 시뮬레이션 (성공=종가 기준, 미도달 고정)
+# 시뮬레이션 (종가 기준, 미도달 고정)
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
              bb_cond, dedup_mode, minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음"):
@@ -198,9 +198,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
     bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
     if rsi_mode != "없음" and bb_cond != "없음":
         base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
-    elif rsi_mode != "없음": base_sig_idx = rsi_idx
-    elif bb_cond != "없음": base_sig_idx = bb_idx
-    else: base_sig_idx = list(range(n)) if sec_cond != "없음" else []
+    elif rsi_mode != "없음":
+        base_sig_idx = rsi_idx
+    elif bb_cond != "없음":
+        base_sig_idx = bb_idx
+    else:
+        base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
     i = 0
     while i < n:
@@ -220,7 +223,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
         end_close = float(df.at[end_idx, "close"])
         final_ret = (end_close / base_price - 1) * 100
 
-        # 목표 도달 (종가 기준)
+        # 목표 도달 (종가 기준만 사용)
         result = "중립"
         for j in range(anchor_idx + 1, end_idx + 1):
             if float(df.at[j, "close"]) >= base_price * (1.0 + thr / 100.0):
@@ -272,6 +275,12 @@ try:
     # 요약 & 차트 (상단 이동)
     # -----------------------------
     st.markdown('<div class="section-title">② 요약 & 차트</div>', unsafe_allow_html=True)
+    st.info(
+        f"- 측정 구간: {lookahead}봉\n"
+        f"- 성공 판정 기준: 종가 고정\n"
+        f"- 미도달 처리: 고정 로직 (실패/중립)\n"
+    )
+
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
@@ -280,16 +289,16 @@ try:
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True})
 
     # -----------------------------
-    # 조건 설정 (UI/UX 원형 유지)
+    # 조건 설정 (UI/UX 유지)
     # -----------------------------
     st.markdown('<div class="section-title">③ 조건 설정</div>', unsafe_allow_html=True)
-    # (이 부분은 기존 app.py 조건 설정 UI 그대로 유지)
+    # (조건 설정 UI 블록 원형 유지)
 
     # -----------------------------
     # 신호 결과 (최신순)
     # -----------------------------
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    # (이 부분도 기존 app.py 결과 테이블 블록 그대로 유지)
+    # (신호 결과 테이블 블록 원형 유지)
 
 except Exception as e:
     st.error(f"오류: {e}")
