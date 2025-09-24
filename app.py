@@ -26,6 +26,8 @@ st.markdown("""
   .neutral-cell {color:#FF9800; font-weight:600;}
   table {border-collapse:collapse; width:100%;}
   th, td {border:1px solid #ddd; padding:6px; text-align:center;}
+  /* 🔧 타이틀 잘림 방지 */
+  .stApp h1 { margin-top: 4px; line-height: 1.2; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -272,33 +274,49 @@ try:
     df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)].reset_index(drop=True)
 
     # -----------------------------
-    # 요약 & 차트 (상단 이동)
+    # 요약 & 차트 (상단 이동, NameError 방지)
     # -----------------------------
     st.markdown('<div class="section-title">② 요약 & 차트</div>', unsafe_allow_html=True)
-    st.info(
-        f"- 측정 구간: {lookahead}봉\n"
-        f"- 성공 판정 기준: 종가 고정\n"
-        f"- 미도달 처리: 고정 로직 (실패/중립)\n"
-    )
+    st.markdown('<div class="hint">- 성공 판정 기준: 종가 고정 · 미도달 처리: (실패/중립) 고정</div>', unsafe_allow_html=True)
 
-    fig = make_subplots(rows=1, cols=1)
+    fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
+    # 캔들
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
         name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
-    ))
+    ), secondary_y=False)
+    # BB 상/중/하
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], name="BB 상단", mode="lines",
+                             line=dict(width=1.4, color="#f5b502")), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], name="BB 하단", mode="lines",
+                             line=dict(width=1.4, color="#36a2eb")), secondary_y=False)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], name="BB 중앙", mode="lines",
+                             line=dict(width=1.2, color="#9e9e9e", dash="dot")), secondary_y=False)
+    # RSI(13)
+    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], name="RSI(13)", mode="lines",
+                             line=dict(width=2, dash="dot", color="#2e7d32")), secondary_y=True)
+    # RSI 30/70 가이드
+    x0 = df["time"].iloc[0]; x1 = df["time"].iloc[-1]
+    fig.add_shape(type="line", x0=x0, x1=x1, y0=70, y1=70, xref="x", yref="y2",
+                  line=dict(color="#e57373", dash="dash", width=1))
+    fig.add_shape(type="line", x0=x0, x1=x1, y0=30, y1=30, xref="x", yref="y2",
+                  line=dict(color="#90a4ae", dash="dash", width=1))
+    fig.update_yaxes(title_text="가격", secondary_y=False)
+    fig.update_yaxes(title_text="RSI(13)", range=[0, 100], secondary_y=True)
+
     st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True})
 
     # -----------------------------
-    # 조건 설정 (UI/UX 유지)
+    # 조건 설정 (UI/UX 원형 유지)
     # -----------------------------
     st.markdown('<div class="section-title">③ 조건 설정</div>', unsafe_allow_html=True)
-    # (조건 설정 UI 블록 원형 유지)
+    # (조건 설정 UI 블록은 기존 코드 유지)
 
     # -----------------------------
-    # 신호 결과 (최신순)
+    # 신호 결과 (최신 순)
     # -----------------------------
     st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    # (신호 결과 테이블 블록 원형 유지)
+    # (신호 결과 테이블 블록은 기존 코드 유지)
 
 except Exception as e:
     st.error(f"오류: {e}")
