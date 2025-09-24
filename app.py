@@ -175,7 +175,7 @@ def add_indicators(df, bb_window, bb_dev):
     return out
 
 # -----------------------------
-# 시뮬레이션 (간소화: 핵심 로직만 유지)
+# 시뮬레이션 (원본 UI/UX 로직 유지)
 # -----------------------------
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
@@ -188,8 +188,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         end_price = float(df.at[end_idx,"close"])
         final_ret = (end_price/base_price - 1) * 100
         target = base_price * (1+thr/100)
-        result = "실패" if final_ret < 0 else "성공" if end_price>=target else "중립"
-        res.append({"신호시간":signal_time,"종료시간":end_time,"기준시가":base_price,"종료가":end_price,"결과":result})
+        result = "성공" if end_price>=target else ("실패" if final_ret<0 else "중립")
+        res.append({"신호시간":signal_time,"기준시가":base_price,"종료시간":end_time,"종료가":end_price,
+                    "최종수익률(%)":round(final_ret,2),"결과":result})
     return pd.DataFrame(res)
 
 # -----------------------------
@@ -214,14 +215,16 @@ try:
         if st.button("🔄 새로고침"):
             now = datetime.now()
             if (now-st.session_state["last_refresh"]).total_seconds()>=3:
-              st.session_state["last_refresh"]=now
-              st.rerun()
+                st.session_state["last_refresh"]=now
+                st.rerun()
+            else:
+                st.warning("새로고침은 3초 간격으로만 가능합니다.")
     with cc2:
         sel_idx = next((i for i,(_,code) in enumerate(MARKET_LIST) if code==market_code),0)
         market_label2, market_code2 = st.selectbox("차트 근처 종목 선택", MARKET_LIST, index=sel_idx, format_func=lambda x:x[0])
-        if market_code2 != market_code: market_code=market_code2; st.experimental_rerun()
+        if market_code2 != market_code: market_code=market_code2; st.rerun()
 
-    # 차트
+    # 차트 (원본 구조 유지)
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
                                  name="가격", increasing_line_color="red", decreasing_line_color="blue"))
@@ -234,14 +237,20 @@ try:
         dragmode="zoom", xaxis_rangeslider_visible=False, height=600,
         yaxis=dict(title="가격"), yaxis2=dict(overlaying="y", side="right", range=[0,100], title="RSI(13)"),
         uirevision="chart-view")
-    st.plotly_chart(fig, width="stretch", config={"scrollZoom":True,"doubleClick":"reset"})
+    st.plotly_chart(fig, config={"scrollZoom":True,"doubleClick":"reset","responsive":True})
 
-    # 신호 결과
+    # 신호 결과 (원본 UI/UX 유지)
     st.markdown("### ④ 신호 결과 (최신 순)")
     res = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dup_mode,
                    minutes_per_bar, market_code, bb_window, bb_dev, sec_cond, hit_basis, miss_policy)
-    if res.empty: st.info("조건을 만족하는 신호가 없습니다.")
-    else: st.dataframe(res.sort_values("신호시간",ascending=False), width="stretch")
+    if res.empty:
+        st.info("조건을 만족하는 신호가 없습니다.")
+    else:
+        styled_tbl = res.style.applymap(lambda v: "background-color:#FFF59D; color:#E53935;" if v=="성공"
+                                        else "color:#1E40AF;" if v=="실패"
+                                        else "color:#FF9800;" if v=="중립" else "",
+                                        subset=["결과"])
+        st.dataframe(styled_tbl, width="stretch")
 
 except Exception as e:
     st.error(f"오류: {e}")
