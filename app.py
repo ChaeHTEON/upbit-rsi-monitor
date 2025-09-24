@@ -468,16 +468,46 @@ try:
     # 차트 (기본 설정 바로 아래)
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
+    # Candlestick (캔들 hover 시: 기존 정보 + 매수가 대비 수익률)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
         customdata=df["profit_pct"],
-        hovertext=df.apply(lambda r: f"{r['time']}<br>가격: {r['close']:.2f}"
-                           + (f"<br>매수가 대비: {r['profit_pct']:.2f}%" if pd.notna(r['profit_pct']) else ""),
-                           axis=1),
+        hovertext=df.apply(
+            lambda r: (
+                f"{r['time']}<br>가격: {r['close']:.2f}"
+                + (
+                    f"<br>매수가 대비: "
+                    f"<span style='color:red'>{r['profit_pct']:.2f}%</span>"
+                    if r['profit_pct'] > 0 else
+                    f"<br>매수가 대비: "
+                    f"<span style='color:blue'>{r['profit_pct']:.2f}%</span>"
+                )
+                if pd.notna(r['profit_pct']) else ""
+            ),
+            axis=1
+        ),
         hoverinfo="text",
         name="가격",
         increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
+
+    # 빈 영역 hover (매수가 > 0 인 경우만 추가)
+    if buy_price > 0:
+        fig.add_trace(go.Scatter(
+            x=df["time"],
+            y=[(df["high"].max() + df["low"].min()) / 2.0] * len(df),  # 눈에 보이지 않는 가이드 라인
+            mode="lines", line=dict(width=0), showlegend=False,
+            hovertext=df["profit_pct"].apply(
+                lambda v: (
+                    f"수익률: <span style='color:red'>{v:.2f}%</span>" if v > 0 else
+                    f"수익률: <span style='color:blue'>{v:.2f}%</span>"
+                ) if pd.notna(v) else "수익률: -"
+            ),
+            hoverinfo="text", name=""
+        ))
+
+    # 통합 hover 모드
+    fig.update_layout(hovermode="x unified")
 
     # 빈 영역에서도 수익률(%) 표시되도록 보조 trace + 통합 hover 적용
     fig.add_trace(go.Scatter(
@@ -546,16 +576,25 @@ try:
                 ))
 
     # ===== RSI (보조축) =====
-    # RSI 과매도/과매수 zone 강조 (업비트 스타일, 보조축에 확실히 반영)
+    # 업비트 스타일: RSI 0~30, 70~100 구간을 긴 음영으로 표시
+    # 과매도 영역 (0~30)
     fig.add_hrect(y0=0, y1=30, line_width=0,
-                  fillcolor="rgba(0,123,255,0.2)", layer="below", yref="y2 domain")
+                  fillcolor="rgba(0,123,255,0.2)", layer="below", yref="y2")
+    # 과매수 영역 (70~100)
     fig.add_hrect(y0=70, y1=100, line_width=0,
-                  fillcolor="rgba(255,0,0,0.2)", layer="below", yref="y2 domain")
+                  fillcolor="rgba(255,0,0,0.2)", layer="below", yref="y2")
 
-    # RSI 라인
-    fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
-                             line=dict(color="#2A9D8F", width=2.4, dash="dot"),
-                             name="RSI(13)", yaxis="y2"))
+    # RSI 라인 (보조축 y2, 0~100 고정)
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["RSI13"], mode="lines",
+        line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+        name="RSI(13)", yaxis="y2"
+    ))
+
+    # 보조축 설정 (0~100 범위, 오른쪽 표시)
+    fig.update_layout(
+        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100])
+    )
 
     # RSI 기준선: 슬라이더 값 동기화
     fig.add_hline(y=rsi_high, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
