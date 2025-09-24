@@ -476,11 +476,9 @@ try:
             lambda r: (
                 f"{r['time']}<br>가격: {r['close']:.2f}"
                 + (
-                    f"<br>매수가 대비: "
-                    f"<span style='color:red'>{r['profit_pct']:.2f}%</span>"
+                    f"<br>수익률: <span style='color:red'>{r['profit_pct']:.2f}%</span>"
                     if r['profit_pct'] > 0 else
-                    f"<br>매수가 대비: "
-                    f"<span style='color:blue'>{r['profit_pct']:.2f}%</span>"
+                    f"<br>수익률: <span style='color:blue'>{r['profit_pct']:.2f}%</span>"
                 )
                 if pd.notna(r['profit_pct']) else ""
             ),
@@ -576,25 +574,21 @@ try:
                 ))
 
     # ===== RSI (보조축) =====
-    # 업비트 스타일: RSI 0~30, 70~100 구간을 긴 음영으로 표시
-    # 과매도 영역 (0~30)
+    # RSI 과매도/과매수 zone 강조 (업비트 스타일)
     fig.add_hrect(y0=0, y1=30, line_width=0,
                   fillcolor="rgba(0,123,255,0.2)", layer="below", yref="y2")
-    # 과매수 영역 (70~100)
     fig.add_hrect(y0=70, y1=100, line_width=0,
                   fillcolor="rgba(255,0,0,0.2)", layer="below", yref="y2")
 
-    # RSI 라인 (보조축 y2, 0~100 고정)
+    # RSI 라인
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
         line=dict(color="#2A9D8F", width=2.4, dash="dot"),
         name="RSI(13)", yaxis="y2"
     ))
 
-    # 보조축 설정 (0~100 범위, 오른쪽 표시)
-    fig.update_layout(
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100])
-    )
+    # 보조축 범위 고정 (0~100)
+    fig.update_yaxes(range=[0, 100], secondary_y=True, showgrid=False, title="RSI(13)")
 
     # RSI 기준선: 슬라이더 값 동기화
     fig.add_hline(y=rsi_high, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
