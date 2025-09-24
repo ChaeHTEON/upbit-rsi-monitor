@@ -435,12 +435,39 @@ try:
     sec_txt = f"{sec_cond}"
 
     # -----------------------------
+    # 매수가 입력 + 최적화뷰 (차트 위쪽으로 이동)
+    # -----------------------------
+    ui_col1, ui_col2 = st.columns([2, 1])
+    with ui_col1:
+        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1)
+    with ui_col2:
+        if "opt_view" not in st.session_state:
+            st.session_state.opt_view = False
+        opt_label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
+        if st.button(opt_label, key="btn_opt_view"):
+            st.session_state.opt_view = not st.session_state.opt_view
+
+    # -----------------------------
     # 차트 (기본 설정 바로 아래)
     # -----------------------------
+    # 매수가 > 0일 경우 수익률 컬럼 추가 (툴팁용)
+    df_plot = df.copy()
+    if buy_price > 0:
+        df_plot["수익률(%)"] = (df_plot["close"] / buy_price - 1) * 100
+    else:
+        df_plot["수익률(%)"] = None
+
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
-        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
+        x=df_plot["time"], open=df_plot["open"], high=df_plot["high"],
+        low=df_plot["low"], close=df_plot["close"],
+        name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1),
+        customdata=df_plot[["수익률(%)"]],
+        hovertemplate=(
+            "시간: %{x}<br>" +
+            "시가: %{open}<br>고가: %{high}<br>저가: %{low}<br>종가: %{close}<br>" +
+            "%{customdata[0]:.2f}%" if buy_price > 0 else None
+        )
     ))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
                              line=dict(color="#FFB703", width=1.4), name="BB 상단"))
@@ -549,7 +576,7 @@ try:
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
         xaxis_rangeslider_visible=False,
-        height=720,
+        height=600,  # ✅ 차트 높이 600으로 조정
         legend_orientation="h",
         legend_y=1.05,
         margin=dict(l=30, r=30, t=60, b=40),
