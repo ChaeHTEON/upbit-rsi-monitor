@@ -535,27 +535,9 @@ try:
                 ))
 
     # ===== RSI (보조축) =====
-    # RSI 과매도/과매수 → 캔들 라인 마커 표시
-    over_sold = df[df["RSI13"] <= 30]
-    over_bought = df[df["RSI13"] >= 70]
-
-    # 과매도(파란 박스)
-    if not over_sold.empty:
-        fig.add_trace(go.Scatter(
-            x=over_sold["time"], y=over_sold["close"],
-            mode="markers",
-            marker=dict(size=12, color="rgba(0,123,255,0.4)", symbol="square"),
-            name="과매도"
-        ))
-
-    # 과매수(빨간 박스)
-    if not over_bought.empty:
-        fig.add_trace(go.Scatter(
-            x=over_bought["time"], y=over_bought["close"],
-            mode="markers",
-            marker=dict(size=12, color="rgba(255,0,0,0.4)", symbol="square"),
-            name="과매수"
-        ))
+    # RSI 과매도/과매수 zone 강조 (업비트 스타일)
+    fig.add_hrect(y0=0, y1=30, line_width=0, fillcolor="rgba(0,123,255,0.2)", layer="below", yref="y2")
+    fig.add_hrect(y0=70, y1=100, line_width=0, fillcolor="rgba(255,0,0,0.2)", layer="below", yref="y2")
 
     # RSI 라인 2중(배경용 연한 → 본선 점선) 유지
     fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines",
