@@ -449,14 +449,12 @@ try:
         buy_price = st.number_input("매수가 입력", min_value=0.0, value=0.0, step=1.0)
 
         # 툴팁 % 계산용 hovertemplate 설정
-        hover_tmpl = "<b>%{x|%Y-%m-%d %H:%M}</b><br>가격: %{y}"
         if buy_price > 0:
-            hover_tmpl += "<br>매수가 대비: %{customdata:.2f}%"
             df["profit_pct"] = (df["close"] / buy_price - 1) * 100
         else:
             df["profit_pct"] = np.nan
 
-        btn_label = "↺ 기본뷰" if st.session_state.get("opt_view", False) else "🔧 최적화뷰"
+        btn_label = "되돌리기" if st.session_state.get("opt_view", False) else "최적화뷰"
         toggle_clicked = st.button(btn_label, help="토글하여 뷰 전환")
 
     if 'opt_view' not in st.session_state:
@@ -489,17 +487,17 @@ try:
         increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
 
-    # 빈 영역 hover (매수가 > 0 인 경우만 추가)
-    if buy_price > 0:
+    # 빈 영역 hover (매수가 ≥ 1 인 경우만 추가)
+    if buy_price >= 1:
         fig.add_trace(go.Scatter(
             x=df["time"],
-            y=[(df["high"].max() + df["low"].min()) / 2.0] * len(df),  # 눈에 보이지 않는 가이드 라인
+            y=[(df["high"].max() + df["low"].min()) / 2.0] * len(df),
             mode="lines", line=dict(width=0), showlegend=False,
             hovertext=df["profit_pct"].apply(
                 lambda v: (
                     f"수익률: <span style='color:red'>{v:.2f}%</span>" if v > 0 else
                     f"수익률: <span style='color:blue'>{v:.2f}%</span>"
-                ) if pd.notna(v) else "수익률: -"
+                ) if pd.notna(v) else ""
             ),
             hoverinfo="text", name=""
         ))
