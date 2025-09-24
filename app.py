@@ -441,30 +441,32 @@ try:
     sec_txt = f"{sec_cond}"
 
     # -----------------------------
+[부분코드] ### 교체 후
+    # -----------------------------
     # 🔧 최적화 뷰 버튼 (아이콘 대안)
     # -----------------------------
     with ctr_tools:
-    # 매수가 입력 UI
-    buy_price = st.number_input("매수가 입력", min_value=0.0, value=0.0, step=1.0)
+        # 매수가 입력 UI
+        buy_price = st.number_input("매수가 입력", min_value=0.0, value=0.0, step=1.0)
 
-    # 툴팁 % 계산용 hovertemplate 설정
-    hover_tmpl = "<b>%{x|%Y-%m-%d %H:%M}</b><br>가격: %{y}"
-    if buy_price > 0:
-        hover_tmpl += "<br>매수가 대비: %{customdata:.2f}%"
-        df["profit_pct"] = (df["close"] / buy_price - 1) * 100
-    else:
-        df["profit_pct"] = np.nan
+        # 툴팁 % 계산용 hovertemplate 설정
+        hover_tmpl = "<b>%{x|%Y-%m-%d %H:%M}</b><br>가격: %{y}"
+        if buy_price > 0:
+            hover_tmpl += "<br>매수가 대비: %{customdata:.2f}%"
+            df["profit_pct"] = (df["close"] / buy_price - 1) * 100
+        else:
+            df["profit_pct"] = np.nan
 
-    # 캔들스틱에 customdata 적용
-    fig.add_trace(go.Candlestick(
-        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        customdata=df["profit_pct"],
-        hovertemplate=hover_tmpl,
-        name="가격",
-        increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
-    ))
+        # 캔들스틱에 customdata 적용
+        fig.add_trace(go.Candlestick(
+            x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+            customdata=df["profit_pct"],
+            hovertemplate=hover_tmpl,
+            name="가격",
+            increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
+        ))
+
         toggle_clicked = st.button("🔧 최적화뷰 / ↺ 기본뷰", help="토글하여 뷰 전환")
-
     if 'opt_view' not in st.session_state:
         st.session_state['opt_view'] = False
     if toggle_clicked:
