@@ -478,6 +478,16 @@ try:
         name="가격",
         increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
+
+    # 빈 영역에서도 수익률(%) 표시되도록 보조 trace + 통합 hover 적용
+    fig.add_trace(go.Scatter(
+        x=df["time"],
+        y=[(df["high"].max() + df["low"].min()) / 2.0] * len(df),  # 안 보이는 가이드 라인
+        mode="lines", line=dict(width=0), showlegend=False,
+        hovertext=df["profit_pct"].apply(lambda v: f"수익률: {v:.2f}%" if pd.notna(v) else "수익률: -"),
+        hoverinfo="text", name=""
+    ))
+    fig.update_layout(hovermode="x unified")
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
                              line=dict(color="#FFB703", width=1.4), name="BB 상단"))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines",
