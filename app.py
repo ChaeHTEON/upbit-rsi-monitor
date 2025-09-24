@@ -464,9 +464,9 @@ try:
         name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1),
         customdata=df_plot[["수익률(%)"]],
         hovertemplate=(
-            "시간: %{x}<br>" +
-            "시가: %{open}<br>고가: %{high}<br>저가: %{low}<br>종가: %{close}<br>" +
-            "%{customdata[0]:.2f}%" if buy_price > 0 else None
+            "시간: %{x}<br>"
+            "시가: %{open}<br>고가: %{high}<br>저가: %{low}<br>종가: %{close}<br>"
+            "%{customdata[0]:.2f}%<extra></extra>"
         )
     ))
     fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines",
@@ -595,7 +595,7 @@ try:
 
     chart_box.plotly_chart(
         fig,
-        use_container_width=True,
+        width="stretch",  # ✅ use_container_width 대체
         config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset"},
     )
 
