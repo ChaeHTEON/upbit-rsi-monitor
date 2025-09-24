@@ -101,7 +101,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
 # -----------------------------
-# 데이터/지표 준비 함수
+# 데이터 수집
 # -----------------------------
 def estimate_calls(start_dt, end_dt, minutes_per_bar):
     mins = max(1, int((end_dt - start_dt).total_seconds() // 60))
@@ -203,8 +203,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
     elif bb_cond != "없음": base_sig_idx = bb_idx
     else: base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
-    def is_bull(idx): return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
-
     i = 0
     while i < n:
         if i not in base_sig_idx:
@@ -219,25 +217,22 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
             i += 1
             continue
 
-        win_slice = df.iloc[anchor_idx + 1:end_idx + 1]
         end_time = df.at[end_idx, "time"]
         end_close = float(df.at[end_idx, "close"])
         final_ret = (end_close / base_price - 1) * 100
 
         # 목표 도달 체크 (종가 기준 고정)
         target = base_price * (1.0 + thr / 100.0)
-        result, reach_min, hit_idx = "중립", None, None
+        result = "중립"
         for j in range(anchor_idx + 1, end_idx + 1):
             if float(df.at[j, "close"]) >= target:
-                hit_idx = j
+                end_time = df.at[j, "time"]
+                end_close = target
+                final_ret = thr
+                result = "성공"
                 break
 
-        if hit_idx is not None:
-            end_time = df.at[hit_idx, "time"]
-            end_close = target
-            final_ret = thr
-            result = "성공"
-        else:
+        if result == "중립":
             result = "실패" if final_ret < 0 else "중립"
 
         res.append({
@@ -246,7 +241,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct,
             "기준시가": int(round(base_price)),
             "종료가": end_close,
             "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
-            "BB값": None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "최종수익률(%)": round(final_ret, 2),
@@ -277,21 +271,28 @@ try:
     df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)].reset_index(drop=True)
 
     # -----------------------------
-    # 차트 먼저 출력
+    # 차트 (상단으로 이동)
     # -----------------------------
-    st.markdown('<div class="section-title">② 차트</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">② 요약 & 차트</div>', unsafe_allow_html=True)
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
         name="가격", increasing_line_color="red", decreasing_line_color="blue", line=dict(width=1.1)
     ))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={"scrollZoom": True})
 
     # -----------------------------
-    # 조건 설정 & 결과
+    # 조건 설정 (UI/UX 유지)
     # -----------------------------
-    st.markdown('<div class="section-title">③ 조건 설정 & 결과</div>', unsafe_allow_html=True)
-    # (조건 설정 및 테이블 출력 블록은 기존 그대로 유지)
+    st.markdown('<div class="section-title">③ 조건 설정</div>', unsafe_allow_html=True)
+    # 기존 조건 설정 블록 그대로 유지
+    # ...
+
+    # -----------------------------
+    # 신호 결과 (최신순)
+    # -----------------------------
+    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+    # 기존 결과 출력 블록 그대로 유지
     # ...
 
 except Exception as e:
