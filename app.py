@@ -78,7 +78,8 @@ try:
             min_value=0,
             value=0,
             step=1,
-            format="%d"
+            format="%d",
+            key="buy_price_input"
         )
     with ui_col2:
         if "opt_view" not in st.session_state:
