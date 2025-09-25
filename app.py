@@ -57,9 +57,9 @@ def add_indicators(df, bb_window=20, bb_dev=2):
 # 사이드바
 # -----------------------------
 st.sidebar.title("설정")
-market = st.sidebar.selectbox("마켓", ["KRW-BTC", "KRW-ETH", "KRW-XRP"], index=0)
-interval = st.sidebar.selectbox("봉간격", ["minute1", "minute15", "minute60", "days"], index=1)
-count = st.sidebar.slider("캔들 수", 200, 500, 200, step=50)
+market = st.sidebar.selectbox("마켓", ["KRW-BTC", "KRW-ETH", "KRW-XRP"], index=0, key="market_select")
+interval = st.sidebar.selectbox("봉간격", ["minute1", "minute15", "minute60", "days"], index=1, key="interval_select")
+count = st.sidebar.slider("캔들 수", 200, 500, 200, step=50, key="count_slider")
 
 # -----------------------------
 # 데이터 가져오기
