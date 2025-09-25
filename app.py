@@ -102,7 +102,26 @@ with c3:
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
-# ✅ 차트를 "기본 설정" 바로 아래에 그릴 컨테이너
+# -----------------------------
+# 매수가 입력 + 최적화뷰 (항상 차트 위쪽에 출력)
+# -----------------------------
+ui_col1, ui_col2 = st.columns([2, 1])
+with ui_col1:
+    buy_price = st.number_input(
+        "💰 매수가 입력",
+        min_value=0,
+        value=0,
+        step=1,
+        format="%d"  # ✅ 3자리 콤마 적용
+    )
+with ui_col2:
+    if "opt_view" not in st.session_state:
+        st.session_state.opt_view = False
+    opt_label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
+    if st.button(opt_label, key="btn_opt_view"):
+        st.session_state.opt_view = not st.session_state.opt_view
+
+# ✅ 차트를 "기본 설정" 바로 아래에 그릴 컨테이너 (UI 블록 아래로 이동)
 chart_box = st.container()
 
 # -----------------------------
