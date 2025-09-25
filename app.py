@@ -439,7 +439,13 @@ try:
     # -----------------------------
     ui_col1, ui_col2 = st.columns([2, 1])
     with ui_col1:
-        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1)
+        buy_price = st.number_input(
+            "💰 매수가 입력",
+            min_value=0,
+            value=0,
+            step=1,
+            format="%d"  # ✅ 3자리 콤마 적용
+        )
     with ui_col2:
         if "opt_view" not in st.session_state:
             st.session_state.opt_view = False
@@ -454,7 +460,26 @@ try:
     if buy_price > 0:
         df_plot["수익률(%)"] = (df_plot["close"] / buy_price - 1) * 100
     else:
-        df_plot["수익률(%)"] = np.nan  # None 대신 NaN으로 안전 처리
+        df_plot["수익률(%)"] = np.nan
+
+    hovertext = []
+    for t, o, h, l, c in zip(
+        df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+        df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"]
+    ):
+        if buy_price > 0:
+            pct = (c / buy_price - 1) * 100
+            color = "red" if pct > 0 else "blue"
+            hovertext.append(
+                f"시간: {t}<br>"
+                f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
+                f"수익률: <span style='color:{color}'>{pct:.2f}%</span>"
+            )
+        else:
+            hovertext.append(
+                f"시간: {t}<br>"
+                f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}"
+            )
 
     # Candlestick 툴팁 문자열은 항상 문자열이어야 함(조건부로 라인만 추가)
     hover_tpl = (
@@ -512,6 +537,9 @@ try:
         hovertext=hovertext,
         hoverinfo="text"
     ))
+
+    # ✅ 빈 영역 hover에서도 가격축 y에 따른 툴팁 활성화
+    fig.update_layout(hovermode="x unified")
 
     # BB 라인
     fig.add_trace(go.Scatter(
