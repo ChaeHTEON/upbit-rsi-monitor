@@ -490,40 +490,15 @@ try:
         hover_tpl += "<br>%{customdata[0]:.2f}%"
     hover_tpl += "<extra></extra>"
 
-    fig = make_subplots(rows=1, cols=1)
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        row_heights=[0.7, 0.3],
+        vertical_spacing=0.05
+    )
 
     # =========================
-    # Hovertext 배열 준비 (Candlestick trace 밖에서 단 1회)
-    # =========================
-    if buy_price > 0:
-        hovertext = [
-            f"시간: {t}<br>"
-            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
-            f"수익률: {p:.2f}%"
-            for t, o, h, l, c, p in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"],
-                df_plot["high"],
-                df_plot["low"],
-                df_plot["close"],
-                df_plot["수익률(%)"].fillna(0)
-            )
-        ]
-    else:
-        hovertext = [
-            f"시간: {t}<br>"
-            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}"
-            for t, o, h, l, c in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"],
-                df_plot["high"],
-                df_plot["low"],
-                df_plot["close"]
-            )
-        ]
-
-    # =========================
-    # Candlestick trace
+    # Candlestick trace (row=1)
     # =========================
     fig.add_trace(go.Candlestick(
         x=df_plot["time"],
@@ -536,24 +511,50 @@ try:
         decreasing=dict(line=dict(color="blue", width=1.1)),
         hovertext=hovertext,
         hoverinfo="text"
-    ))
+    ), row=1, col=1)
 
     # ✅ 빈 영역 hover에서도 가격축 y에 따른 툴팁 활성화
     fig.update_layout(hovermode="x unified")
 
-    # BB 라인
+    # BB 라인 (row=1)
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_up"], mode="lines",
         line=dict(color="#FFB703", width=1.4), name="BB 상단"
-    ))
+    ), row=1, col=1)
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_low"], mode="lines",
         line=dict(color="#219EBC", width=1.4), name="BB 하단"
-    ))
+    ), row=1, col=1)
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_mid"], mode="lines",
         line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙"
-    ))
+    ), row=1, col=1)
+
+    # -----------------------------
+    # CCI (row=2)
+    # -----------------------------
+    cci = ta.trend.CCIIndicator(
+        high=df["high"], low=df["low"], close=df["close"], window=14
+    ).cci()
+    cci_signal = cci.rolling(window=9).mean()
+
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=cci,
+        mode="lines",
+        line=dict(color="#FF6F61", width=1.4),
+        name="CCI(14)"
+    ), row=2, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=cci_signal,
+        mode="lines",
+        line=dict(color="#2A9D8F", width=1.2, dash="dot"),
+        name="CCI Signal(9)"
+    ), row=2, col=1)
+
+    # CCI 기준선 (+100 / -100)
+    fig.add_hline(y=100, line_dash="dash", line_color="green", line_width=1, row=2, col=1)
+    fig.add_hline(y=-100, line_dash="dash", line_color="red", line_width=1, row=2, col=1)
 
     # 시뮬레이션 (중복 포함/제거 두 버전 계산)
     res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
