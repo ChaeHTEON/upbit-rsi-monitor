@@ -102,27 +102,7 @@ with c3:
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
-# -----------------------------
-# 매수가 입력 + 최적화뷰 (항상 차트 위쪽에 출력)
-# -----------------------------
-ui_col1, ui_col2 = st.columns([2, 1])
-with ui_col1:
-    buy_price = st.number_input(
-        "💰 매수가 입력",
-        min_value=0,
-        value=0,
-        step=1,
-        format="%d"  # ✅ 3자리 콤마 적용
-    )
-with ui_col2:
-    if "opt_view" not in st.session_state:
-        st.session_state.opt_view = False
-    opt_label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-    if st.button(opt_label, key="btn_opt_view"):
-        st.session_state.opt_view = not st.session_state.opt_view
-
-# ✅ 차트를 "기본 설정" 바로 아래에 그릴 컨테이너 (UI 블록 아래로 이동)
-chart_box = st.container()
+# (삭제됨) 상단 UI/차트 컨테이너 — 아래 try 블록에서만 생성/사용
 
 # -----------------------------
 # ② 조건 설정
@@ -454,7 +434,7 @@ try:
     sec_txt = f"{sec_cond}"
 
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 (차트 위쪽으로 이동)
+    # 매수가 입력 + 최적화뷰 (차트 위쪽에 고정)
     # -----------------------------
     ui_col1, ui_col2 = st.columns([2, 1])
     with ui_col1:
@@ -463,7 +443,7 @@ try:
             min_value=0,
             value=0,
             step=1,
-            format="%d"  # ✅ 3자리 콤마 적용
+            format="%d"
         )
     with ui_col2:
         if "opt_view" not in st.session_state:
@@ -471,6 +451,9 @@ try:
         opt_label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
         if st.button(opt_label, key="btn_opt_view"):
             st.session_state.opt_view = not st.session_state.opt_view
+
+    # ✅ 차트 컨테이너를 UI 바로 아래에서 생성(중복/충돌 방지)
+    chart_box = st.container()
 
     # -----------------------------
     # 차트 (기본 설정 바로 아래)
