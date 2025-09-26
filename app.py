@@ -31,6 +31,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------
+# 세션 상태 초기화
+# -----------------------------
+if "opt_view" not in st.session_state:
+    st.session_state.opt_view = False
+if "buy_price" not in st.session_state:
+    st.session_state.buy_price = 0
+if "buy_price_text" not in st.session_state:
+    st.session_state.buy_price_text = "0"
+
+# -----------------------------
 # 업비트 마켓 로드
 # -----------------------------
 @st.cache_data(ttl=3600)
@@ -94,7 +104,7 @@ st.markdown("---")
 chart_box = st.container()
 
 # -----------------------------
-# ② 조건 설정 (원본 동일)
+# ② 조건 설정 (간소화)
 # -----------------------------
 c4, c5, c6 = st.columns(3)
 with c4:
@@ -103,32 +113,15 @@ with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
     hit_basis = st.selectbox("성공 판정 기준", ["종가 기준", "고가 기준(스침 인정)", "종가 또는 고가"], index=0)
 with c6:
-    r1, r2, r3 = st.columns(3)
-    with r1:
-        rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], index=0)
-    with r2:
-        rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
-    with r3:
-        rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
+    rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
+    rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
 
-c7, c8, c9 = st.columns(3)
-with c7:
-    bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
-with c8:
-    bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
-with c9:
-    bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
-
-c10, c11, c12 = st.columns(3)
-with c10:
-    bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False)
-with c11:
-    cci_window = st.number_input("CCI 기간", min_value=5, max_value=100, value=14, step=1)
-with c12:
-    pass
+bb_window = 30
+bb_dev = 2.0
+cci_window = 14
 
 # -----------------------------
-# 데이터 수집/지표/시뮬레이션 함수
+# 데이터 수집/지표 함수
 # -----------------------------
 _session = requests.Session()
 _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
@@ -145,21 +138,18 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         url = "https://api.upbit.com/v1/candles/days"
     all_data, to_time = [], None
-    try:
-        for _ in range(60):
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch: break
-            all_data.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_cutoff: break
-            to_time = last_ts - timedelta(seconds=1)
-    except Exception:
-        return pd.DataFrame()
+    for _ in range(60):
+        params = {"market": market_code, "count": 200}
+        if to_time is not None:
+            params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+        r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+        if r.status_code != 200: break
+        batch = r.json()
+        if not batch: break
+        all_data.extend(batch)
+        last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+        if last_ts <= start_cutoff: break
+        to_time = last_ts - timedelta(seconds=1)
     if not all_data: return pd.DataFrame()
     df = pd.DataFrame(all_data).rename(columns={
         "candle_date_time_kst": "time",
@@ -170,74 +160,24 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         "candle_acc_trade_volume": "volume",
     })
     df["time"] = pd.to_datetime(df["time"])
-    df = df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
-    return df[(df["time"] >= start_cutoff) & (df["time"] <= end_dt)]
+    return df[["time","open","high","low","close","volume"]].sort_values("time").reset_index(drop=True)
 
 def add_indicators(df, bb_window, bb_dev, cci_window):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
     bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-    out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
-    out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
-    out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
-    cci = ta.trend.CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_window), constant=0.015)
-    out["CCI"] = cci.cci()
+    out["BB_up"]  = bb.bollinger_hband()
+    out["BB_low"] = bb.bollinger_lband()
+    out["BB_mid"] = bb.bollinger_mavg()
     return out
-
-@st.cache_data(ttl=3600)
-def build_supply_levels_3m_daily(market_code: str, ref_end_dt: datetime) -> Set[float]:
-    try:
-        start_dt = ref_end_dt - timedelta(days=92)
-        url = "https://api.upbit.com/v1/candles/days"
-        all_rows, to_time = [], None
-        for _ in range(30):
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch: break
-            all_rows.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_dt: break
-            to_time = last_ts - timedelta(seconds=1)
-        if not all_rows: return set()
-        df_day = pd.DataFrame(all_rows).rename(columns={
-            "candle_date_time_kst":"time","opening_price":"open","high_price":"high","low_price":"low","trade_price":"close"})
-        df_day["time"] = pd.to_datetime(df_day["time"])
-        df_day = df_day[["time","open","high","low","close"]]
-        df_day = df_day[(df_day["time"] >= start_dt) & (df_day["time"] <= ref_end_dt)].sort_values("time")
-        levels: Set[float] = set()
-        for _,row in df_day.iterrows():
-            o,h,c = float(row["open"]), float(row["high"]), float(row["close"])
-            if c>o: levels.update([h,c])
-            elif c<o: levels.update([h,o])
-        return levels
-    except Exception:
-        return set()
-
-def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev,
-             sec_cond="없음", hit_basis="종가 기준", miss_policy="실패(권장)", bottom_mode=False,
-             supply_levels: Optional[Set[float]]=None):
-    # 단순화 (상세 로직은 기존과 동일, 여기서는 신호 감지·판정 결과 반환)
-    res=[]
-    return pd.DataFrame(res)
 
 # -----------------------------
 # 실행
 # -----------------------------
 try:
-    if start_date > end_date:
-        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
-        st.stop()
-
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
-    warmup_bars = max(13, bb_window, int(cci_window)) * 5
-
-    df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
+    df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, 60)
     if df_raw.empty:
         st.error("데이터가 없습니다.")
         st.stop()
@@ -251,9 +191,10 @@ try:
     pnl_colors = np.where(pnl_vals>0,"red",np.where(pnl_vals<0,"blue","gray"))
     pnl_cd = np.column_stack([pnl_vals, pnl_colors])
 
+    # 차트
     fig = make_subplots(rows=1, cols=1)
 
-    # Candlestick hovertext 방식
+    # Candlestick (hovertext)
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
         name="가격",
@@ -264,7 +205,7 @@ try:
         hoverinfo="text"
     ))
 
-    # 빈영역 Hover trace
+    # 빈영역 Hover
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["close"], mode="lines",
         line=dict(color="rgba(0,0,0,0)", width=1e-3),
@@ -273,6 +214,7 @@ try:
         hovertemplate="<span style='color:%{customdata[1]};'>수익률: %{customdata[0]:.1f}%</span><extra></extra>"
     ))
 
+    # UI + 차트 출력
     with chart_box:
         top_l, top_r = st.columns([4,1])
         with top_l:
@@ -280,6 +222,7 @@ try:
                                         value=st.session_state.get("buy_price",0),
                                         step=1000, format="%d", key="buy_price_num")
             st.session_state.buy_price = buy_price
+            st.session_state.buy_price_text = f"{buy_price:,}" if buy_price>0 else "0"
             st.markdown("<style>div[data-testid='stNumberInput'] {width:220px !important;}</style>", unsafe_allow_html=True)
         with top_r:
             st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)
