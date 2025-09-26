@@ -87,7 +87,7 @@ dup_mode = st.radio(
 # ① 기본 설정
 # -----------------------------
 st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3 = st.columns(3)
 with c1:
     market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
 with c2:
@@ -97,7 +97,6 @@ with c3:
     today_kst = datetime.now(KST).date()
     default_start = today_kst - timedelta(days=1)
     start_date = st.date_input("시작 날짜", value=default_start)
-with c4:
     end_date = st.date_input("종료 날짜", value=today_kst)
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
@@ -459,22 +458,11 @@ try:
     # -----------------------------
     # 매수가 입력 + 최적화뷰 버튼
     # -----------------------------
-    c11, c12 = st.columns([1, 1])
-    with c11:
-        if "buy_price_text" not in st.session_state:
-            st.session_state.buy_price_text = "0"
-        buy_price_text = st.text_input("💰 매수가 입력", value=st.session_state.buy_price_text, key="buy_price_text")
-        try:
-            buy_price = int(buy_price_text.replace(",", ""))
-        except ValueError:
-            buy_price = 0
-        st.session_state.buy_price_text = f"{buy_price:,}"
-    with c12:
-        if "opt_view" not in st.session_state:
-            st.session_state.opt_view = False
-        label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-        if st.button(label, key="btn_opt_view_top"):
-            st.session_state.opt_view = not st.session_state.opt_view
+    ui_col1, _ = st.columns([2, 1])
+    with ui_col1:
+        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%d")
+    if "opt_view" not in st.session_state:
+        st.session_state.opt_view = False
 
     # -----------------------------
     # 차트
