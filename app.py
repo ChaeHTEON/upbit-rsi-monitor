@@ -411,13 +411,13 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             df_past["dist"] = (df_past["close"] - cur_price).abs()
             nearest = df_past.loc[df_past["dist"].idxmin()]
 
-            # 매물대 후보 4개 → 옵션에 따라 필터링
+            # 매물대 후보
             o_p, h_p, c_p = float(nearest["open"]), float(nearest["high"]), float(nearest["close"])
             supply_candidates = []
-            if c_p > o_p:  # 양봉
+            if c_p > o_p:   # 양봉
                 if supply_filter in (None, "모두 포함", "양봉 매물대만"):
                     supply_candidates.extend([h_p, c_p])
-            elif c_p < o_p:  # 음봉
+            elif c_p < o_p: # 음봉
                 if supply_filter in (None, "모두 포함", "음봉 매물대만"):
                     supply_candidates.extend([h_p, o_p])
 
@@ -432,23 +432,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
             ok = False
             for L in supply_candidates:
-                # 추가 조건: 최근 3봉의 저가가 매물대보다 높아야 함
-                if i >= 3 and any(float(df.at[j, "low"]) <= L for j in range(i-3, i)):
+                # 누적 최저가 조건: 현재 저가 == 지금까지(low[:i])의 최저가여야 함
+                if l != df.loc[:i, "low"].min():
                     continue
-                if (o > L) and (l <= L <= h) and (c >= L):
-                    ok = True
-                    break
-
-            if not ok:
-                i += 1; continue
-
-            # 현재 캔들이 위→아래→반등 조건 충족하는지 확인
-            o = float(df.at[i, "open"])
-            h = float(df.at[i, "high"])
-            l = float(df.at[i, "low"])
-            c = float(df.at[i, "close"])
-            ok = False
-            for L in supply_candidates:
                 if (o > L) and (l <= L <= h) and (c >= L):
                     ok = True
                     break
