@@ -456,20 +456,22 @@ try:
     bottom_txt = "ON" if bottom_mode else "OFF"
 
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 버튼 (위치 조정 + 3자리 쉼표 표시)
+    # 매수가 입력 + 최적화뷰 버튼 (최적화뷰 왼쪽에 배치 + 입력란 자체 쉼표 표시)
     # -----------------------------
-    col_a, col_b, col_c = st.columns([6, 2, 2])
-    with col_b:
-        buy_price_text = st.text_input("💰 매수가 입력", value="0")
-        try:
-            buy_price = int(buy_price_text.replace(",", ""))
-        except ValueError:
-            buy_price = 0
-        # 표시용 (쉼표 붙여 재출력)
-        buy_price_text = f"{buy_price:,}"
-        st.write(f"현재 입력값: {buy_price_text}")
-    if "opt_view" not in st.session_state:
-        st.session_state.opt_view = False
+    with chart_box:
+        top_l, top_r = st.columns([4, 1])
+        with top_l:
+            buy_price_text = st.text_input("💰 매수가 입력", value="0")
+            try:
+                buy_price = int(buy_price_text.replace(",", ""))
+            except ValueError:
+                buy_price = 0
+            # 입력란에 자동 쉼표 적용
+            buy_price_text = f"{buy_price:,}"
+        with top_r:
+            label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
+            if st.button(label, key="btn_opt_view_top"):
+                st.session_state.opt_view = not st.session_state.opt_view
 
     # -----------------------------
     # 차트
@@ -482,20 +484,14 @@ try:
 
     fig = make_subplots(rows=1, cols=1)
 
-    # ===== Candlestick (hovertext + hoverinfo="text") =====
+    # ===== Candlestick (hovertext 단순화: 수익률만 표시) =====
     if buy_price > 0:
         hovertext = []
-        for t, o, h, l, c, p in zip(
-            df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-            df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"],
-            df_plot["수익률(%)"].fillna(0)
-        ):
-            color = "red" if p > 0 else "blue" if p < 0 else "black"
-            hovertext.append(
-                f"시간: {t}<br>"
-                f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
-                f"<span style='color:{color}; font-weight:600'>{p:.2f}%</span>"
-            )
+        for p in df_plot["수익률(%)"].fillna(0):
+            color = "red" if p > 0 else "blue"
+            hovertext.append(f"<span style='color:{color}'>수익률: {p:.2f}%</span>")
+    else:
+        hovertext = ["수익률: 0.00%" for _ in df_plot["time"]]
     else:
         hovertext = [
             "시간: " + t + "<br>"
