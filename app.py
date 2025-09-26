@@ -78,6 +78,8 @@ dup_mode = st.radio("신호 중복 처리", ["중복 포함 (연속 신호 모�
 # 세션 상태 초기화
 if "opt_view" not in st.session_state:
     st.session_state.opt_view = False
+if "buy_price_text" not in st.session_state:
+    st.session_state.buy_price_text = "0"
 
 # -----------------------------
 # ① 기본 설정
@@ -102,29 +104,6 @@ st.markdown("---")
 chart_box = st.container()
 
 # -----------------------------
-# ② 조건 설정
-# -----------------------------
-st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
-c5, c6, c7 = st.columns(3)
-with c5:
-    lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
-with c6:
-    threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-    hit_basis = st.selectbox("성공 판정 기준", ["종가 기준", "고가 기준(스침 인정)", "종가 또는 고가"], index=0)
-with c7:
-    rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], index=0)
-    rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
-    rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
-
-c8, c9, c10 = st.columns(3)
-with c8:
-    bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
-with c9:
-    bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
-with c10:
-    bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
-
-# -----------------------------
 # 실행
 # -----------------------------
 try:
@@ -136,23 +115,23 @@ try:
     end_dt = datetime.combine(end_date, datetime.max.time())
 
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 버튼 (기본 설정 UI 크기와 동일)
+    # 매수가 입력 + 최적화뷰 버튼
     # -----------------------------
     c11, c12 = st.columns([3,1])
     with c11:
-        buy_price_text = st.text_input("💰 매수가 입력", value="0")
+        buy_price_text = st.text_input("💰 매수가 입력", value=st.session_state.buy_price_text, key="buy_price_text")
         try:
             buy_price = int(buy_price_text.replace(",", ""))
         except ValueError:
             buy_price = 0
-        buy_price_text = f"{buy_price:,}"
+        st.session_state.buy_price_text = f"{buy_price:,}"
     with c12:
         label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
         if st.button(label, key="btn_opt_view_top"):
             st.session_state.opt_view = not st.session_state.opt_view
 
     # -----------------------------
-    # 차트 데이터 및 수익률
+    # 차트 데이터 및 수익률 (예시 데이터)
     # -----------------------------
     df = pd.DataFrame({
         "time": pd.date_range(start=start_dt, end=end_dt, freq="min"),
@@ -160,35 +139,43 @@ try:
         "high": np.random.rand(100)*100,
         "low": np.random.rand(100)*100,
         "close": np.random.rand(100)*100
-    })
+    }).reset_index(drop=True)
     if buy_price > 0:
         df["수익률(%)"] = (df["close"]/buy_price - 1) * 100
     else:
         df["수익률(%)"] = np.nan
 
+    n = len(df)
+    if n == 0:
+        st.info("표시할 데이터가 없습니다.")
+        st.stop()
+
     fig = make_subplots(rows=1, cols=1)
     if buy_price > 0:
-        hovertext = []
-        for p in df["수익률(%)"].fillna(0):
-            color = "red" if p > 0 else "blue"
-            hovertext.append(f"<span style='color:{color}'>수익률: {p:.2f}%</span>")
+        pct = df["수익률(%)"].fillna(0).astype(float).to_numpy()
+        colors = np.where(pct > 0, "red", "blue").tolist()
+        hovertext = [f"<span style='color:{c}'>수익률: {v:.2f}%</span>" for v, c in zip(pct, colors)]
     else:
-        hovertext = ["수익률: 0.00%" for _ in df["time"]]
+        hovertext = ["수익률: 0.00%" for _ in range(n)]
 
     fig.add_trace(go.Candlestick(
         x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격", increasing=dict(line=dict(color="red")), decreasing=dict(line=dict(color="blue")),
-        hovertext=hovertext, hoverinfo="text"
+        name="가격",
+        increasing=dict(line=dict(color="red", width=1.1)),
+        decreasing=dict(line=dict(color="blue", width=1.1)),
+        hovertext=hovertext,
+        hoverinfo="text"
     ))
 
+    # 빈 영역 hover
     if buy_price > 0:
-        colors = ["red" if p > 0 else "blue" for p in df["수익률(%)"].fillna(0)]
         fig.add_trace(go.Scatter(
             x=df["time"], y=df["close"], mode="markers",
-            marker=dict(opacity=0, color=colors),
+            marker=dict(opacity=0),
             showlegend=False,
-            hovertext=[f"<span style='color:{c}'>수익률: {p:.2f}%</span>" for p, c in zip(df["수익률(%)"].fillna(0), colors)],
-            hoverinfo="text", name="PnL Hover"
+            hovertext=hovertext,
+            hoverinfo="text",
+            name="PnL Hover"
         ))
 
     # -----------------------------
