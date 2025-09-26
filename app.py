@@ -554,17 +554,17 @@ try:
 
     # -----------------------------
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 버튼 (매수가 입력을 최적화뷰 왼쪽으로 이동)
+    # 매수가 입력 + 최적화뷰 버튼 (입력 UI는 차트 상단으로 이동)
     # -----------------------------
-    col_buy, col_btn = st.columns([2, 1])
-    with col_buy:
-        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
-    with col_btn:
-        if "opt_view" not in st.session_state:
-            st.session_state.opt_view = False
-        label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-        if st.button(label, key="btn_opt_view_top"):
-            st.session_state.opt_view = not st.session_state.opt_view
+    if "opt_view" not in st.session_state:
+        st.session_state.opt_view = False
+    if "buy_price" not in st.session_state:
+        st.session_state.buy_price = 0
+    if "buy_price_text" not in st.session_state:
+        st.session_state.buy_price_text = "0"
+
+    # 이 블록에서는 입력창을 렌더하지 않고 값만 참조합니다.
+    buy_price = st.session_state.get("buy_price", 0)
 
     # -----------------------------
     # 차트
@@ -776,9 +776,30 @@ try:
         hovermode="closest"
     )
 
-    # ===== 차트 상단 우측: 최적화뷰 버튼 =====
+    # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
     with chart_box:
-        top_l, top_r = st.columns([5, 1])
+        # 종목 선택 selectbox와 유사한 폭을 위해 4:1 분할
+        top_l, top_r = st.columns([4, 1])
+
+        # ⬅ 왼쪽: 매수가 입력 (쉼표 표시 / on_change 콜백로 안전 포맷팅)
+        with top_l:
+            def _format_buy_price():
+                raw = st.session_state.get("buy_price_text", "0")
+                digits = "".join(ch for ch in raw if ch.isdigit())
+                if digits == "":
+                    digits = "0"
+                val = int(digits)
+                st.session_state.buy_price = val
+                st.session_state.buy_price_text = f"{val:,}"
+
+            st.text_input(
+                "💰 매수가 입력",
+                key="buy_price_text",
+                on_change=_format_buy_price
+            )
+            buy_price = st.session_state.get("buy_price", 0)
+
+        # ➡ 오른쪽: 최적화뷰 버튼(기존 동작 유지)
         with top_r:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
             if st.button(label, key="btn_opt_view_top"):
