@@ -460,7 +460,14 @@ try:
     # -----------------------------
     col_a, col_b, col_c = st.columns([6, 2, 2])
     with col_b:
-        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
+        buy_price_text = st.text_input("💰 매수가 입력", value="0")
+        try:
+            buy_price = int(buy_price_text.replace(",", ""))
+        except ValueError:
+            buy_price = 0
+        # 표시용 (쉼표 붙여 재출력)
+        buy_price_text = f"{buy_price:,}"
+        st.write(f"현재 입력값: {buy_price_text}")
     if "opt_view" not in st.session_state:
         st.session_state.opt_view = False
 
