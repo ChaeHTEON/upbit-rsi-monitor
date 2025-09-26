@@ -456,7 +456,7 @@ try:
     bottom_txt = "ON" if bottom_mode else "OFF"
 
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 버튼 (최적화뷰 왼쪽에 배치 + 입력란 자체 쉼표 표시)
+    # 매수가 입력 + 최적화뷰 버튼 (최적화뷰 왼쪽, 입력란 쉼표 적용 / 불필요한 표시 제거)
     # -----------------------------
     with chart_box:
         top_l, top_r = st.columns([4, 1])
@@ -466,7 +466,6 @@ try:
                 buy_price = int(buy_price_text.replace(",", ""))
             except ValueError:
                 buy_price = 0
-            # 입력란에 자동 쉼표 적용
             buy_price_text = f"{buy_price:,}"
         with top_r:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
@@ -484,7 +483,7 @@ try:
 
     fig = make_subplots(rows=1, cols=1)
 
-    # ===== Candlestick (hovertext 단순화: 수익률만 표시) =====
+    # ===== Candlestick (hovertext: 수익률만 단순 표기) =====
     if buy_price > 0:
         hovertext = []
         for p in df_plot["수익률(%)"].fillna(0):
@@ -492,15 +491,6 @@ try:
             hovertext.append(f"<span style='color:{color}'>수익률: {p:.2f}%</span>")
     else:
         hovertext = ["수익률: 0.00%" for _ in df_plot["time"]]
-    else:
-        hovertext = [
-            "시간: " + t + "<br>"
-            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c)
-            for t, o, h, l, c in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"]
-            )
-        ]
 
     fig.add_trace(go.Candlestick(
         x=df_plot["time"],
@@ -626,15 +616,16 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 빈 영역 hover 시 수익률 단독 표시 =====
+    # ===== 빈 영역 hover 시 수익률 단독 표시 (빨강/파랑 적용) =====
     if buy_price > 0:
+        colors = ["red" if p > 0 else "blue" for p in df_plot["수익률(%)"].fillna(0)]
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["close"],
-            mode="lines",
-            line=dict(color="rgba(0,0,0,0)", width=1e-3),
+            mode="markers",
+            marker=dict(opacity=0, color=colors),
             showlegend=False,
-            hovertemplate="수익률: %{customdata[0]:.2f}%<extra></extra>",
-            customdata=np.expand_dims(df_plot["수익률(%)"].fillna(0).values, axis=-1),
+            hovertext=[f"<span style='color:{c}'>수익률: {p:.2f}%</span>" for p, c in zip(df_plot["수익률(%)"].fillna(0), colors)],
+            hoverinfo="text",
             name="PnL Hover"
         ))
 
