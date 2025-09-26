@@ -93,7 +93,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 chart_box = st.container()
 
 # -----------------------------
-# 조건 설정
+# 조건 설정 (기존 위치 유지)
 # -----------------------------
 c4, c5, c6 = st.columns(3)
 with c4:
@@ -125,6 +125,8 @@ st.session_state["bb_cond"] = bb_cond
 try:
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
+
+    # 예시 데이터
     df = pd.DataFrame({
         "time": pd.date_range(start_dt, end_dt, freq="5min"),
         "open": np.random.randint(280000, 290000, 100),
@@ -132,9 +134,10 @@ try:
         "low": np.random.randint(280000, 290000, 100),
         "close": np.random.randint(280000, 290000, 100),
     })
+    df_plot = df.copy()
 
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 버튼
+    # 매수가 입력 + 최적화뷰 버튼 (차트 상단 우측으로 이동)
     # -----------------------------
     top_l, top_r = st.columns([4, 2])
     with top_l:
@@ -150,32 +153,33 @@ try:
     # -----------------------------
     fig = make_subplots(rows=1, cols=1)
     fig.add_trace(go.Candlestick(
-        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격", increasing=dict(line=dict(color="red")), decreasing=dict(line=dict(color="blue")),
+        x=df_plot["time"], open=df_plot["open"], high=df_plot["high"],
+        low=df_plot["low"], close=df_plot["close"],
+        name="가격", increasing=dict(line=dict(color="red")),
+        decreasing=dict(line=dict(color="blue"))
     ))
 
-    # 매수가 수익률 계산
-    pnl_label = ""
+    # 수익률 계산 및 표시
     if buy_price > 0:
-        cur_price = df["close"].iloc[-1]
+        cur_price = df_plot["close"].iloc[-1]
         pnl = (cur_price / buy_price - 1) * 100
         color = "red" if pnl >= 0 else "blue"
-        pnl_label = f"<span style='color:{color}; font-weight:600'>수익률: {pnl:.1f}%</span>"
-        st.markdown(pnl_label, unsafe_allow_html=True)
+        st.markdown(f"<span style='color:{color}; font-weight:600'>수익률: {pnl:.1f}%</span>", unsafe_allow_html=True)
 
+        # 빈 영역 hover trace (PnL만)
         fig.add_trace(go.Scatter(
-            x=df["time"], y=df["close"],
+            x=df_plot["time"], y=df_plot["close"],
             mode="lines", line=dict(color="rgba(0,0,0,0)", width=1e-3),
-            customdata=np.expand_dims((df["close"] / buy_price - 1) * 100, axis=-1),
+            customdata=np.expand_dims((df_plot["close"] / buy_price - 1) * 100, axis=-1),
             hovertemplate="매수가 대비 수익률: %{customdata[0]:.1f}%<extra></extra>",
             showlegend=False
         ))
 
     # 최적화뷰 적용 (즉시 반영)
-    if st.session_state.opt_view and len(df) > 0:
-        window_n = max(int(len(df) * 0.15), 200)
-        start_idx = max(len(df) - window_n, 0)
-        x_start, x_end = df.iloc[start_idx]["time"], df.iloc[-1]["time"]
+    if st.session_state.opt_view and len(df_plot) > 0:
+        window_n = max(int(len(df_plot) * 0.15), 200)
+        start_idx = max(len(df_plot) - window_n, 0)
+        x_start, x_end = df_plot.iloc[start_idx]["time"], df_plot.iloc[-1]["time"]
         fig.update_xaxes(range=[x_start, x_end], fixedrange=False)
 
     fig.update_layout(
