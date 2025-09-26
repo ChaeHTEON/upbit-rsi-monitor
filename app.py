@@ -140,6 +140,15 @@ with c8:
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
+# --- 바닥탐지(실시간) 최소 옵션(토글+CCI)만 추가: UI/UX 유지 ---
+c10, c11, c12 = st.columns(3)
+with c10:
+    bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False, help="RSI≤과매도 & BB 하한선 터치/하회 & CCI≤-100 동시 만족 시 신호")
+with c11:
+    cci_window = st.number_input("CCI 기간", min_value=5, max_value=100, value=14, step=1)
+with c12:
+    pass
+
 st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반)</div>', unsafe_allow_html=True)
 sec_cond = st.selectbox("2차 조건 선택", ["없음", "양봉 2개 연속 상승", "BB 기반 첫 양봉 50% 진입"], index=0)
 st.session_state["bb_cond"] = bb_cond
@@ -199,57 +208,68 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     df = df[["time", "open", "high", "low", "close", "volume"]].sort_values("time").reset_index(drop=True)
     return df[(df["time"] >= start_cutoff) & (df["time"] <= end_dt)]
 
-def add_indicators(df, bb_window, bb_dev):
+def add_indicators(df, bb_window, bb_dev, cci_window):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
     bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
     out["BB_up"] = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
     out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
     out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
+    # CCI (바닥탐지용)
+    cci = ta.trend.CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_window), constant=0.015)
+    out["CCI"] = cci.cci()
     return out
 
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
-             hit_basis="종가 기준", miss_policy="실패(권장)"):
-    """UI/UX를 건드리지 않는 범위에서 기존 로직을 충실히 반영."""
+             hit_basis="종가 기준", miss_policy="실패(권장)", bottom_mode=False):
+    """UI/UX를 건드리지 않는 범위에서 기존 로직을 충실히 반영 + 바닥탐지 모드."""
     res = []
     n = len(df)
     thr = float(thr_pct)
 
-    # --- 1) 1차 조건 인덱스 (RSI, BB) ---
-    if rsi_mode == "없음":
-        rsi_idx = []
-    elif rsi_mode == "현재(과매도/과매수 중 하나)":
-        rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
-                         set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
-    elif rsi_mode == "과매도 기준":
-        rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
-    else:  # 과매수 기준
-        rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-
-    def bb_ok(i):
-        c = float(df.at[i, "close"])
-        up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
-        if bb_cond == "상한선":
-            return pd.notna(up) and (c > float(up))
-        if bb_cond == "하한선":
-            return pd.notna(lo) and (c <= float(lo))
-        if bb_cond == "중앙선":
-            if pd.isna(mid):
-                return False
-            return c >= float(mid)
-        return False
-
-    bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
-
-    if rsi_mode != "없음" and bb_cond != "없음":
-        base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
-    elif rsi_mode != "없음":
-        base_sig_idx = rsi_idx
-    elif bb_cond != "없음":
-        base_sig_idx = bb_idx
+    # --- 1) 1차 조건 인덱스 (RSI, BB, 바닥탐지) ---
+    if bottom_mode:
+        # 조건: RSI ≤ rsi_low AND close ≤ BB_low AND CCI ≤ -100
+        base_sig_idx = df.index[
+            (df["RSI13"] <= float(rsi_low)) &
+            (df["close"] <= df["BB_low"]) &
+            (df["CCI"] <= -100)
+        ].tolist()
     else:
-        base_sig_idx = list(range(n)) if sec_cond != "없음" else []
+        if rsi_mode == "없음":
+            rsi_idx = []
+        elif rsi_mode == "현재(과매도/과매수 중 하나)":
+            rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
+                             set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
+        elif rsi_mode == "과매도 기준":
+            rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+        else:  # 과매수 기준
+            rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+
+        def bb_ok(i):
+            c = float(df.at[i, "close"])
+            up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
+            if bb_cond == "상한선":
+                return pd.notna(up) and (c > float(up))
+            if bb_cond == "하한선":
+                return pd.notna(lo) and (c <= float(lo))
+            if bb_cond == "중앙선":
+                if pd.isna(mid):
+                    return False
+                return c >= float(mid)
+            return False
+
+        bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
+
+        if rsi_mode != "없음" and bb_cond != "없음":
+            base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
+        elif rsi_mode != "없음":
+            base_sig_idx = rsi_idx
+        elif bb_cond != "없음":
+            base_sig_idx = bb_idx
+        else:
+            base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
     # --- 2) 보조 함수 ---
     def is_bull(idx):
@@ -407,14 +427,14 @@ try:
 
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
-    warmup_bars = max(13, bb_window) * 5
+    warmup_bars = max(13, bb_window, int(cci_window)) * 5
 
     df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
     if df_raw.empty:
         st.error("데이터가 없습니다.")
         st.stop()
 
-    df_ind = add_indicators(df_raw, bb_window, bb_dev)
+    df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
     # 보기 요약 텍스트
@@ -433,6 +453,7 @@ try:
 
     bb_txt = bb_cond if bb_cond != "없음" else "없음"
     sec_txt = f"{sec_cond}"
+    bottom_txt = "ON" if bottom_mode else "OFF"
 
     # -----------------------------
     # 매수가 입력 + 최적화뷰 버튼
@@ -500,7 +521,6 @@ try:
     bb_mid_cd = _pnl_arr(df["BB_mid"])
 
     def _ht_line(name):
-        # Plotly 토큰은 문자열 그대로 전달
         if buy_price <= 0:
             return name + ": %{y:.2f}<extra></extra>"
         return name + ": %{y:.2f}<br>매수가 대비 수익률: %{customdata[0]:.2f}<extra></extra>"
@@ -529,13 +549,13 @@ try:
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 포함 (연속 신호 모두)",
         minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)"
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)", bottom_mode=bottom_mode
     )
     res_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 제거 (연속 동일 결과 1개)",
         minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)"
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)", bottom_mode=bottom_mode
     )
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
@@ -589,7 +609,6 @@ try:
         line=dict(color="#2A9D8F", width=2.4, dash="dot"),
         name="RSI(13)", yaxis="y2"
     ))
-    # y2 축에 수평선(70/30/20) 추가: add_shape 사용
     for y_val, dash, col, width in [
         (rsi_high, "dash", "#E63946", 1.1),
         (rsi_low, "dash", "#457B9D", 1.1),
@@ -662,6 +681,7 @@ try:
         "설정 요약\n"
         f"- 측정 구간: {look_str}\n"
         f"- 1차 조건 · RSI: {rsi_txt} · BB: {bb_txt}\n"
+        f"- 바닥탐지(실시간): {bottom_txt}\n"
         f"- 2차 조건 · {sec_txt}\n"
         f"- 성공 판정 기준: {hit_basis}\n"
         f"- 미도달 처리: 실패(권장)\n"
@@ -680,6 +700,7 @@ try:
         total_final = df_in["최종수익률(%)"].sum()
         return total, succ, fail, neu, win, total_final
 
+    # 바닥탐지 ON/OFF와 관계없이 '중복 포함/제거' 두 버전 모두 동일 표출(기존 유지)
     for label, data in [("중복 포함 (연속 신호 모두)", res_all), ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
         total, succ, fail, neu, win, total_final = _summarize(data)
         st.markdown(f"**{label}**")
@@ -716,7 +737,6 @@ try:
             if col in tbl:
                 tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
-        # 도달시간/도달캔들
         def fmt_hhmm(start_time, end_time):
             try:
                 s = pd.to_datetime(start_time); e = pd.to_datetime(end_time)
