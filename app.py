@@ -157,6 +157,15 @@ sec_cond = st.selectbox(
     ["없음", "양봉 2개 연속 상승", "BB 기반 첫 양봉 50% 진입", "매물대 터치 후 반등(위→아래→반등)"],
     index=0
 )
+
+supply_filter = None
+if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
+    supply_filter = st.selectbox(
+        "매물대 종류",
+        ["모두 포함", "양봉 매물대만", "음봉 매물대만"],
+        index=0
+    )
+
 st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
 
@@ -390,29 +399,47 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             base_price = float(df.at[T_idx, "close"])
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-            # 현재 캔들 기준 과거 3개월 중 가장 가까운 캔들 선택
             cur_time = df.at[i, "time"]
             past_cutoff = cur_time - timedelta(days=92)
             df_past = df[(df["time"] < cur_time) & (df["time"] >= past_cutoff)]
             if df_past.empty:
                 i += 1; continue
 
-            # 현재 종가와 가장 가까운 과거 캔들 1개 선택
+            # 현재 종가와 가장 가까운 과거 캔들 선택
             cur_price = float(df.at[i, "close"])
             df_past = df_past.copy()
             df_past["dist"] = (df_past["close"] - cur_price).abs()
             nearest = df_past.loc[df_past["dist"].idxmin()]
 
-            # 매물대 후보 4개 산출
+            # 매물대 후보 4개 → 옵션에 따라 필터링
             o_p, h_p, c_p = float(nearest["open"]), float(nearest["high"]), float(nearest["close"])
-            if c_p > o_p:   # 양봉
-                supply_candidates = [h_p, c_p]
-            elif c_p < o_p: # 음봉
-                supply_candidates = [h_p, o_p]
-            else:
-                supply_candidates = []
+            supply_candidates = []
+            if c_p > o_p:  # 양봉
+                if supply_filter in (None, "모두 포함", "양봉 매물대만"):
+                    supply_candidates.extend([h_p, c_p])
+            elif c_p < o_p:  # 음봉
+                if supply_filter in (None, "모두 포함", "음봉 매물대만"):
+                    supply_candidates.extend([h_p, o_p])
 
             if not supply_candidates:
+                i += 1; continue
+
+            # 현재 캔들 조건 검사
+            o = float(df.at[i, "open"])
+            h = float(df.at[i, "high"])
+            l = float(df.at[i, "low"])
+            c = float(df.at[i, "close"])
+
+            ok = False
+            for L in supply_candidates:
+                # 추가 조건: 최근 3봉의 저가가 매물대보다 높아야 함
+                if i >= 3 and any(float(df.at[j, "low"]) <= L for j in range(i-3, i)):
+                    continue
+                if (o > L) and (l <= L <= h) and (c >= L):
+                    ok = True
+                    break
+
+            if not ok:
                 i += 1; continue
 
             # 현재 캔들이 위→아래→반등 조건 충족하는지 확인
