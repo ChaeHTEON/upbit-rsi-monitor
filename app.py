@@ -460,46 +460,47 @@ try:
 
     fig = make_subplots(rows=1, cols=1)
 
-# ===== Candlestick (hovertext + hoverinfo="text") =====
-if buy_price > 0:
-    hovertext = [
-        f"시간: {t}<br>"
-        f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
-        f"매수가 대비 수익률: {p:.2f}%"
-        for t, o, h, l, c, p in zip(
-            df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-            df_plot["open"],
-            df_plot["high"],
-            df_plot["low"],
-            df_plot["close"],
-            df_plot["수익률(%)"].fillna(0)
-        )
-    ]
-else:
-    hovertext = [
-        f"시간: {t}<br>"
-        f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}"
-        for t, o, h, l, c in zip(
-            df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-            df_plot["open"],
-            df_plot["high"],
-            df_plot["low"],
-            df_plot["close"]
-        )
-    ]
+        # ===== Candlestick (hovertext + hoverinfo="text") =====
+    if buy_price > 0:
+        hovertext = [
+            f"시간: {t}<br>"
+            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
+            f"매수가 대비 수익률: {p:.2f}%"
+            for t, o, h, l, c, p in zip(
+                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+                df_plot["open"],
+                df_plot["high"],
+                df_plot["low"],
+                df_plot["close"],
+                df_plot["수익률(%)"].fillna(0)
+            )
+        ]
+    else:
+        hovertext = [
+            f"시간: {t}<br>"
+            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}"
+            for t, o, h, l, c in zip(
+                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+                df_plot["open"],
+                df_plot["high"],
+                df_plot["low"],
+                df_plot["close"]
+            )
+        ]
 
-fig.add_trace(go.Candlestick(
-    x=df_plot["time"],
-    open=df_plot["open"],
-    high=df_plot["high"],
-    low=df_plot["low"],
-    close=df_plot["close"],
-    name="가격",
-    increasing=dict(line=dict(color="red", width=1.1)),
-    decreasing=dict(line=dict(color="blue", width=1.1)),
-    hovertext=hovertext,
-    hoverinfo="text"
-))
+    fig.add_trace(go.Candlestick(
+        x=df_plot["time"],
+        open=df_plot["open"],
+        high=df_plot["high"],
+        low=df_plot["low"],
+        close=df_plot["close"],
+        name="가격",
+        increasing=dict(line=dict(color="red", width=1.1)),
+        decreasing=dict(line=dict(color="blue", width=1.1)),
+        hovertext=hovertext,
+        hoverinfo="text"
+    ))
+
     # ===== BB 라인(지표 위 hover 시에도 PnL 추가) =====
     def _pnl_arr(y_series):
         if buy_price <= 0:
