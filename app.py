@@ -783,21 +783,15 @@ try:
 
         # ⬅ 왼쪽: 매수가 입력 (쉼표 표시 / on_change 콜백로 안전 포맷팅)
         with top_l:
-            def _format_buy_price():
-                raw = st.session_state.get("buy_price_text", "0")
-                digits = "".join(ch for ch in raw if ch.isdigit())
-                if digits == "":
-                    digits = "0"
-                val = int(digits)
-                st.session_state.buy_price = val
-                st.session_state.buy_price_text = f"{val:,}"
-
-            st.text_input(
+            buy_price = st.number_input(
                 "💰 매수가 입력",
-                key="buy_price_text",
-                on_change=_format_buy_price
+                min_value=0,
+                value=st.session_state.get("buy_price", 0),
+                step=1000,
+                format="%d"
             )
-            buy_price = st.session_state.get("buy_price", 0)
+            st.session_state.buy_price = buy_price
+            st.session_state.buy_price_text = f"{buy_price:,}" if buy_price > 0 else "0"
 
         # ➡ 오른쪽: 최적화뷰 버튼(기존 동작 유지)
         with top_r:
