@@ -118,13 +118,12 @@ try:
     # 매수가 입력 + 최적화뷰 버튼
     # -----------------------------
     c11, c12 = st.columns([3,1])
-with c11:
-    buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
+    with c11:
+        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
     with c12:
         label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
         if st.button(label, key="btn_opt_view_top"):
             st.session_state.opt_view = not st.session_state.opt_view
-
     # -----------------------------
     # 차트 데이터 및 수익률 (예시 데이터)
     # -----------------------------
