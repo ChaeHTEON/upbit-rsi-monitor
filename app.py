@@ -461,7 +461,14 @@ try:
     # -----------------------------
     c11, c12 = st.columns([1, 1])
     with c11:
-        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
+        if "buy_price_text" not in st.session_state:
+            st.session_state.buy_price_text = "0"
+        buy_price_text = st.text_input("💰 매수가 입력", value=st.session_state.buy_price_text, key="buy_price_text")
+        try:
+            buy_price = int(buy_price_text.replace(",", ""))
+        except ValueError:
+            buy_price = 0
+        st.session_state.buy_price_text = f"{buy_price:,}"
     with c12:
         if "opt_view" not in st.session_state:
             st.session_state.opt_view = False
