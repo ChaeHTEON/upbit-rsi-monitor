@@ -684,6 +684,20 @@ try:
                     showlegend=False
                 ))
 
+        # ===== 매물대 라인 표시 =====
+        if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
+            used_levels = set()
+            for _, row in res.iterrows():
+                base_price = row["기준시가"]
+                if base_price not in used_levels:
+                    fig.add_shape(
+                        type="line",
+                        xref="x", x0=df["time"].min(), x1=df["time"].max(),
+                        yref="y", y0=base_price, y1=base_price,
+                        line=dict(color="red", width=1.2)
+                    )
+                    used_levels.add(base_price)
+
     # ===== RSI 라인 및 기준선(y2) =====
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
@@ -697,8 +711,7 @@ try:
     ))
     for y_val, dash, col, width in [
         (rsi_high, "dash", "#E63946", 1.1),
-        (rsi_low,  "dash", "#457B9D", 1.1),
-        (20,       "solid", "red",    1.2),
+        (rsi_low, "dash", "#457B9D", 1.1),
     ]:
         fig.add_shape(
             type="line",
