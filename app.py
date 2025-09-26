@@ -788,22 +788,22 @@ try:
                 min_value=0,
                 value=st.session_state.get("buy_price", 0),
                 step=1000,
-                format="%d"
+                format="%d",
+                key="buy_price_num"
             )
             st.session_state.buy_price = buy_price
             st.session_state.buy_price_text = f"{buy_price:,}" if buy_price > 0 else "0"
 
-        # ➡ 오른쪽: 최적화뷰 버튼(기존 동작 유지)
-        with top_r:
-            label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-            if st.button(label, key="btn_opt_view_top"):
-                st.session_state.opt_view = not st.session_state.opt_view
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True,
-            config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset", "responsive": True},
-        )
+            st.markdown(
+                """
+                <style>
+                div[data-testid="stNumberInput"] input {
+                    max-width: 220px;   /* 종목 선택과 비슷한 크기로 제한 */
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
 
     # -----------------------------
     # ③ 요약 & 차트
