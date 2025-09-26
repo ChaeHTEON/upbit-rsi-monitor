@@ -512,28 +512,40 @@ bb_low_cd = _pnl_arr(df["BB_low"])
 bb_mid_cd = _pnl_arr(df["BB_mid"])
 
 def _ht_line(name):
-    # Plotly 토큰은 f-string에서 반드시 중괄호 이스케이프 필요: %{y} -> %{{y}}
+    # f-string 사용 금지: Plotly 토큰은 그대로 문자열로 넘김
     if buy_price <= 0:
-        return f"{name}: %{{y:.2f}}<extra></extra>"
-    return f"{name}: %{{y:.2f}}<br>매수가 대비 수익률: %{{customdata[0]:.2f}}<extra></extra>"
+        return name + ": %{y:.2f}<extra></extra>"
+    return name + ": %{y:.2f}<br>매수가 대비 수익률: %{customdata[0]:.2f}<extra></extra>"
 
 fig.add_trace(go.Scatter(
-    x=df["time"], y=df["BB_up"], mode="lines",
-    line=dict(color="#FFB703", width=1.4), name="BB 상단",
+    x=df["time"],
+    y=df["BB_up"],
+    mode="lines",
+    line=dict(color="#FFB703", width=1.4),
+    name="BB 상단",
     customdata=bb_up_cd,
-    hovertemplate=_ht_line("BB 상단")
+    hovertemplate=_ht_line("BB 상단"),
+    showlegend=True
 ))
 fig.add_trace(go.Scatter(
-    x=df["time"], y=df["BB_low"], mode="lines",
-    line=dict(color="#219EBC", width=1.4), name="BB 하단",
+    x=df["time"],
+    y=df["BB_low"],
+    mode="lines",
+    line=dict(color="#219EBC", width=1.4),
+    name="BB 하단",
     customdata=bb_low_cd,
-    hovertemplate=_ht_line("BB 하단")
+    hovertemplate=_ht_line("BB 하단"),
+    showlegend=True
 ))
 fig.add_trace(go.Scatter(
-    x=df["time"], y=df["BB_mid"], mode="lines",
-    line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙",
+    x=df["time"],
+    y=df["BB_mid"],
+    mode="lines",
+    line=dict(color="#8D99AE", width=1.1, dash="dot"),
+    name="BB 중앙",
     customdata=bb_mid_cd,
-    hovertemplate=_ht_line("BB 중앙")
+    hovertemplate=_ht_line("BB 중앙"),
+    showlegend=True
 ))
 
     # ===== 시뮬레이션 (중복 포함/제거) =====
