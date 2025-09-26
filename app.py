@@ -553,13 +553,18 @@ try:
     bottom_txt = "ON" if bottom_mode else "OFF"
 
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 버튼
     # -----------------------------
-    ui_col1, _ = st.columns([2, 1])
-    with ui_col1:
-        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%d")
-    if "opt_view" not in st.session_state:
-        st.session_state.opt_view = False
+    # 매수가 입력 + 최적화뷰 버튼 (매수가 입력을 최적화뷰 왼쪽으로 이동)
+    # -----------------------------
+    col_buy, col_btn = st.columns([2, 1])
+    with col_buy:
+        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
+    with col_btn:
+        if "opt_view" not in st.session_state:
+            st.session_state.opt_view = False
+        label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
+        if st.button(label, key="btn_opt_view_top"):
+            st.session_state.opt_view = not st.session_state.opt_view
 
     # -----------------------------
     # 차트
