@@ -29,7 +29,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
 st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
@@ -78,16 +77,12 @@ dup_mode = st.radio("신호 중복 처리", ["중복 포함 (연속 신호 모�
 # 세션 상태 초기화
 if "opt_view" not in st.session_state:
     st.session_state.opt_view = False
-if "buy_price_text" not in st.session_state:
-    st.session_state.buy_price_text = "0"
-if "buy_price" not in st.session_state:
-    st.session_state.buy_price = 0
 
 # -----------------------------
 # ① 기본 설정
 # -----------------------------
 st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns([2,2,2,2,2])
 with c1:
     market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
 with c2:
@@ -99,6 +94,14 @@ with c3:
     start_date = st.date_input("시작 날짜", value=default_start)
 with c4:
     end_date = st.date_input("종료 날짜", value=today_kst)
+with c5:
+    cols = st.columns([3,1])
+    with cols[0]:
+        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%d")
+    with cols[1]:
+        label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
+        if st.button(label, key="btn_opt_view_top"):
+            st.session_state.opt_view = not st.session_state.opt_view
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
@@ -106,7 +109,7 @@ st.markdown("---")
 chart_box = st.container()
 
 # -----------------------------
-# 실행
+# 실행 (예시 데이터)
 # -----------------------------
 try:
     if start_date > end_date:
@@ -116,55 +119,22 @@ try:
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
 
-    # --- 매수가 입력 포맷 콜백 ---
-    def _format_buy_price():
-        raw = st.session_state.get("buy_price_text", "0")
-        digits = "".join(ch for ch in str(raw) if ch.isdigit())
-        val = int(digits) if digits else 0
-        st.session_state.buy_price = val
-        st.session_state.buy_price_text = f"{val:,}"
-
-    # -----------------------------
-    # 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼
-    # -----------------------------
-    with chart_box:
-        top_l, top_r = st.columns([7, 3])
-
-        with top_l:
-            st.text_input(
-                "💰 매수가 입력",
-                key="buy_price_text",
-                on_change=_format_buy_price
-            )
-            buy_price = st.session_state.get("buy_price", 0)
-
-        with top_r:
-            st.markdown("<div style='margin-top:5px'></div>", unsafe_allow_html=True)
-            label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-            if st.button(label, key="btn_opt_view_top"):
-                st.session_state.opt_view = not st.session_state.opt_view
-
-    # -----------------------------
-    # 차트 데이터 및 수익률 (예시 데이터)
-    # -----------------------------
+    # 예시 데이터 생성
     df = pd.DataFrame({
-        "time": pd.date_range(start=start_dt, end=end_dt, freq="min")[:100],
+        "time": pd.date_range(start=start_dt, periods=100, freq="min"),
         "open": np.random.rand(100)*100,
         "high": np.random.rand(100)*100,
         "low": np.random.rand(100)*100,
         "close": np.random.rand(100)*100
-    }).reset_index(drop=True)
+    })
     if buy_price > 0:
         df["수익률(%)"] = (df["close"]/buy_price - 1) * 100
     else:
         df["수익률(%)"] = np.nan
 
-    n = len(df)
-    if n == 0:
-        st.info("표시할 데이터가 없습니다.")
-        st.stop()
-
     fig = make_subplots(rows=1, cols=1)
+
+    n = len(df)
     if buy_price > 0:
         pct = df["수익률(%)"].fillna(0).astype(float).to_numpy()
         colors = np.where(pct > 0, "red", "blue").tolist()
