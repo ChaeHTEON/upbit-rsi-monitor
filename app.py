@@ -736,18 +736,19 @@ try:
         )
 
     if buy_price > 0:
+        # PnL 값(소수1자리)과 색상(red/blue) 2열 customdata 구성
+        _pnl_vals = df_plot["수익률(%)"].fillna(0).round(1).values
+        _pnl_cols = np.where(_pnl_vals >= 0, "red", "blue")
+        _pnl_cd   = np.stack([_pnl_vals, _pnl_cols], axis=-1)  # shape: (N, 2)
+
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["close"],
             mode="lines",
-            line=dict(color="rgba(0,0,0,0)", width=1e-3),
+            line=dict(color="rgba(0,0,0,0)", width=1e-3),  # 완전 투명 라인
             showlegend=False,
-            hovertemplate="<span style='color:%{customdata[1]};'>수익률: %{customdata[0]:.1f}%</span><extra></extra>",
-            customdata=np.stack([
-                df_plot["수익률(%)"].fillna(0).round(1).values,
-                np.where(df_plot["수익률(%)"] >= 0, "red", "blue")
-            ], axis=-1),
-            customdata=np.expand_dims(df_plot["수익률(%)"].fillna(0).values, axis=-1),
-            name="PnL Hover"
+            name="PnL Hover",
+            customdata=_pnl_cd,
+            hovertemplate="<span style='color:%{customdata[1]};'>수익률: %{customdata[0]:.1f}%</span><extra></extra>"
         ))
 
     if st.session_state.get("opt_view") and len(df) > 0:
