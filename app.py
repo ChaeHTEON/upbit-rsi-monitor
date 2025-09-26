@@ -551,14 +551,15 @@ try:
     fig = make_subplots(rows=1, cols=1)
 
     # Candlestick (툴팁 통일)
-    fig.add_trace(go.Candlestick(
-        x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-        name="가격",
-        increasing=dict(line=dict(color="red", width=1.1)),
-        decreasing=dict(line=dict(color="blue", width=1.1)),
-        customdata=pnl_cd,
-        hovertemplate="<span style='color:%{customdata[1]};'>수익률: %{customdata[0]:.1f}%</span><extra></extra>"
-    ))
+fig.add_trace(go.Candlestick(
+    x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+    name="가격",
+    increasing=dict(line=dict(color="red", width=1.1)),
+    decreasing=dict(line=dict(color="blue", width=1.1)),
+    customdata=pnl_cd,
+    hovertext=["<span style='color:{};'>수익률: {:.1f}%</span>".format(c[1], float(c[0])) for c in pnl_cd],
+    hoverinfo="text"
+))
 
     # BB 선들 (툴팁 통일)
     for col, name, color, dash, width in [
