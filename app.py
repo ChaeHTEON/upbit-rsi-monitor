@@ -29,7 +29,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 타이틀(잘림 방지용 소폭 여백)
+# 타이틀
 st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
 st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
@@ -102,7 +102,7 @@ with c3:
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
-# ✅ 차트를 "기본 설정" 바로 아래에 그릴 컨테이너
+# ✅ 차트 컨테이너
 chart_box = st.container()
 
 # -----------------------------
@@ -417,7 +417,7 @@ try:
     df_ind = add_indicators(df_raw, bb_window, bb_dev)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
-    # 보기 요약 텍스트 준비(원래 포맷 유지)
+    # 보기 요약 텍스트
     total_min = lookahead * minutes_per_bar
     hh, mm = divmod(int(total_min), 60)
     look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
@@ -435,22 +435,16 @@ try:
     sec_txt = f"{sec_cond}"
 
     # -----------------------------
-    # 매수가 입력(좌) + 최적화뷰 버튼(차트 상단 우측)
+    # 매수가 입력 + 최적화뷰 버튼
     # -----------------------------
     ui_col1, _ = st.columns([2, 1])
     with ui_col1:
-        buy_price = st.number_input(
-            "💰 매수가 입력",
-            min_value=0,
-            value=0,
-            step=1,
-            format="%d"
-        )
+        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%d")
     if "opt_view" not in st.session_state:
         st.session_state.opt_view = False
 
     # -----------------------------
-    # 차트 (기본 설정 바로 아래)
+    # 차트
     # -----------------------------
     df_plot = df.copy()
     if buy_price > 0:
@@ -460,31 +454,25 @@ try:
 
     fig = make_subplots(rows=1, cols=1)
 
-        # ===== Candlestick (hovertext + hoverinfo="text") =====
+    # ===== Candlestick (hovertext + hoverinfo="text") =====
     if buy_price > 0:
         hovertext = [
-            f"시간: {t}<br>"
-            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
-            f"매수가 대비 수익률: {p:.2f}%"
+            "시간: " + t + "<br>"
+            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c) + "<br>"
+            "매수가 대비 수익률: " + f"{float(p):.2f}%"
             for t, o, h, l, c, p in zip(
                 df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"],
-                df_plot["high"],
-                df_plot["low"],
-                df_plot["close"],
+                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"],
                 df_plot["수익률(%)"].fillna(0)
             )
         ]
     else:
         hovertext = [
-            f"시간: {t}<br>"
-            f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}"
+            "시간: " + t + "<br>"
+            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c)
             for t, o, h, l, c in zip(
                 df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"],
-                df_plot["high"],
-                df_plot["low"],
-                df_plot["close"]
+                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"]
             )
         ]
 
@@ -501,65 +489,57 @@ try:
         hoverinfo="text"
     ))
 
-# ===== BB 라인(지표 위 hover 시에도 PnL 추가) =====
-def _pnl_arr(y_series):
-    if buy_price <= 0:
-        return None
-    return np.expand_dims((y_series.astype(float) / buy_price - 1) * 100, axis=-1)
+    # ===== BB 라인(지표 위 hover 시에도 PnL 추가) =====
+    def _pnl_arr(y_series):
+        if buy_price <= 0:
+            return None
+        return np.expand_dims((y_series.astype(float) / buy_price - 1) * 100, axis=-1)
 
-bb_up_cd = _pnl_arr(df["BB_up"])
-bb_low_cd = _pnl_arr(df["BB_low"])
-bb_mid_cd = _pnl_arr(df["BB_mid"])
+    bb_up_cd = _pnl_arr(df["BB_up"])
+    bb_low_cd = _pnl_arr(df["BB_low"])
+    bb_mid_cd = _pnl_arr(df["BB_mid"])
 
-def _ht_line(name):
-    # f-string 사용 금지: Plotly 토큰은 그대로 문자열로 넘김
-    if buy_price <= 0:
-        return name + ": %{y:.2f}<extra></extra>"
-    return name + ": %{y:.2f}<br>매수가 대비 수익률: %{customdata[0]:.2f}<extra></extra>"
+    def _ht_line(name):
+        # Plotly 토큰은 문자열 그대로 전달
+        if buy_price <= 0:
+            return name + ": %{y:.2f}<extra></extra>"
+        return name + ": %{y:.2f}<br>매수가 대비 수익률: %{customdata[0]:.2f}<extra></extra>"
 
-fig.add_trace(go.Scatter(
-    x=df["time"],
-    y=df["BB_up"],
-    mode="lines",
-    line=dict(color="#FFB703", width=1.4),
-    name="BB 상단",
-    customdata=bb_up_cd,
-    hovertemplate=_ht_line("BB 상단"),
-    showlegend=True
-))
-fig.add_trace(go.Scatter(
-    x=df["time"],
-    y=df["BB_low"],
-    mode="lines",
-    line=dict(color="#219EBC", width=1.4),
-    name="BB 하단",
-    customdata=bb_low_cd,
-    hovertemplate=_ht_line("BB 하단"),
-    showlegend=True
-))
-fig.add_trace(go.Scatter(
-    x=df["time"],
-    y=df["BB_mid"],
-    mode="lines",
-    line=dict(color="#8D99AE", width=1.1, dash="dot"),
-    name="BB 중앙",
-    customdata=bb_mid_cd,
-    hovertemplate=_ht_line("BB 중앙"),
-    showlegend=True
-))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_up"], mode="lines",
+        line=dict(color="#FFB703", width=1.4), name="BB 상단",
+        customdata=bb_up_cd,
+        hovertemplate=_ht_line("BB 상단")
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_low"], mode="lines",
+        line=dict(color="#219EBC", width=1.4), name="BB 하단",
+        customdata=bb_low_cd,
+        hovertemplate=_ht_line("BB 하단")
+    ))
+    fig.add_trace(go.Scatter(
+        x=df["time"], y=df["BB_mid"], mode="lines",
+        line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙",
+        customdata=bb_mid_cd,
+        hovertemplate=_ht_line("BB 중앙")
+    ))
 
     # ===== 시뮬레이션 (중복 포함/제거) =====
-    res_all = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                       bb_cond, "중복 포함 (연속 신호 모두)",
-                       minutes_per_bar, market_code, bb_window, bb_dev,
-                       sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)")
-    res_dedup = simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                         bb_cond, "중복 제거 (연속 동일 결과 1개)",
-                         minutes_per_bar, market_code, bb_window, bb_dev,
-                         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)")
+    res_all = simulate(
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+        bb_cond, "중복 포함 (연속 신호 모두)",
+        minutes_per_bar, market_code, bb_window, bb_dev,
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)"
+    )
+    res_dedup = simulate(
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+        bb_cond, "중복 제거 (연속 동일 결과 1개)",
+        minutes_per_bar, market_code, bb_window, bb_dev,
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)"
+    )
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
-    # ===== 신호 마커·점선(성공=⭐, 실패/중립=X) =====
+    # ===== 신호 마커/점선 =====
     if not res.empty:
         for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
             sub = res[res["결과"] == _label]
@@ -598,7 +578,7 @@ fig.add_trace(go.Scatter(
                     showlegend=False
                 ))
 
-    # ===== RSI (보조축) =====
+    # ===== RSI 라인 및 기준선(y2) =====
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
         line=dict(color="rgba(42,157,143,0.30)", width=6),
@@ -609,11 +589,20 @@ fig.add_trace(go.Scatter(
         line=dict(color="#2A9D8F", width=2.4, dash="dot"),
         name="RSI(13)", yaxis="y2"
     ))
-    fig.add_hline(y=rsi_high, line_dash="dash", line_color="#E63946", line_width=1.1, yref="y2")
-    fig.add_hline(y=rsi_low, line_dash="dash", line_color="#457B9D", line_width=1.1, yref="y2")
-    fig.add_hline(y=20, line_dash="solid", line_color="red", line_width=1.2, yref="y2")
+    # y2 축에 수평선(70/30/20) 추가: add_shape 사용
+    for y_val, dash, col, width in [
+        (rsi_high, "dash", "#E63946", 1.1),
+        (rsi_low, "dash", "#457B9D", 1.1),
+        (20, "solid", "red", 1.2),
+    ]:
+        fig.add_shape(
+            type="line",
+            xref="paper", x0=0, x1=1,
+            yref="y2", y0=y_val, y1=y_val,
+            line=dict(color=col, width=width, dash=dash)
+        )
 
-    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1인 경우만) =====
+    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) =====
     if buy_price > 0:
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["close"],
@@ -636,7 +625,7 @@ fig.add_trace(go.Scatter(
         except Exception:
             pass
 
-    # ===== 차트 레이아웃 =====
+    # ===== 레이아웃 =====
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
@@ -648,7 +637,7 @@ fig.add_trace(go.Scatter(
         yaxis=dict(title="가격"),
         yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
         uirevision="chart-static",
-        hovermode="closest"  # 요소 위에서만 툴팁
+        hovermode="closest"
     )
 
     # ===== 차트 상단 우측: 최적화뷰 버튼(라벨 즉시 동기화) =====
@@ -659,15 +648,10 @@ fig.add_trace(go.Scatter(
             if st.button(label, key="btn_opt_view_top"):
                 st.session_state.opt_view = not st.session_state.opt_view
 
-        chart_box.plotly_chart(
+        st.plotly_chart(
             fig,
             use_container_width=True,
-            config={
-                "scrollZoom": True,
-                "displayModeBar": True,
-                "doubleClick": "reset",
-                "responsive": True
-            },
+            config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset", "responsive": True},
         )
 
     # -----------------------------
@@ -696,8 +680,7 @@ fig.add_trace(go.Scatter(
         total_final = df_in["최종수익률(%)"].sum()
         return total, succ, fail, neu, win, total_final
 
-    for label, data in [("중복 포함 (연속 신호 모두)", res_all),
-                        ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
+    for label, data in [("중복 포함 (연속 신호 모두)", res_all), ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
         total, succ, fail, neu, win, total_final = _summarize(data)
         st.markdown(f"**{label}**")
         m1, m2, m3, m4, m5, m6 = st.columns(6)
@@ -723,7 +706,6 @@ fig.add_trace(go.Scatter(
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-        # 표시 포맷
         tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
         if "RSI(13)" in tbl:
@@ -757,13 +739,11 @@ fig.add_trace(go.Scatter(
         if "도달분" in tbl:
             tbl = tbl.drop(columns=["도달분"])
 
-        # 컬럼 순서
         keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
                      "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
         keep_cols = [c for c in keep_cols if c in tbl.columns]
         tbl = tbl[keep_cols]
 
-        # 결과 컬러링
         def style_result(val):
             if val == "성공": return "background-color: #FFF59D; color: #E53935; font-weight:600;"
             if val == "실패": return "color: #1E40AF; font-weight:600;"
