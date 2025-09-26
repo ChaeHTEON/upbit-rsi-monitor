@@ -626,14 +626,14 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) =====
+    # ===== 빈 영역 hover 시 수익률 단독 표시 =====
     if buy_price > 0:
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["close"],
             mode="lines",
             line=dict(color="rgba(0,0,0,0)", width=1e-3),
             showlegend=False,
-            hovertemplate="매수가 대비 수익률: %{customdata[0]:.2f}%<extra></extra>",
+            hovertemplate="수익률: %{customdata[0]:.2f}%<extra></extra>",
             customdata=np.expand_dims(df_plot["수익률(%)"].fillna(0).values, axis=-1),
             name="PnL Hover"
         ))
