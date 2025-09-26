@@ -456,11 +456,11 @@ try:
     bottom_txt = "ON" if bottom_mode else "OFF"
 
     # -----------------------------
-    # 매수가 입력 + 최적화뷰 버튼
+    # 매수가 입력 + 최적화뷰 버튼 (위치 조정 + 3자리 쉼표 표시)
     # -----------------------------
-    ui_col1, _ = st.columns([2, 1])
-    with ui_col1:
-        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%d")
+    col_a, col_b, col_c = st.columns([6, 2, 2])
+    with col_b:
+        buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
     if "opt_view" not in st.session_state:
         st.session_state.opt_view = False
 
@@ -477,16 +477,18 @@ try:
 
     # ===== Candlestick (hovertext + hoverinfo="text") =====
     if buy_price > 0:
-        hovertext = [
-            "시간: " + t + "<br>"
-            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c) + "<br>"
-            "매수가 대비 수익률: " + f"{float(p):.2f}%"
-            for t, o, h, l, c, p in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"],
-                df_plot["수익률(%)"].fillna(0)
+        hovertext = []
+        for t, o, h, l, c, p in zip(
+            df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+            df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"],
+            df_plot["수익률(%)"].fillna(0)
+        ):
+            color = "red" if p > 0 else "blue" if p < 0 else "black"
+            hovertext.append(
+                f"시간: {t}<br>"
+                f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
+                f"<span style='color:{color}; font-weight:600'>{p:.2f}%</span>"
             )
-        ]
     else:
         hovertext = [
             "시간: " + t + "<br>"
