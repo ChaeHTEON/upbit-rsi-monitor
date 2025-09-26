@@ -118,13 +118,8 @@ try:
     # 매수가 입력 + 최적화뷰 버튼
     # -----------------------------
     c11, c12 = st.columns([3,1])
-    with c11:
-        buy_price_text = st.text_input("💰 매수가 입력", value=st.session_state.buy_price_text, key="buy_price_text")
-        try:
-            buy_price = int(buy_price_text.replace(",", ""))
-        except ValueError:
-            buy_price = 0
-        st.session_state.buy_price_text = f"{buy_price:,}"
+with c11:
+    buy_price = st.number_input("💰 매수가 입력", min_value=0, value=0, step=1, format="%,d")
     with c12:
         label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
         if st.button(label, key="btn_opt_view_top"):
