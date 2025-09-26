@@ -741,7 +741,11 @@ try:
             mode="lines",
             line=dict(color="rgba(0,0,0,0)", width=1e-3),
             showlegend=False,
-            hovertemplate="매수가 대비 수익률: %{customdata[0]:.2f}%<extra></extra>",
+            hovertemplate="<span style='color:%{customdata[1]};'>수익률: %{customdata[0]:.1f}%</span><extra></extra>",
+            customdata=np.stack([
+                df_plot["수익률(%)"].fillna(0).round(1).values,
+                np.where(df_plot["수익률(%)"] >= 0, "red", "blue")
+            ], axis=-1),
             customdata=np.expand_dims(df_plot["수익률(%)"].fillna(0).values, axis=-1),
             name="PnL Hover"
         ))
