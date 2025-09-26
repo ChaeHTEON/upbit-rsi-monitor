@@ -460,31 +460,46 @@ try:
 
     fig = make_subplots(rows=1, cols=1)
 
-    # ===== Candlestick (hovertemplate 일원화) =====
-    candle_kwargs = dict(
-        x=df_plot["time"],
-        open=df_plot["open"],
-        high=df_plot["high"],
-        low=df_plot["low"],
-        close=df_plot["close"],
-        name="가격",
-        increasing=dict(line=dict(color="red", width=1.1)),
-        decreasing=dict(line=dict(color="blue", width=1.1)),
-    )
-    if buy_price > 0:
-        candle_kwargs.update(
-            customdata=np.expand_dims(df_plot["수익률(%)"].fillna(0).values, axis=-1),
-            hovertemplate="시간: %{x}<br>"
-                          "시가: %{open}<br>고가: %{high}<br>저가: %{low}<br>종가: %{close}<br>"
-                          "매수가 대비 수익률: %{customdata[0]:.2f}%<extra></extra>"
+# ===== Candlestick (hovertext + hoverinfo="text") =====
+if buy_price > 0:
+    hovertext = [
+        f"시간: {t}<br>"
+        f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}<br>"
+        f"매수가 대비 수익률: {p:.2f}%"
+        for t, o, h, l, c, p in zip(
+            df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+            df_plot["open"],
+            df_plot["high"],
+            df_plot["low"],
+            df_plot["close"],
+            df_plot["수익률(%)"].fillna(0)
         )
-    else:
-        candle_kwargs.update(
-            hovertemplate="시간: %{x}<br>"
-                          "시가: %{open}<br>고가: %{high}<br>저가: %{low}<br>종가: %{close}<extra></extra>"
+    ]
+else:
+    hovertext = [
+        f"시간: {t}<br>"
+        f"시가: {o}<br>고가: {h}<br>저가: {l}<br>종가: {c}"
+        for t, o, h, l, c in zip(
+            df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
+            df_plot["open"],
+            df_plot["high"],
+            df_plot["low"],
+            df_plot["close"]
         )
-    fig.add_trace(go.Candlestick(**candle_kwargs))
+    ]
 
+fig.add_trace(go.Candlestick(
+    x=df_plot["time"],
+    open=df_plot["open"],
+    high=df_plot["high"],
+    low=df_plot["low"],
+    close=df_plot["close"],
+    name="가격",
+    increasing=dict(line=dict(color="red", width=1.1)),
+    decreasing=dict(line=dict(color="blue", width=1.1)),
+    hovertext=hovertext,
+    hoverinfo="text"
+))
     # ===== BB 라인(지표 위 hover 시에도 PnL 추가) =====
     def _pnl_arr(y_series):
         if buy_price <= 0:
