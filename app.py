@@ -390,19 +390,42 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             base_price = float(df.at[T_idx, "close"])
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-            if not supply_levels:
+            # 현재 캔들 기준 과거 3개월 중 가장 가까운 캔들 선택
+            cur_time = df.at[i, "time"]
+            past_cutoff = cur_time - timedelta(days=92)
+            df_past = df[(df["time"] < cur_time) & (df["time"] >= past_cutoff)]
+            if df_past.empty:
                 i += 1; continue
+
+            # 현재 종가와 가장 가까운 과거 캔들 1개 선택
+            cur_price = float(df.at[i, "close"])
+            df_past = df_past.copy()
+            df_past["dist"] = (df_past["close"] - cur_price).abs()
+            nearest = df_past.loc[df_past["dist"].idxmin()]
+
+            # 매물대 후보 4개 산출
+            o_p, h_p, c_p = float(nearest["open"]), float(nearest["high"]), float(nearest["close"])
+            if c_p > o_p:   # 양봉
+                supply_candidates = [h_p, c_p]
+            elif c_p < o_p: # 음봉
+                supply_candidates = [h_p, o_p]
+            else:
+                supply_candidates = []
+
+            if not supply_candidates:
+                i += 1; continue
+
+            # 현재 캔들이 위→아래→반등 조건 충족하는지 확인
             o = float(df.at[i, "open"])
             h = float(df.at[i, "high"])
             l = float(df.at[i, "low"])
             c = float(df.at[i, "close"])
             ok = False
-            for L in supply_levels:
-                L = float(L)
-                # 위에서 내려와 매물대 터치 후 종가가 매물대 이상으로 반등
+            for L in supply_candidates:
                 if (o > L) and (l <= L <= h) and (c >= L):
                     ok = True
                     break
+
             if not ok:
                 i += 1; continue
 
