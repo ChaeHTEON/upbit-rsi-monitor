@@ -800,6 +800,7 @@ try:
 
         with top_r:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
+            st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)  # 버튼 위 여백 추가
             if st.button(label, key="btn_opt_view_top"):
                 st.session_state.opt_view = not st.session_state.opt_view
 
