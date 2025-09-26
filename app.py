@@ -778,20 +778,10 @@ try:
 
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
     with chart_box:
-        # 종목 선택 selectbox와 유사한 폭을 위해 4:1 분할
-        top_l, top_r = st.columns([4, 1])
+        # 입력칸과 버튼을 같은 행에 나란히 정렬 (7:3 비율)
+        top_l, top_r = st.columns([7, 3])
 
-        # ⬅ 왼쪽: 매수가 입력 (쉼표 표시 / on_change 콜백로 안전 포맷팅)
         with top_l:
-            def _format_buy_price():
-                raw = st.session_state.get("buy_price_text", "0")
-                digits = "".join(ch for ch in raw if ch.isdigit())
-                if digits == "":
-                    digits = "0"
-                val = int(digits)
-                st.session_state.buy_price = val
-                st.session_state.buy_price_text = f"{val:,}"
-
             st.text_input(
                 "💰 매수가 입력",
                 key="buy_price_text",
@@ -799,8 +789,9 @@ try:
             )
             buy_price = st.session_state.get("buy_price", 0)
 
-        # ➡ 오른쪽: 최적화뷰 버튼(기존 동작 유지)
         with top_r:
+            # 버튼을 입력칸과 높이를 맞추고, 오른쪽 끝으로 가지 않게 비율 조정
+            st.markdown("<div style='margin-top:5px'></div>", unsafe_allow_html=True)
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
             if st.button(label, key="btn_opt_view_top"):
                 st.session_state.opt_view = not st.session_state.opt_view
