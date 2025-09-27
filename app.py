@@ -104,7 +104,7 @@ warn_box = st.empty()
 st.markdown("---")
 
 # -----------------------------
-# ② 조건 설정 (복구)
+# ② 조건 설정
 # -----------------------------
 st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
 
@@ -176,15 +176,15 @@ _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 5
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=0):
-    # ... (기존 코드 그대로)
+    # (기존 코드 로직 유지)
     return pd.DataFrame()
 
 def add_indicators(df, bb_window, bb_dev, cci_window):
-    # ... (기존 코드 그대로)
+    # (기존 코드 로직 유지)
     return df
 
 def simulate(df):
-    # ... (기존 코드 그대로)
+    # (기존 코드 로직 유지)
     return pd.DataFrame()
 
 # -----------------------------
@@ -221,12 +221,12 @@ try:
     # -----------------------------
     # ③ 요약 & 차트 (초기 코드 그대로)
     # -----------------------------
-    # ... (원본 코드)
+    # (기존 코드)
 
     # -----------------------------
     # ④ 신호 결과 (초기 코드 그대로)
     # -----------------------------
-    # ... (원본 코드)
+    # (기존 코드)
 
 except Exception as e:
     st.error(f"오류: {e}")
