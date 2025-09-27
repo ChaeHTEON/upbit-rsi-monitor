@@ -602,22 +602,41 @@ try:
             sub = res[res["결과"] == _label]
             if sub.empty:
                 continue
-            # ✅ anchor 기준 캔들에 마커 표시
+            # ✅ anchor 기준 캔들에 마커 표시 (datetime 보장)
             fig.add_trace(go.Scatter(
-                x=pd.to_datetime(sub["신호시간"]),  # ⬅ 문자열/타임존 불일치 제거
+                x=pd.to_datetime(sub["신호시간"]),
                 y=sub["기준시가"], mode="markers",
                 name=f"신호({_label})",
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
+
+        # ✅ df.time ↔ index 매핑 (정확한 봉 이동용)
+        _time_to_idx = pd.Series(range(len(df)), index=pd.to_datetime(df["time"]))
         legend_emitted = {"성공": False, "실패": False, "중립": False}
+
         for _, row in res.iterrows():
             start_x = pd.to_datetime(row["신호시간"]); start_y = float(row["기준시가"])
-            end_x   = pd.to_datetime(row["종료시간"]); end_close = float(row["종료가"])
             grp = row["결과"]; color = "red" if grp == "성공" else ("blue" if grp == "실패" else "#FF9800")
 
-            # 점선 구간 표시
+            # ▷ anchor 인덱스 찾기 (정확 매칭 없을 시 searchsorted 보정)
+            if start_x in _time_to_idx.index:
+                anchor_idx = int(_time_to_idx.loc[start_x])
+            else:
+                pos = int(df["time"].searchsorted(start_x))
+                anchor_idx = max(0, min(pos, len(df) - 1))
+
+            # ▷ 도달 봉수(bars) 확보 (성공: 실제 도달봉, 중립/실패: lookahead)
+            bars_after = int(row["도달캔들(bars)"]) if "도달캔들(bars)" in row else \
+                         int(row["도달캔들"]) if "도달캔들" in row else 0
+            end_idx_calc = max(0, min(anchor_idx + bars_after, len(df) - 1))
+            end_x_calc   = df.at[end_idx_calc, "time"]
+
+            # ▷ Y값: 성공은 목표가(이미 row["종료가"]가 target), 그 외는 end_idx 종가
+            end_close = float(row["종료가"]) if pd.notna(row["종료가"]) else float(df.at[end_idx_calc, "close"])
+
+            # 점선 구간 표시 (anchor → anchor+bars_after 정확히 연결)
             fig.add_trace(go.Scatter(
-                x=[start_x, end_x], y=[start_y, end_close], mode="lines",
+                x=[start_x, end_x_calc], y=[start_y, end_close], mode="lines",
                 line=dict(color=color, width=1.6 if grp == "성공" else 1.0, dash="dot"),
                 opacity=0.9 if grp == "성공" else 0.5,
                 showlegend=(not legend_emitted[grp]),
@@ -627,20 +646,19 @@ try:
 
             # 종료 마커
             if grp == "성공":
-                hit_row = df.loc[df["time"] == end_x]
+                hit_row = df.loc[df["time"] == end_x_calc]
                 star_y = float(hit_row.iloc[0]["high"]) if not hit_row.empty else end_close
                 fig.add_trace(go.Scatter(
-                    x=[end_x], y=[star_y], mode="markers", name="목표 도달",
+                    x=[end_x_calc], y=[star_y], mode="markers", name="목표 도달",
                     marker=dict(size=15, color="orange", symbol="star", line=dict(width=1, color="black")),
                     showlegend=False
                 ))
             else:
                 fig.add_trace(go.Scatter(
-                    x=[end_x], y=[end_close], mode="markers", name=f"도착-{grp}",
+                    x=[end_x_calc], y=[end_close], mode="markers", name=f"도착-{grp}",
                     marker=dict(size=8, color=color, symbol="x", line=dict(width=1, color="black")),
                     showlegend=False
                 ))
-
     # ===== 매수가 수평선 =====
     if buy_price and buy_price > 0:
         fig.add_shape(
