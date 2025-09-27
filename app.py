@@ -142,7 +142,11 @@ def process_one(df, i0, thr, lookahead, minutes_per_bar, hit_basis, bb_cond, sec
 try:
     # ===== 사이드바 입력 =====
     symbol = st.sidebar.selectbox("마켓 선택", ["KRW-BTC", "KRW-ETH", "KRW-XRP"], index=0)
-    interval = st.sidebar.selectbox("봉 간격", ["minutes1", "minutes5", "minutes15", "minutes60", "days"], index=2)
+interval = st.sidebar.selectbox(
+    "봉 간격",
+    ["minutes/1", "minutes/5", "minutes/15", "minutes/60", "days"],
+    index=2
+)
     count = st.sidebar.slider("조회 캔들 수", min_value=50, max_value=500, value=200, step=10)
     to = None  # 최신 시점까지 불러오기 (필요시 날짜 선택 위젯 연결)
 
