@@ -116,11 +116,8 @@ with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-    hit_basis = st.selectbox(
-        "성공 판정 기준",
-        ["종가 기준", "고가 기준(스침 인정)", "종가 또는 고가"],
-        index=0
-    )
+    # 성공 판정 기준은 항상 종가 기준으로 고정 (UI 제거 요청에 따라 값만 고정)
+    hit_basis = "종가 기준"
 with c6:
     r1, r2, r3 = st.columns(3)
     with r1:
@@ -239,10 +236,10 @@ def add_indicators(df, bb_window, bb_dev, cci_window):
 
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
-             hit_basis="종가 기준", miss_policy="실패(권장)", bottom_mode=False,
+             hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
              supply_levels: Optional[Set[float]] = None,
              manual_supply_levels: Optional[list] = None):
-    """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 조건(수동 입력) 반영."""
+    """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 조건(수동 입력) 반영 + 판정 규칙 고정(종가 기준/성공·실패·중립)."""
     res = []
     n = len(df)
     thr = float(threshold_pct if isinstance(threshold_pct := thr_pct, (int, float)) else thr_pct)
@@ -363,7 +360,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
             ok = False
             for L in manual_supply_levels:
-                # 기존 로직 유지: 누적 최저가 조건 + 위→아래(터치)→반등
+                # 누적 최저가 조건 + 위→아래(터치)→반등
                 if l != df.loc[:i, "low"].min():
                     continue
                 if (o > L) and (l <= L <= h) and (c >= L):
@@ -396,7 +393,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 return h_
             if hit_basis.startswith("종가 또는 고가"):
                 return max(c_, h_)
-            return c_
+            return c_  # 종가 기준 고정
 
         for j in range(anchor_idx + 1, end_idx + 1):
             if _price_for_hit(j) >= target:
@@ -410,12 +407,10 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             final_ret = thr
             result = "성공"
         else:
-            if miss_policy.startswith("실패"):
-                result = "실패"
-            elif "항상 중립" in miss_policy:
-                result = "중립"
-            else:
-                result = "실패" if final_ret <= -thr else "중립"
+            # ✅ 미도달 처리 고정 규칙 (모든 조건 타입 동일)
+            # - 실패: 목표 미달성 & 최종수익률 ≤ 0
+            # - 중립: 목표 미달성 & 최종수익률 > 0
+            result = "실패" if final_ret <= 0 else "중립"
 
         if bb_cond == "상한선":
             bb_value = df.at[anchor_idx, "BB_up"]
@@ -579,14 +574,14 @@ try:
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 포함 (연속 신호 모두)",
         minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)",
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
     )
     res_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 제거 (연속 동일 결과 1개)",
         minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)",
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
     )
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
@@ -736,7 +731,7 @@ try:
         f"- 바닥탐지(실시간): {bottom_txt}\n"
         f"- 2차 조건 · {sec_txt}\n"
         f"- 성공 판정 기준: {hit_basis}\n"
-        f"- 미도달 처리: 실패(권장)\n"
+        f"- 미도달 처리: 성공·실패·중립(고정)\n"
         f"- 워밍업: {warmup_bars}봉"
     )
 
