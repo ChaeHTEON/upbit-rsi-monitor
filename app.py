@@ -620,9 +620,17 @@ try:
 
     # ===== 신호 마커/점선 =====
     if res is not None and not res.empty:
+        # ✅ 표와 차트 완전 동기화: 같은 anchor_i(=신호 시작 캔들) 중복 제거
+        #    - 표는 정렬/형식화 과정에서 1행만 보이므로, 차트도 동일 anchor는 1개만 그리도록 보정
+        plot_res = (
+            res.sort_values("신호시간")          # 시간 기준 안정 정렬
+               .drop_duplicates(subset=["anchor_i"], keep="first")
+               .reset_index(drop=True)
+        )
+
         # 1) anchor(신호 시작 캔들) 마커
         for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
-            sub = res[res["결과"] == _label]
+            sub = plot_res[plot_res["결과"] == _label]
             if sub.empty:
                 continue
             fig.add_trace(go.Scatter(
@@ -634,8 +642,8 @@ try:
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
-        # 2) 점선/종료 마커 (표와 1:1 동기화: anchor_i + 도달캔들(bars))
-        for _, row in res.iterrows():
+        # 2) 점선/종료 마커 (표와 1:1 동기화: anchor_i + end_i)
+        for _, row in plot_res.iterrows():
             a_i = int(row["anchor_i"])
             e_i = int(row["end_i"])  # ✅ process_one에서 확정 저장한 종료 인덱스 직접 사용
 
@@ -653,6 +661,49 @@ try:
                 line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
                 showlegend=False, hoverinfo="skip"
             ))
+
+            # 성공 시 ⭐, 실패/중립 시 ❌ 마커 (범례 1회만 표기)
+            showlegend = False
+            if row["결과"] == "성공" and not legend_emitted["성공"]:
+                showlegend = True
+                legend_emitted["성공"] = True
+            if row["결과"] == "성공":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]],
+                    y=[float(df.at[e_i, "close"])],
+                    mode="markers",
+                    name="도달⭐",
+                    marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+
+            showlegend = False
+            if row["결과"] == "실패" and not legend_emitted["실패"]:
+                showlegend = True
+                legend_emitted["실패"] = True
+            if row["결과"] == "실패":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]],
+                    y=[float(df.at[e_i, "close"])],
+                    mode="markers",
+                    name="실패❌",
+                    marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+
+            showlegend = False
+            if row["결과"] == "중립" and not legend_emitted["중립"]:
+                showlegend = True
+                legend_emitted["중립"] = True
+            if row["결과"] == "중립":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]],
+                    y=[float(df.at[e_i, "close"])],
+                    mode="markers",
+                    name="중립❌",
+                    marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
 
             # 성공 시, 종료 지점에 ⭐ 마커 (범례는 1회만)
             showlegend = False
