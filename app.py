@@ -371,36 +371,31 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
         target = base_price * (1.0 + thr / 100.0)
-        result, hit_idx = "중립", None
-        bars_after = lookahead
-        reach_min = bars_after * minutes_per_bar
-        end_time = df.at[end_idx, "time"]
-        end_close = float(df.at[end_idx, "close"])
-        final_ret = (end_close / base_price - 1) * 100
-
-        def _price_for_hit(j):
+        hit_idx = None
+        for j in range(anchor_idx + 1, end_idx + 1):
             c_ = float(df.at[j, "close"])
             h_ = float(df.at[j, "high"])
-            if hit_basis.startswith("고가"):
-                return h_
-            if hit_basis.startswith("종가 또는 고가"):
-                return max(c_, h_)
-            return c_
-
-        for j in range(anchor_idx + 1, end_idx + 1):
-            if _price_for_hit(j) >= target:
+            price_for_hit = max(c_, h_) if hit_basis.startswith("종가 또는 고가") else (h_ if hit_basis.startswith("고가") else c_)
+            if price_for_hit >= target:
                 hit_idx = j
                 break
 
         if hit_idx is not None:
+            # ✅ 성공 → 도달 시점 기준
             bars_after = hit_idx - anchor_idx
-            reach_min = bars_after * minutes_per_bar
             end_time = df.at[hit_idx, "time"]
             end_close = target
             final_ret = thr
             result = "성공"
         else:
+            # ✅ 실패/중립 → lookahead 끝까지 고정
+            bars_after = lookahead
+            end_time = df.at[end_idx, "time"]
+            end_close = float(df.at[end_idx, "close"])
+            final_ret = (end_close / base_price - 1) * 100
             result = "실패" if final_ret <= 0 else "중립"
+
+        reach_min = bars_after * minutes_per_bar
 
         # BB 값
         bb_value = None
