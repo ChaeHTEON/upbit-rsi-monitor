@@ -392,58 +392,36 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 hit_idx = j
                 break
 
-        if hit_idx is not None:
-            # ✅ 성공 → 도달 시점 기준
-            bars_after = hit_idx - anchor_idx
-            reach_min = bars_after * minutes_per_bar
-            end_time = df.at[hit_idx, "time"]
-            end_close = target
-            final_ret = thr
+                if hit_idx is not None:
+            end_i = hit_idx
             result = "성공"
+            final_ret = thr
         else:
-            # ✅ 실패/중립 → bars_after(lookahead) 기준으로 마지막 캔들 고정
-            bars_after = lookahead
-            end_idx = anchor_idx + bars_after
-            if end_idx >= n:
-                end_idx = n - 1
-                bars_after = end_idx - anchor_idx  # 실제 남은 봉으로 보정
-            end_time = df.at[end_idx, "time"]
-            end_close = float(df.at[end_idx, "close"])
+            end_i = min(anchor_idx + lookahead, n - 1)
+            end_close = float(df.at[end_i, "close"])
             final_ret = (end_close / base_price - 1) * 100
             result = "실패" if final_ret <= 0 else "중립"
 
+        bars_after = end_i - anchor_idx
         reach_min = bars_after * minutes_per_bar
-
-        # BB 값
-        bb_value = None
-        if bb_cond == "상한선":
-            bb_value = df.at[anchor_idx, "BB_up"]
-        elif bb_cond == "중앙선":
-            bb_value = df.at[anchor_idx, "BB_mid"]
-        elif bb_cond == "하한선":
-            bb_value = df.at[anchor_idx, "BB_low"]
-
-        # 최종 끝 인덱스(성공이면 hit_idx, 아니면 anchor+lookahead 보정)의 정수 저장
-        end_idx_final = hit_idx if (locals().get("hit_idx") is not None) else end_idx
+        end_time = df.at[end_i, "time"]
 
         row = {
             "신호시간": signal_time,
             "종료시간": end_time,
             "기준시가": int(round(base_price)),
-            "종료가": end_close,
+            "종료가": target if result == "성공" else float(df.at[end_i, "close"]),
             "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
             "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "도달분": reach_min,
-            "도달캔들(bars)": int(bars_after),   # bars 기반(성공: hit, 중립/실패: lookahead)
+            "도달캔들(bars)": int(bars_after),
             "최종수익률(%)": round(final_ret, 2),
             "최저수익률(%)": round(min_ret, 2),
             "최고수익률(%)": round(max_ret, 2),
-
-            # ✅ 차트용 “정수 인덱스” 직접 저장 (표에는 안보임)
             "anchor_i": int(anchor_idx),
-            "end_i": int(end_idx_final),
+            "end_i": int(end_i),
         }
         return row, end_idx
 
