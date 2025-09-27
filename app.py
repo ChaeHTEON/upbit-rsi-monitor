@@ -436,7 +436,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             "최고수익률(%)": round(max_ret, 2),
         })
 
-        i = end_idx if dedup_mode.startswith("중복 제거") else i + 1
+        if dedup_mode.startswith("중복 제거"):
+            # ✅ 중복 제거: 첫 신호 평가가 끝날 때까지 lock → end_idx 이후로 이동
+            i = end_idx
+        else:
+            # ✅ 중복 포함: 각 신호는 끝까지 독립적으로 평가됨
+            i += 1
 
     return pd.DataFrame(res)
 
