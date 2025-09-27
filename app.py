@@ -76,7 +76,7 @@ def process_one(df, i0, thr, lookahead, minutes_per_bar, hit_basis, bb_cond, sec
     signal_time = df.at[i0, "time"]
     base_price = float(df.at[i0, "close"])
 
-    # 2차 조건: 매물대 등 (생략 - 최신 코드 그대로 유지)
+    # (2차 조건 처리부는 최신 코드 그대로 유지)
 
     # --- 성과 측정 (단일 공식) ---
     end_scan = min(anchor_idx + lookahead, n - 1)
@@ -140,15 +140,17 @@ def process_one(df, i0, thr, lookahead, minutes_per_bar, hit_basis, bb_cond, sec
 # 메인 실행부
 # -----------------------------
 try:
-    # (UI/UX 구성 및 조건 입력 파트) ← 최신 코드 그대로 유지
+    # ===== 사이드바 입력 =====
+    symbol = st.sidebar.selectbox("마켓 선택", ["KRW-BTC", "KRW-ETH", "KRW-XRP"], index=0)
+    interval = st.sidebar.selectbox("봉 간격", ["minutes1", "minutes5", "minutes15", "minutes60", "days"], index=2)
+    count = st.sidebar.slider("조회 캔들 수", min_value=50, max_value=500, value=200, step=10)
+    to = None  # 최신 시점까지 불러오기 (필요시 날짜 선택 위젯 연결)
 
     # 데이터 수집 및 지표
     df = fetch_upbit(symbol, interval, count, to)
     df = add_indicators(df)
 
-    # 시뮬레이션 결과
-    res_all, res_dedup = [], []
-    # (루프 돌며 process_one 호출 → res_all/res_dedup 채우기) ← 최신 코드 유지
+    # (시뮬레이션 및 신호 계산 루프: 최신 코드 유지 → res_all, res_dedup 생성)
 
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
@@ -215,7 +217,7 @@ try:
                     showlegend=showlegend
                 ))
 
-    # (이후 ③ 요약 및 차트 표시, ④ 신호 결과 테이블 표시) ← 최신 코드 유지
+    # (이후 ③ 요약 및 차트, ④ 신호결과 테이블 표시: 최신 코드 유지)
 
 except Exception as e:
     st.error(f"오류: {e}")
