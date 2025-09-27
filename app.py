@@ -375,7 +375,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
         target = base_price * (1.0 + thr / 100.0)
-        result, reach_min, hit_idx = "중립", None, None
+        result, hit_idx = "중립", None
+
+        # ✅ 표시의 일관성을 위해 인덱스 기반 막대수로 고정
+        bars_after = lookahead               # 기본: 실패/중립은 전체 lookahead
+        reach_min = bars_after * minutes_per_bar
 
         def _price_for_hit(j):
             c_ = float(df.at[j, "close"])
@@ -384,11 +388,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 return h_
             if hit_basis.startswith("종가 또는 고가"):
                 return max(c_, h_)
-            return c_
+            return c_  # 종가 기준(고정)
 
         for j in range(anchor_idx + 1, end_idx + 1):
             if _price_for_hit(j) >= target:
-                hit_idx = j; break
+                hit_idx = j
+                break
 
         if hit_idx is not None:
             bars_after = hit_idx - anchor_idx
@@ -399,15 +404,16 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             result = "성공"
         else:
             result = "실패" if final_ret <= 0 else "중립"
+            # end_time/end_close는 end_idx 기준 → 전체 lookahead 보장
 
+        # BB 값
+        bb_value = None
         if bb_cond == "상한선":
             bb_value = df.at[anchor_idx, "BB_up"]
         elif bb_cond == "중앙선":
             bb_value = df.at[anchor_idx, "BB_mid"]
         elif bb_cond == "하한선":
             bb_value = df.at[anchor_idx, "BB_low"]
-        else:
-            bb_value = None
 
         row = {
             "신호시간": signal_time,
@@ -419,6 +425,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "도달분": reach_min,
+            "도달캔들(bars)": int(bars_after),   # ✅ 추가: 신뢰도 높은 막대수
             "최종수익률(%)": round(final_ret, 2),
             "최저수익률(%)": round(min_ret, 2),
             "최고수익률(%)": round(max_ret, 2),
@@ -801,8 +808,18 @@ try:
             except Exception:
                 return None
 
-        tbl["도달시간"] = [fmt_hhmm(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
-        tbl["도달캔들"] = [calc_bars_after(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
+        # ✅ 인덱스 기반 bars로 표시(시간차 기반 오차 제거)
+        if "도달캔들(bars)" in res.columns:
+            tbl["도달캔들"] = res["도달캔들(bars)"].astype(int).values
+            def _fmt_from_bars(b):
+                total_min = int(b) * int(minutes_per_bar)
+                hh, mm = divmod(total_min, 60)
+                return f"{hh:02d}:{mm:02d}"
+            tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
+        else:
+            # (예비) 구버전 호환
+            tbl["도달시간"] = [fmt_hhmm(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
+            tbl["도달캔들"] = [calc_bars_after(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
 
         if "도달분" in tbl:
             tbl = tbl.drop(columns=["도달분"])
