@@ -213,6 +213,11 @@ def github_commit_csv(local_file=CSV_FILE):
     r_put = requests.put(url, headers=headers, json=data)
     return r_put.status_code in (200, 201), r_put.text
 
+# ✅ GitHub Secrets 점검용 (임시 디버그 출력)
+st.write("Repo:", st.secrets.get("GITHUB_REPO"))
+st.write("Branch:", st.secrets.get("GITHUB_BRANCH"))
+st.write("Token 존재 여부:", bool(st.secrets.get("GITHUB_TOKEN")))
+
 manual_supply_levels = []
 if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
     current_levels = load_supply_levels(market_code)
