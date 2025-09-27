@@ -619,21 +619,16 @@ try:
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
-        # 2) 점선/종료 마커 (시간축 매핑으로 a_i/e_i 재계산)
-        time_index = pd.Index(df["time"])
+        # 2) 점선/종료 마커 (anchor_i/end_i 직접 사용 → 중복 time 문제 제거)
         for _, row in res.iterrows():
-            # a_i: 신호시간을 df 차트 타임라인에 매핑
-            t_anchor = pd.to_datetime(row["신호시간"])
-            a_i = int(time_index.get_indexer([t_anchor], method="nearest")[0])
-            if a_i < 0:
+            a_i = int(row["anchor_i"])
+            e_i = int(row["end_i"])
+
+            if a_i < 0 or e_i < 0 or a_i >= len(df) or e_i >= len(df):
                 continue  # 방어
 
-            # e_i: 도달캔들(bars)만큼 전진 (표 기준과 1:1)
-            _bars = pd.to_numeric(row["도달캔들(bars)"], errors="coerce")
-            bars_after = int(_bars) if pd.notna(_bars) else 0
-            e_i = a_i + max(bars_after, 0)
-            if e_i >= len(df):
-                e_i = len(df) - 1
+            x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
+            y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
 
             x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
             y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
