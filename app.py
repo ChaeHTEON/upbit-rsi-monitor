@@ -783,22 +783,6 @@ try:
             if col in tbl:
                 tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
-        def fmt_hhmm(start_time, end_time):
-            try:
-                s = pd.to_datetime(start_time); e = pd.to_datetime(end_time)
-                m = int((e - s).total_seconds() // 60); h, mm = divmod(m, 60)
-                return f"{h:02d}:{mm:02d}"
-            except Exception:
-                return "-"
-
-        def calc_bars_after(start_time, end_time):
-            try:
-                s = pd.to_datetime(start_time); e = pd.to_datetime(end_time)
-                mins = int(round((e - s).total_seconds() / 60))
-                return int(round(mins / minutes_per_bar))
-            except Exception:
-                return None
-
         # ✅ 무조건 process_one에서 전달된 bars_after 사용
         if "도달캔들(bars)" in res.columns:
             tbl["도달캔들"] = res["도달캔들(bars)"].astype(int).values
