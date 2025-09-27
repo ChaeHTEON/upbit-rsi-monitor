@@ -624,6 +624,49 @@ try:
 
         # 2) 점선/종료 마커 (anchor_i + 도달캔들(bars) → end_i로 고정)
         for _, row in res.iterrows():
+            # ✅ process_one()이 저장한 확정 인덱스 사용 (재계산 금지)
+            anchor_idx = int(row["anchor_i"]) if "anchor_i" in row else None
+            end_idx_calc = int(row["end_i"])   if "end_i"   in row else None
+
+            # 안전 보정 (누락 시 fallback)
+            if anchor_idx is None or end_idx_calc is None:
+                start_x = pd.to_datetime(row["신호시간"])
+                pos = int(df["time"].searchsorted(start_x))
+                anchor_idx = max(0, min(pos, len(df) - 1))
+                bars_after = int(row.get("도달캔들(bars)", 0))
+                end_idx_calc = max(0, min(anchor_idx + bars_after, len(df) - 1))
+
+            start_x = df.at[anchor_idx,   "time"]
+            end_x   = df.at[end_idx_calc, "time"]
+            start_y = float(row["기준시가"])
+            end_close = float(df.at[end_idx_calc, "close"])   # 실패/중립은 종가, 성공 별표는 목표가에 별도 표시
+            grp = row["결과"]
+            color = "red" if grp == "성공" else ("blue" if grp == "실패" else "#FF9800")
+
+            # 점선 (anchor → end_i)
+            fig.add_trace(go.Scatter(
+                x=[start_x, end_x], y=[start_y, end_close], mode="lines",
+                line=dict(color=color, width=1.6 if grp == "성공" else 1.0, dash="dot"),
+                opacity=0.9 if grp == "성공" else 0.5,
+                showlegend=(not legend_emitted[grp]),
+                name=f"신호(점선)-{grp}"
+            ))
+            legend_emitted[grp] = True
+
+            # 종료 마커
+            if grp == "성공":
+                fig.add_trace(go.Scatter(
+                    x=[end_x], y=[float(row["종료가"])], mode="markers", name="목표 도달",
+                    marker=dict(size=15, color="orange", symbol="star", line=dict(width=1, color="black")),
+                    showlegend=False
+                ))
+            else:
+                fig.add_trace(go.Scatter(
+                    x=[end_x], y=[end_close], mode="markers", name=f"도착-{grp}",
+                    marker=dict(size=8, color=color, symbol="x", line=dict(width=1, color="black")),
+                    showlegend=False
+                ))
+
 
     # ===== 매수가 수평선 =====
     if buy_price and buy_price > 0:
