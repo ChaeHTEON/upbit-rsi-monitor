@@ -310,7 +310,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         signal_time = df.at[i0, "time"]
         base_price = float(df.at[i0, "close"])
 
-        # 2차 조건
+        # 2차 조건 (신호 여부만 판단, anchor/end/bars 산출은 공통부에서 처리)
         if sec_cond == "양봉 2개 연속 상승":
             if i0 + 2 >= n:
                 return None, None
@@ -339,9 +339,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     T_idx = j; break
             if T_idx is None:
                 return None, None
-            anchor_idx = T_idx
-            signal_time = df.at[T_idx, "time"]
-            base_price = float(df.at[T_idx, "close"])
+            # ✅ 신호 인덱스만 지정, anchor/base 계산은 공통부에서 처리
+            i0 = T_idx
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
             if not manual_supply_levels:
@@ -352,7 +351,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             c = float(df.at[i0, "close"])
             ok = False
 
-            # 현 캔들 기준 '지난 24시간' 윈도우의 최저가 계산
             t0 = df.at[i0, "time"]
             start_24h = t0 - timedelta(hours=24)
             wmask = (df["time"] >= start_24h) & (df["time"] <= t0)
@@ -360,10 +358,10 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
             for L in manual_supply_levels:
                 Lf = float(L)
-                is_24h_low = (l <= lowest_24h + 1e-9)   # 24h 내 최저가(동일 최저가 포함)
-                opened_above = (o > Lf)                # 시가가 매물대 '위'
-                touched = (l <= Lf <= h)               # 장중 매물대 터치/관통
-                closed_back_above = (c >= Lf)          # 종가가 매물대 '위'로 회복
+                is_24h_low = (l <= lowest_24h + 1e-9)
+                opened_above = (o > Lf)
+                touched = (l <= Lf <= h)
+                closed_back_above = (c >= Lf)
                 if is_24h_low and opened_above and touched and closed_back_above:
                     ok = True
                     break
