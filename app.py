@@ -799,7 +799,7 @@ try:
             except Exception:
                 return None
 
-        # ✅ 인덱스 기반 bars로 표시(시간차 기반 오차 제거)
+        # ✅ 무조건 process_one에서 전달된 bars_after 사용
         if "도달캔들(bars)" in res.columns:
             tbl["도달캔들"] = res["도달캔들(bars)"].astype(int).values
             def _fmt_from_bars(b):
@@ -808,9 +808,8 @@ try:
                 return f"{hh:02d}:{mm:02d}"
             tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
         else:
-            # (예비) 구버전 호환
-            tbl["도달시간"] = [fmt_hhmm(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
-            tbl["도달캔들"] = [calc_bars_after(res.loc[i, "신호시간"], res.loc[i, "종료시간"]) for i in range(len(res))]
+            tbl["도달캔들"] = 0
+            tbl["도달시간"] = "-"
 
         if "도달분" in tbl:
             tbl = tbl.drop(columns=["도달분"])
