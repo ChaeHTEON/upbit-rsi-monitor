@@ -396,6 +396,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 break
 
         if hit_idx is not None:
+            # ✅ 성공 → 도달한 시점에서 종료
             bars_after = hit_idx - anchor_idx
             reach_min = bars_after * minutes_per_bar
             end_time = df.at[hit_idx, "time"]
@@ -403,8 +404,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             final_ret = thr
             result = "성공"
         else:
+            # ✅ 실패/중립 → 무조건 lookahead 끝까지
+            bars_after = lookahead
+            reach_min = bars_after * minutes_per_bar
+            end_time = df.at[end_idx, "time"]
+            end_close = float(df.at[end_idx, "close"])
             result = "실패" if final_ret <= 0 else "중립"
-            # end_time/end_close는 end_idx 기준 → 전체 lookahead 보장
 
         # BB 값
         bb_value = None
