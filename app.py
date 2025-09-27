@@ -648,7 +648,39 @@ try:
                     y=[float(df.at[e_i, "close"])],
                     mode="markers",
                     name="도달⭐",
-                    marker=dict(size=12, symbol="star", line=dict(width=1, color="black")),
+                    marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+
+            # 실패 시, 종료 지점 ❌ (파란색)
+            showlegend = False
+            if row["결과"] == "실패" and not legend_emitted["실패"]:
+                showlegend = True
+                legend_emitted["실패"] = True
+
+            if row["결과"] == "실패":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]],
+                    y=[float(df.at[e_i, "close"])],
+                    mode="markers",
+                    name="실패❌",
+                    marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+
+            # 중립 시, 종료 지점 ❌ (주황색)
+            showlegend = False
+            if row["결과"] == "중립" and not legend_emitted["중립"]:
+                showlegend = True
+                legend_emitted["중립"] = True
+
+            if row["결과"] == "중립":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]],
+                    y=[float(df.at[e_i, "close"])],
+                    mode="markers",
+                    name="중립❌",
+                    marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
 
