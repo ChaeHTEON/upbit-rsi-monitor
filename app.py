@@ -631,10 +631,15 @@ try:
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
-        # 2) 점선/종료 마커 (anchor_i + 도달캔들(bars) → end_i로 고정)
+        # 2) 점선/종료 마커 (표와 1:1 동기화: anchor_i + 도달캔들(bars))
         for _, row in res.iterrows():
             a_i = int(row["anchor_i"])
-            e_i = int(row["end_i"])
+
+            # 표에 기록된 '도달캔들(bars)'을 신뢰해 종료 인덱스 재계산
+            bars_after = int(row["도달캔들(bars)"]) if "도달캔들(bars)" in row else 0
+            e_i = a_i + bars_after
+            if e_i >= len(df):
+                e_i = len(df) - 1  # 안전 보정
 
             x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
             y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
@@ -693,7 +698,6 @@ try:
                     marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
-
     # ===== 매수가 수평선 =====
     if buy_price and buy_price > 0:
         fig.add_shape(
