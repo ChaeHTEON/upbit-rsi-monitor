@@ -155,16 +155,38 @@ sec_cond = st.selectbox(
     index=0
 )
 
-# ✅ 매물대 조건 UI 추가 (사용자 수동 입력, 가변 행)
+# ✅ 매물대 조건 UI 추가 (CSV 저장/불러오기 지원)
+import os
+
+CSV_FILE = "supply_levels.csv"
+if not os.path.exists(CSV_FILE):
+    pd.DataFrame(columns=["market", "level"]).to_csv(CSV_FILE, index=False)
+
+def load_supply_levels(market_code):
+    df = pd.read_csv(CSV_FILE)
+    df_market = df[df["market"] == market_code]
+    return df_market["level"].tolist()
+
+def save_supply_levels(market_code, levels):
+    df = pd.read_csv(CSV_FILE)
+    df = df[df["market"] != market_code]  # 기존 해당 종목 매물대 제거
+    new_df = pd.DataFrame({"market": [market_code]*len(levels), "level": levels})
+    df = pd.concat([df, new_df], ignore_index=True)
+    df.to_csv(CSV_FILE, index=False)
+
 manual_supply_levels = []
 if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-    st.markdown("**매물대 가격대 직접 입력 (원 단위, 행 추가/삭제로 가변 입력)**")
+    current_levels = load_supply_levels(market_code)
+    st.markdown("**매물대 가격대 입력 (CSV 저장됨, 종목별로 유지)**")
     supply_df = st.data_editor(
-        pd.DataFrame({"매물대": [0]}),
+        pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
         num_rows="dynamic",
         use_container_width=True,
     )
     manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
+    if st.button("💾 매물대 저장"):
+        save_supply_levels(market_code, manual_supply_levels)
+        st.success("매물대가 CSV에 저장되었습니다!")
 
 st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
