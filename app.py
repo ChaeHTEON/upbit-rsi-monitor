@@ -633,14 +633,25 @@ try:
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
         # 2) 점선/종료 마커 (표와 1:1 동기화: anchor_i + 도달캔들(bars))
+        use_bars_col = "도달캔들(bars)" in res.columns
+
         for _, row in res.iterrows():
             a_i = int(row["anchor_i"])
 
-            # 표에 기록된 '도달캔들(bars)'을 신뢰해 종료 인덱스 재계산
-            bars_after = int(row["도달캔들(bars)"]) if "도달캔들(bars)" in row else 0
-            e_i = a_i + bars_after
-            if e_i >= len(df):
-                e_i = len(df) - 1  # 안전 보정
+            # 안전한 bars_after 산출
+            if use_bars_col:
+                _b = pd.to_numeric(row["도달캔들(bars)"], errors="coerce")
+                bars_after = int(_b) if pd.notna(_b) else 0
+            else:
+                # 폴백: end_i - anchor_i
+                bars_after = int(row["end_i"]) - a_i
+
+            # 종료 인덱스 계산 + 범위 클램프
+            e_i = a_i + max(bars_after, 0)
+            if e_i < 0:
+                e_i = 0
+            elif e_i >= len(df):
+                e_i = len(df) - 1
 
             x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
             y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
