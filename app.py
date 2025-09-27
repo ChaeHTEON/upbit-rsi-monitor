@@ -339,8 +339,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     T_idx = j; break
             if T_idx is None:
                 return None, None
-            # ✅ 신호 인덱스만 지정, anchor/base 계산은 공통부에서 처리
+
+            # ✅ 반드시 앵커를 T_idx로 재지정 (표·차트·dedup 모두 이 기준으로 동작)
             i0 = T_idx
+            anchor_idx = T_idx
+            signal_time = df.at[anchor_idx, "time"]
+            base_price  = float(df.at[anchor_idx, "close"])
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
             if not manual_supply_levels:
