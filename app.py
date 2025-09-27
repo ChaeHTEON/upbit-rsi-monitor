@@ -620,7 +620,9 @@ try:
 
             # ▷ anchor 인덱스 찾기 (정확 매칭 없을 시 searchsorted 보정)
             if start_x in _time_to_idx.index:
-                anchor_idx = int(_time_to_idx.loc[start_x])
+                idx_val = _time_to_idx.loc[start_x]
+                # Series일 경우 첫 값만 사용
+                anchor_idx = int(idx_val.iloc[0] if hasattr(idx_val, "iloc") else idx_val)
             else:
                 pos = int(df["time"].searchsorted(start_x))
                 anchor_idx = max(0, min(pos, len(df) - 1))
