@@ -102,6 +102,17 @@ with c4:
     end_date = st.date_input("종료 날짜", value=today_kst)
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
+
+# ✅ 실제 데이터 범위 안내 메시지를 기본 설정 UI 바로 아래에 표시
+if "df_ind" in locals():
+    if not df_ind.empty:
+        actual_start, actual_end = df_ind["time"].min(), df_ind["time"].max()
+        if actual_start > start_dt or actual_end < end_dt:
+            st.warning(
+                f"⚠ 선택한 기간({start_dt.date()} ~ {end_dt.date()}) 전체 데이터를 가져오지 못했습니다.\n"
+                f"- 실제 수집 범위: {actual_start.date()} ~ {actual_end.date()}"
+            )
+
 st.markdown("---")
 
 # ✅ 차트 컨테이너
