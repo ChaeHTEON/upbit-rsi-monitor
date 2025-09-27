@@ -155,13 +155,10 @@ sec_cond = st.selectbox(
     index=0
 )
 
-# ✅ 매물대 조건 UI 추가 (CSV 저장/불러오기 지원)
-import os
+# ✅ 매물대 조건 UI 추가 (CSV 저장/불러오기 + GitHub commit/push)
+import os, base64, requests
 
-# ✅ GitHub 리포에 포함시킬 매물대 CSV 경로
 CSV_FILE = os.path.join(os.path.dirname(__file__), "supply_levels.csv")
-
-# 리포에 CSV 파일이 없으면 새로 생성
 if not os.path.exists(CSV_FILE):
     pd.DataFrame(columns=["market", "level"]).to_csv(CSV_FILE, index=False)
 
@@ -172,15 +169,54 @@ def load_supply_levels(market_code):
 
 def save_supply_levels(market_code, levels):
     df = pd.read_csv(CSV_FILE)
-    df = df[df["market"] != market_code]  # 기존 해당 종목 매물대 제거
+    df = df[df["market"] != market_code]
     new_df = pd.DataFrame({"market": [market_code]*len(levels), "level": levels})
     df = pd.concat([df, new_df], ignore_index=True)
     df.to_csv(CSV_FILE, index=False)
 
+def _get_secret(key, default=None):
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.environ.get(key, default)
+
+def github_commit_csv(local_file=CSV_FILE):
+    token  = _get_secret("GITHUB_TOKEN")
+    repo   = _get_secret("GITHUB_REPO")
+    branch = _get_secret("GITHUB_BRANCH", "main")
+    if not (token and repo):
+        return False, "no_token"
+
+    url  = f"https://api.github.com/repos/{repo}/contents/{os.path.basename(local_file)}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    with open(local_file, "rb") as f:
+        b64_content = base64.b64encode(f.read()).decode()
+
+    # 현재 SHA 조회
+    sha = None
+    r_get = requests.get(url, headers=headers)
+    if r_get.status_code == 200:
+        sha = r_get.json().get("sha")
+
+    data = {
+        "message": "Update supply_levels.csv from Streamlit",
+        "content": b64_content,
+        "branch": branch
+    }
+    if sha:
+        data["sha"] = sha
+
+    r_put = requests.put(url, headers=headers, json=data)
+    return r_put.status_code in (200, 201), r_put.text
+
 manual_supply_levels = []
 if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
     current_levels = load_supply_levels(market_code)
-    st.markdown("**매물대 가격대 입력 (CSV 저장됨, 종목별로 유지)**")
+    st.markdown("**매물대 가격대 입력 (GitHub에 저장/공유됨)**")
     supply_df = st.data_editor(
         pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
         num_rows="dynamic",
@@ -189,7 +225,11 @@ if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
     manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
     if st.button("💾 매물대 저장"):
         save_supply_levels(market_code, manual_supply_levels)
-        st.success("매물대가 CSV에 저장되었습니다!")
+        ok, msg = github_commit_csv(CSV_FILE)
+        if ok:
+            st.success("매물대가 GitHub에 저장/공유되었습니다!")
+        else:
+            st.warning(f"로컬에는 저장됐지만 GitHub 저장 실패: {msg}")
 
 st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
