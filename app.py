@@ -783,9 +783,9 @@ try:
             if col in tbl:
                 tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
-        # ✅ 무조건 process_one에서 전달된 bars_after 사용
-        if "도달캔들(bars)" in res.columns:
-            tbl["도달캔들"] = res["도달캔들(bars)"].astype(int).values
+        # ✅ 무조건 process_one에서 전달된 bars_after 사용 (정렬 이후에도 동일 행 매칭)
+        if "도달캔들(bars)" in tbl.columns:
+            tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
             def _fmt_from_bars(b):
                 total_min = int(b) * int(minutes_per_bar)
                 hh, mm = divmod(total_min, 60)
