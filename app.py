@@ -463,7 +463,7 @@ try:
         st.stop()
 
     df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
-    df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop_ge=True if False else True)  # 유지
+    df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
     # 보기 요약 텍스트
     total_min = lookahead * minutes_per_bar
