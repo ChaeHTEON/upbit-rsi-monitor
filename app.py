@@ -467,7 +467,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if row is not None:
                 res.append(row)
 
-    return pd.DataFrame(res)
+    # ✅ 동일 anchor_i(=신호 시작 캔들) 중복 제거: 표·차트와 1:1 동기화
+    if res:
+        df_res = pd.DataFrame(res).drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
+        return df_res
+    return pd.DataFrame()
 
 # -----------------------------
 # 실행
