@@ -158,7 +158,10 @@ sec_cond = st.selectbox(
 # ✅ 매물대 조건 UI 추가 (CSV 저장/불러오기 지원)
 import os
 
-CSV_FILE = "supply_levels.csv"
+# ✅ GitHub 리포에 포함시킬 매물대 CSV 경로
+CSV_FILE = os.path.join(os.path.dirname(__file__), "supply_levels.csv")
+
+# 리포에 CSV 파일이 없으면 새로 생성
 if not os.path.exists(CSV_FILE):
     pd.DataFrame(columns=["market", "level"]).to_csv(CSV_FILE, index=False)
 
