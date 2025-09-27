@@ -619,14 +619,20 @@ try:
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
-        # 2) 점선/종료 마커 (표와 1:1 동기화: anchor_i + 도달캔들(bars))
+        # 2) 점선/종료 마커 (시간축 매핑으로 a_i/e_i 재계산)
+        time_index = pd.Index(df["time"])
         for _, row in res.iterrows():
-            a_i = int(row["anchor_i"])
-            e_i = int(row["end_i"])  # ✅ process_one에서 확정 저장한 종료 인덱스 직접 사용
+            # a_i: 신호시간을 df 차트 타임라인에 매핑
+            t_anchor = pd.to_datetime(row["신호시간"])
+            a_i = int(time_index.get_indexer([t_anchor], method="nearest")[0])
+            if a_i < 0:
+                continue  # 방어
 
-            if e_i < 0:
-                e_i = 0
-            elif e_i >= len(df):
+            # e_i: 도달캔들(bars)만큼 전진 (표 기준과 1:1)
+            _bars = pd.to_numeric(row["도달캔들(bars)"], errors="coerce")
+            bars_after = int(_bars) if pd.notna(_bars) else 0
+            e_i = a_i + max(bars_after, 0)
+            if e_i >= len(df):
                 e_i = len(df) - 1
 
             x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
@@ -639,50 +645,28 @@ try:
                 showlegend=False, hoverinfo="skip"
             ))
 
-            # 성공 시, 종료 지점에 ⭐ 마커 (범례는 1회만)
-            showlegend = False
-            if row["결과"] == "성공" and not legend_emitted["성공"]:
-                showlegend = True
-                legend_emitted["성공"] = True
-
+            # 종료 마커(성공⭐/실패❌/중립❌)
             if row["결과"] == "성공":
+                showlegend = not legend_emitted["성공"]; legend_emitted["성공"] = True
                 fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="도달⭐",
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="도달⭐",
                     marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
-
-            # 실패 시, 종료 지점 ❌ (파란색)
-            showlegend = False
-            if row["결과"] == "실패" and not legend_emitted["실패"]:
-                showlegend = True
-                legend_emitted["실패"] = True
-
-            if row["결과"] == "실패":
+            elif row["결과"] == "실패":
+                showlegend = not legend_emitted["실패"]; legend_emitted["실패"] = True
                 fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="실패❌",
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="실패❌",
                     marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
-
-            # 중립 시, 종료 지점 ❌ (주황색)
-            showlegend = False
-            if row["결과"] == "중립" and not legend_emitted["중립"]:
-                showlegend = True
-                legend_emitted["중립"] = True
-
-            if row["결과"] == "중립":
+            else:  # "중립"
+                showlegend = not legend_emitted["중립"]; legend_emitted["중립"] = True
                 fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="중립❌",
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="중립❌",
                     marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
