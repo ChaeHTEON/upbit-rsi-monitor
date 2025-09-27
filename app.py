@@ -455,7 +455,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             row, lock_end = process_one(i)
             if row is not None:
                 res.append(row)
-                i = lock_end
+                # ✅ 종료 시점 이후부터만 다음 신호 탐색
+                i = lock_end + 1
             else:
                 i += 1
     else:
