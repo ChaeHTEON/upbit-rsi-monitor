@@ -158,13 +158,16 @@ sec_cond = st.selectbox(
     index=0
 )
 
-supply_filter = None
+# ✅ 매물대 조건 UI 추가 (사용자 수동 입력, 가변 행)
+manual_supply_levels = []
 if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-    supply_filter = st.selectbox(
-        "매물대 종류",
-        ["모두 포함", "양봉 매물대만", "음봉 매물대만"],
-        index=0
+    st.markdown("**매물대 가격대 직접 입력 (원 단위, 행 추가/삭제로 가변 입력)**")
+    supply_df = st.data_editor(
+        pd.DataFrame({"매물대": [0]}),
+        num_rows="dynamic",
+        use_container_width=True,
     )
+    manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
 
 st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
@@ -234,62 +237,12 @@ def add_indicators(df, bb_window, bb_dev, cci_window):
     out["CCI"] = cci.cci()
     return out
 
-@st.cache_data(ttl=3600)
-def build_supply_levels_3m_daily(market_code: str, ref_end_dt: datetime) -> Set[float]:
-    """
-    과거 3개월(약 92일) 일봉 데이터를 기반으로 매물대 가격 집합 생성
-    - 양봉: (고가, 종가)
-    - 음봉: (고가, 시가)
-    - 도지(시가==종가)는 제외
-    """
-    try:
-        start_dt = ref_end_dt - timedelta(days=92)
-        url = "https://api.upbit.com/v1/candles/days"
-        all_rows, to_time = [], None
-        for _ in range(30):
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch:
-                break
-            all_rows.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_dt:
-                break
-            to_time = last_ts - timedelta(seconds=1)
-        if not all_rows:
-            return set()
-        df_day = (pd.DataFrame(all_rows)
-                  .rename(columns={
-                      "candle_date_time_kst": "time",
-                      "opening_price": "open",
-                      "high_price": "high",
-                      "low_price": "low",
-                      "trade_price": "close",
-                  }))
-        df_day["time"] = pd.to_datetime(df_day["time"])
-        df_day = df_day[["time", "open", "high", "low", "close"]]
-        df_day = df_day[(df_day["time"] >= start_dt) & (df_day["time"] <= ref_end_dt)].sort_values("time")
-
-        levels: Set[float] = set()
-        for _, row in df_day.iterrows():
-            o, h, c = float(row["open"]), float(row["high"]), float(row["close"])
-            if c > o:      # 양봉
-                levels.add(h); levels.add(c)
-            elif c < o:    # 음봉
-                levels.add(h); levels.add(o)
-        return levels
-    except Exception:
-        return set()
-
 def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
              hit_basis="종가 기준", miss_policy="실패(권장)", bottom_mode=False,
-             supply_levels: Optional[Set[float]] = None):
-    """UI/UX 유지. 기존 로직 + 바닥탐지 + 새 2차 조건(매물대 반등) 반영."""
+             supply_levels: Optional[Set[float]] = None,
+             manual_supply_levels: Optional[list] = None):
+    """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 조건(수동 입력) 반영."""
     res = []
     n = len(df)
     thr = float(threshold_pct if isinstance(threshold_pct := thr_pct, (int, float)) else thr_pct)
@@ -399,40 +352,18 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             base_price = float(df.at[T_idx, "close"])
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-            cur_time = df.at[i, "time"]
-            past_cutoff = cur_time - timedelta(days=92)
-            df_past = df[(df["time"] < cur_time) & (df["time"] >= past_cutoff)]
-            if df_past.empty:
+            if not manual_supply_levels:
                 i += 1; continue
 
-            # 현재 종가와 가장 가까운 과거 캔들 선택
-            cur_price = float(df.at[i, "close"])
-            df_past = df_past.copy()
-            df_past["dist"] = (df_past["close"] - cur_price).abs()
-            nearest = df_past.loc[df_past["dist"].idxmin()]
-
-            # 매물대 후보
-            o_p, h_p, c_p = float(nearest["open"]), float(nearest["high"]), float(nearest["close"])
-            supply_candidates = []
-            if c_p > o_p:   # 양봉
-                if supply_filter in (None, "모두 포함", "양봉 매물대만"):
-                    supply_candidates.extend([h_p, c_p])
-            elif c_p < o_p: # 음봉
-                if supply_filter in (None, "모두 포함", "음봉 매물대만"):
-                    supply_candidates.extend([h_p, o_p])
-
-            if not supply_candidates:
-                i += 1; continue
-
-            # 현재 캔들 조건 검사
+            # 현재 캔들 값
             o = float(df.at[i, "open"])
             h = float(df.at[i, "high"])
             l = float(df.at[i, "low"])
             c = float(df.at[i, "close"])
 
             ok = False
-            for L in supply_candidates:
-                # 누적 최저가 조건: 현재 저가 == 지금까지(low[:i])의 최저가여야 함
+            for L in manual_supply_levels:
+                # 기존 로직 유지: 누적 최저가 조건 + 위→아래(터치)→반등
                 if l != df.loc[:i, "low"].min():
                     continue
                 if (o > L) and (l <= L <= h) and (c >= L):
@@ -532,7 +463,7 @@ try:
         st.stop()
 
     df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
-    df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+    df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop_ge=True if False else True)  # 유지
 
     # 보기 요약 텍스트
     total_min = lookahead * minutes_per_bar
@@ -643,23 +574,20 @@ try:
         customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
     ))
 
-    # ===== 매물대 세트 계산 =====
-    supply_levels = build_supply_levels_3m_daily(market_code, end_dt)
-
     # ===== 시뮬레이션 (중복 포함/제거) =====
     res_all = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 포함 (연속 신호 모두)",
         minutes_per_bar, market_code, bb_window, bb_dev,
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)",
-        bottom_mode=bottom_mode, supply_levels=supply_levels
+        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
     )
     res_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 제거 (연속 동일 결과 1개)",
         minutes_per_bar, market_code, bb_window, bb_dev,
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="실패(권장)",
-        bottom_mode=bottom_mode, supply_levels=supply_levels
+        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
     )
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
@@ -701,20 +629,6 @@ try:
                     marker=dict(size=8, color=color, symbol="x", line=dict(width=1, color="black")),
                     showlegend=False
                 ))
-
-        # ===== 매물대 라인 표시 =====
-        if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-            used_levels = set()
-            for _, row in res.iterrows():
-                base_price = row["기준시가"]
-                if base_price not in used_levels:
-                    fig.add_shape(
-                        type="line",
-                        xref="x", x0=df["time"].min(), x1=df["time"].max(),
-                        yref="y", y0=base_price, y1=base_price,
-                        line=dict(color="red", width=1.2)
-                    )
-                    used_levels.add(base_price)
 
     # ===== RSI 라인 및 기준선(y2) =====
     fig.add_trace(go.Scatter(
