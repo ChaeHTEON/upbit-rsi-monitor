@@ -600,16 +600,20 @@ try:
             sub = res[res["결과"] == _label]
             if sub.empty:
                 continue
+            # ✅ anchor 기준 캔들에 마커 표시
             fig.add_trace(go.Scatter(
                 x=sub["신호시간"], y=sub["기준시가"], mode="markers",
                 name=f"신호({_label})",
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
+
         legend_emitted = {"성공": False, "실패": False, "중립": False}
         for _, row in res.iterrows():
             start_x = pd.to_datetime(row["신호시간"]); start_y = float(row["기준시가"])
             end_x   = pd.to_datetime(row["종료시간"]); end_close = float(row["종료가"])
             grp = row["결과"]; color = "red" if grp == "성공" else ("blue" if grp == "실패" else "#FF9800")
+
+            # 점선 구간 표시
             fig.add_trace(go.Scatter(
                 x=[start_x, end_x], y=[start_y, end_close], mode="lines",
                 line=dict(color=color, width=1.6 if grp == "성공" else 1.0, dash="dot"),
@@ -618,6 +622,8 @@ try:
                 name=f"신호(점선)-{grp}"
             ))
             legend_emitted[grp] = True
+
+            # 종료 마커
             if grp == "성공":
                 hit_row = df.loc[df["time"] == end_x]
                 star_y = float(hit_row.iloc[0]["high"]) if not hit_row.empty else end_close
@@ -633,6 +639,15 @@ try:
                     showlegend=False
                 ))
 
+    # ===== 매수가 수평선 =====
+    if buy_price and buy_price > 0:
+        fig.add_shape(
+            type="line",
+            xref="paper", x0=0, x1=1,
+            yref="y", y0=buy_price, y1=buy_price,
+            line=dict(color="green", width=1.5, dash="dash"),
+            name="매수가"
+        )
     # ===== RSI 라인 및 기준선(y2) =====
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
