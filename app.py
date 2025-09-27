@@ -107,16 +107,24 @@ warn_box = st.empty()
 st.markdown("---")
 
 # -----------------------------
-# 이후 (조건 설정, 데이터 수집, 차트, 신호결과 등)
+# ② 조건 설정 (원래 UI 그대로 유지)
 # -----------------------------
-# ⚠️ 이 아래는 기존 초기 코드의 UI/UX 및 시뮬레이션 로직을 그대로 사용
-#     (RSI, BB, CCI, simulate(), chart_box, signal 결과 출력 등 원형 그대로 유지)
-# -----------------------------
+# ⚠️ 이하 조건 입력, 데이터 수집, 차트 출력, 신호 결과 등은
+#    초기 코드의 UI/UX와 로직을 그대로 두세요.
+#    (RSI/BB/CCI 옵션, simulate(), chart_box, ③ 요약 & 차트, ④ 신호 결과 등)
+
 try:
-    # 여기서부터는 기존 코드 로직 그대로 이어짐
-    # 예: df_raw = fetch_upbit_paged(...), df = add_indicators(...)
-    #     warn_box.warning(...) ← 범위 불일치시
-    #     차트 출력, 신호결과 출력 등
+    if start_dt > end_dt:
+        st.error("시작 시간이 종료 시간보다 이후입니다.")
+        st.stop()
+
+    # ✅ 기존 warmup 계산
+    warmup_bars = max(13, 30, 14) * 5  # (예: BB 기본=30, CCI 기본=14)
+    # 실제는 bb_window, cci_window 변수 사용
+
+    # 이후 데이터 수집(fetch_upbit_paged), 지표(add_indicators),
+    # 차트 및 신호 결과 출력 부분은 기존 코드 유지
     pass
+
 except Exception as e:
     st.error(f"오류: {e}")
