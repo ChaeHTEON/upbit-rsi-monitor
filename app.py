@@ -623,7 +623,7 @@ try:
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
         # 2) 점선/종료 마커 (anchor_i + 도달캔들(bars) → end_i로 고정)
-for _, row in res.iterrows()
+        for _, row in res.iterrows():
 
     # ===== 매수가 수평선 =====
     if buy_price and buy_price > 0:
