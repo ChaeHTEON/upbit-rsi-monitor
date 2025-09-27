@@ -384,14 +384,15 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         if hit_idx is not None:
             # ✅ 성공 → 도달 시점 기준
             bars_after = hit_idx - anchor_idx
+            reach_min = bars_after * minutes_per_bar
             end_time = df.at[hit_idx, "time"]
             end_close = target
             final_ret = thr
             result = "성공"
         else:
-            # ✅ 실패/중립 → lookahead 끝까지 고정
+            # ✅ 실패/중립 → 무조건 lookahead 마지막 캔들 기준으로 고정
             bars_after = lookahead
-            end_time = df.at[end_idx, "time"]
+            end_time = df.at[end_idx, "time"]          # ⬅ end_time 확실히 마지막 캔들로 고정
             end_close = float(df.at[end_idx, "close"])
             final_ret = (end_close / base_price - 1) * 100
             result = "실패" if final_ret <= 0 else "중립"
@@ -602,11 +603,11 @@ try:
                 continue
             # ✅ anchor 기준 캔들에 마커 표시
             fig.add_trace(go.Scatter(
-                x=sub["신호시간"], y=sub["기준시가"], mode="markers",
+                x=pd.to_datetime(sub["신호시간"]),  # ⬅ 문자열/타임존 불일치 제거
+                y=sub["기준시가"], mode="markers",
                 name=f"신호({_label})",
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
-
         legend_emitted = {"성공": False, "실패": False, "중립": False}
         for _, row in res.iterrows():
             start_x = pd.to_datetime(row["신호시간"]); start_y = float(row["기준시가"])
