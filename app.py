@@ -376,7 +376,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             c_ = float(df.at[j, "close"])
             h_ = float(df.at[j, "high"])
             price_for_hit = max(c_, h_) if hit_basis.startswith("종가 또는 고가") else (h_ if hit_basis.startswith("고가") else c_)
-            if price_for_hit >= target:
+            # ✅ float 오차 허용 (예: 0.9999배 기준으로 비교)
+            if price_for_hit >= target * 0.9999:
                 hit_idx = j
                 break
 
