@@ -305,65 +305,157 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         return None, None
 
     # --- 3) 메인 루프 ---
-    if dedup_mode.startswith("중복 제거"):
-        # ✅ 중복 제거: while 루프 유지, 첫 신호 평가가 끝날 때까지 lock
-        i = 0
-        while i < n:
-            if i not in base_sig_idx:
-                i += 1
-                continue
+        if dedup_mode.startswith("중복 제거"):
+            # ✅ 중복 제거: while 루프 유지, 첫 신호 평가가 끝날 때까지 lock
+            i = 0
+            while i < n:
+                if i not in base_sig_idx:
+                    i += 1
+                    continue
 
-            anchor_idx = i
-            signal_time = df.at[i, "time"]
-            base_price = float(df.at[i, "close"])
+                anchor_idx = i
+                signal_time = df.at[i, "time"]
+                base_price = float(df.at[i, "close"])
 
-            # 2차 조건 / 매물대 조건 / 성과 측정 동일
-            # ---------------------------------------
-            # (기존 코드 블록 동일, 내부 로직 유지)
-            # ---------------------------------------
+                # (2차 조건 / 매물대 조건 체크 있음)
 
-            res.append({
-                "신호시간": signal_time,
-                "종료시간": end_time,
-                "기준시가": int(round(base_price)),
-                "종료가": end_close,
-                "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
-                "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
-                "성공기준(%)": round(thr, 1),
-                "결과": result,
-                "도달분": reach_min,
-                "최종수익률(%)": round(final_ret, 2),
-                "최저수익률(%)": round(min_ret, 2),
-                "최고수익률(%)": round(max_ret, 2),
-            })
+                # --- 4) 성과 측정 ---
+                end_idx = anchor_idx + lookahead
+                if end_idx >= n:
+                    i += 1
+                    continue
 
-            # lock → end_idx 이후로 이동
-            i = end_idx
-    else:
-        # ✅ 중복 포함: for 루프 방식으로 모든 신호 독립 평가
-        for anchor_idx in base_sig_idx:
-            signal_time = df.at[anchor_idx, "time"]
-            base_price = float(df.at[anchor_idx, "close"])
+                win_slice = df.iloc[anchor_idx + 1:end_idx + 1]
+                end_time = df.at[end_idx, "time"]
+                end_close = float(df.at[end_idx, "close"])
+                final_ret = (end_close / base_price - 1) * 100
 
-            # 2차 조건 / 매물대 조건 / 성과 측정 동일
-            # ---------------------------------------
-            # (기존 코드 블록 동일, 내부 로직 유지)
-            # ---------------------------------------
+                min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
+                max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
-            res.append({
-                "신호시간": signal_time,
-                "종료시간": end_time,
-                "기준시가": int(round(base_price)),
-                "종료가": end_close,
-                "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
-                "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
-                "성공기준(%)": round(thr, 1),
-                "결과": result,
-                "도달분": reach_min,
-                "최종수익률(%)": round(final_ret, 2),
-                "최저수익률(%)": round(min_ret, 2),
-                "최고수익률(%)": round(max_ret, 2),
-            })
+                target = base_price * (1.0 + thr / 100.0)
+                result, reach_min, hit_idx = "중립", None, None
+
+                def _price_for_hit(j):
+                    c_ = float(df.at[j, "close"])
+                    h_ = float(df.at[j, "high"])
+                    if hit_basis.startswith("고가"):
+                        return h_
+                    if hit_basis.startswith("종가 또는 고가"):
+                        return max(c_, h_)
+                    return c_
+
+                for j in range(anchor_idx + 1, end_idx + 1):
+                    if _price_for_hit(j) >= target:
+                        hit_idx = j
+                        break
+
+                if hit_idx is not None:
+                    bars_after = hit_idx - anchor_idx
+                    reach_min = bars_after * minutes_per_bar
+                    end_time = df.at[hit_idx, "time"]
+                    end_close = target
+                    final_ret = thr
+                    result = "성공"
+                else:
+                    result = "실패" if final_ret <= 0 else "중립"
+
+                if bb_cond == "상한선":
+                    bb_value = df.at[anchor_idx, "BB_up"]
+                elif bb_cond == "중앙선":
+                    bb_value = df.at[anchor_idx, "BB_mid"]
+                elif bb_cond == "하한선":
+                    bb_value = df.at[anchor_idx, "BB_low"]
+                else:
+                    bb_value = None
+
+                res.append({
+                    "신호시간": signal_time,
+                    "종료시간": end_time,
+                    "기준시가": int(round(base_price)),
+                    "종료가": end_close,
+                    "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
+                    "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
+                    "성공기준(%)": round(thr, 1),
+                    "결과": result,
+                    "도달분": reach_min,
+                    "최종수익률(%)": round(final_ret, 2),
+                    "최저수익률(%)": round(min_ret, 2),
+                    "최고수익률(%)": round(max_ret, 2),
+                })
+
+                i = end_idx
+        else:
+            # ✅ 중복 포함: for 루프 방식으로 모든 신호 독립 평가
+            for anchor_idx in base_sig_idx:
+                signal_time = df.at[anchor_idx, "time"]
+                base_price = float(df.at[anchor_idx, "close"])
+
+                # (2차 조건 / 매물대 조건 체크 있음)
+
+                # --- 4) 성과 측정 ---
+                end_idx = anchor_idx + lookahead
+                if end_idx >= n:
+                    continue
+
+                win_slice = df.iloc[anchor_idx + 1:end_idx + 1]
+                end_time = df.at[end_idx, "time"]
+                end_close = float(df.at[end_idx, "close"])
+                final_ret = (end_close / base_price - 1) * 100
+
+                min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
+                max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
+
+                target = base_price * (1.0 + thr / 100.0)
+                result, reach_min, hit_idx = "중립", None, None
+
+                def _price_for_hit(j):
+                    c_ = float(df.at[j, "close"])
+                    h_ = float(df.at[j, "high"])
+                    if hit_basis.startswith("고가"):
+                        return h_
+                    if hit_basis.startswith("종가 또는 고가"):
+                        return max(c_, h_)
+                    return c_
+
+                for j in range(anchor_idx + 1, end_idx + 1):
+                    if _price_for_hit(j) >= target:
+                        hit_idx = j
+                        break
+
+                if hit_idx is not None:
+                    bars_after = hit_idx - anchor_idx
+                    reach_min = bars_after * minutes_per_bar
+                    end_time = df.at[hit_idx, "time"]
+                    end_close = target
+                    final_ret = thr
+                    result = "성공"
+                else:
+                    result = "실패" if final_ret <= 0 else "중립"
+
+                if bb_cond == "상한선":
+                    bb_value = df.at[anchor_idx, "BB_up"]
+                elif bb_cond == "중앙선":
+                    bb_value = df.at[anchor_idx, "BB_mid"]
+                elif bb_cond == "하한선":
+                    bb_value = df.at[anchor_idx, "BB_low"]
+                else:
+                    bb_value = None
+
+                res.append({
+                    "신호시간": signal_time,
+                    "종료시간": end_time,
+                    "기준시가": int(round(base_price)),
+                    "종료가": end_close,
+                    "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
+                    "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
+                    "성공기준(%)": round(thr, 1),
+                    "결과": result,
+                    "도달분": reach_min,
+                    "최종수익률(%)": round(final_ret, 2),
+                    "최저수익률(%)": round(min_ret, 2),
+                    "최고수익률(%)": round(max_ret, 2),
+                })
 
     return pd.DataFrame(res)
 
