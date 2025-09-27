@@ -390,9 +390,12 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             final_ret = thr
             result = "성공"
         else:
-            # ✅ 실패/중립 → lookahead 마지막 캔들 기준으로 완전 고정
+            # ✅ 실패/중립 → bars_after(lookahead) 기준으로 마지막 캔들 고정
             bars_after = lookahead
-            end_idx = min(anchor_idx + lookahead, n - 1)   # 안전 보정
+            end_idx = anchor_idx + bars_after
+            if end_idx >= n:
+                end_idx = n - 1
+                bars_after = end_idx - anchor_idx  # 실제 남은 봉으로 보정
             end_time = df.at[end_idx, "time"]
             end_close = float(df.at[end_idx, "close"])
             final_ret = (end_close / base_price - 1) * 100
