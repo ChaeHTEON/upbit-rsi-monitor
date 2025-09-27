@@ -372,58 +372,65 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if not ok:
                 return None, None
 
-        # --- 성과 측정 ---
-        end_idx = anchor_idx + lookahead
-        if end_idx >= n:
-            return None, None
+        # --- 성과 측정 (단일 공식) ---
+        end_scan = min(anchor_idx + lookahead, n - 1)
 
-        win_slice = df.iloc[anchor_idx + 1:end_idx + 1]
+        win_slice = df.iloc[anchor_idx + 1:end_scan + 1]
         min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
         max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
         target = base_price * (1.0 + thr / 100.0)
         hit_idx = None
-        for j in range(anchor_idx + 1, end_idx + 1):
+        for j in range(anchor_idx + 1, end_scan + 1):
             c_ = float(df.at[j, "close"])
             h_ = float(df.at[j, "high"])
             price_for_hit = max(c_, h_) if hit_basis.startswith("종가 또는 고가") else (h_ if hit_basis.startswith("고가") else c_)
-            # ✅ float 오차 허용 (예: 0.9999배 기준으로 비교)
-            if price_for_hit >= target * 0.9999:
+            if price_for_hit >= target * 0.9999:  # float 오차 허용
                 hit_idx = j
                 break
 
-                if hit_idx is not None:
+        if hit_idx is not None:
             end_i = hit_idx
-            result = "성공"
+            end_close = target
             final_ret = thr
+            result = "성공"
         else:
-            end_i = min(anchor_idx + lookahead, n - 1)
+            end_i = end_scan  # 실패/중립은 anchor+lookahead(상한 n-1)
             end_close = float(df.at[end_i, "close"])
             final_ret = (end_close / base_price - 1) * 100
             result = "실패" if final_ret <= 0 else "중립"
 
-        bars_after = end_i - anchor_idx
+        bars_after = int(end_i - anchor_idx)              # ✅ 항상 end_i - anchor_i
         reach_min = bars_after * minutes_per_bar
         end_time = df.at[end_i, "time"]
+
+        # BB 값
+        bb_value = None
+        if bb_cond == "상한선":
+            bb_value = df.at[anchor_idx, "BB_up"]
+        elif bb_cond == "중앙선":
+            bb_value = df.at[anchor_idx, "BB_mid"]
+        elif bb_cond == "하한선":
+            bb_value = df.at[anchor_idx, "BB_low"]
 
         row = {
             "신호시간": signal_time,
             "종료시간": end_time,
             "기준시가": int(round(base_price)),
-            "종료가": target if result == "성공" else float(df.at[end_i, "close"]),
+            "종료가": end_close,
             "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
             "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "도달분": reach_min,
-            "도달캔들(bars)": int(bars_after),
+            "도달캔들(bars)": bars_after,       # ✅ 표와 차트의 공통 기준
             "최종수익률(%)": round(final_ret, 2),
             "최저수익률(%)": round(min_ret, 2),
             "최고수익률(%)": round(max_ret, 2),
             "anchor_i": int(anchor_idx),
-            "end_i": int(end_i),
+            "end_i": int(end_i),                 # ✅ 차트는 이 값을 그대로 사용
         }
-        return row, end_idx
+        return row, end_i                          # ✅ dedup 스킵 기준도 end_i
 
     # --- 4) 메인 루프 (중복 포함/제거 분기) ---
     if dedup_mode.startswith("중복 제거"):
