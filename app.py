@@ -141,20 +141,27 @@ def process_one(df, i0, thr, lookahead, minutes_per_bar, hit_basis, bb_cond, sec
 # -----------------------------
 try:
     # ===== 사이드바 입력 =====
-    symbol = st.sidebar.selectbox("마켓 선택", ["KRW-BTC", "KRW-ETH", "KRW-XRP"], index=0)
-interval = st.sidebar.selectbox(
-    "봉 간격",
-    ["minutes/1", "minutes/5", "minutes/15", "minutes/60", "days"],
-    index=2
-)
+    symbol = st.sidebar.selectbox(
+        "마켓 선택",
+        ["KRW-BTC", "KRW-ETH", "KRW-XRP"],
+        index=0
+    )
+
+    # Upbit API 규칙에 맞는 interval 값 사용
+    interval = st.sidebar.selectbox(
+        "봉 간격",
+        ["minutes/1", "minutes/5", "minutes/15", "minutes/60", "days"],
+        index=2
+    )
+
     count = st.sidebar.slider("조회 캔들 수", min_value=50, max_value=500, value=200, step=10)
-    to = None  # 최신 시점까지 불러오기 (필요시 날짜 선택 위젯 연결)
+    to = None  # 최신 시점까지 불러오기
 
     # 데이터 수집 및 지표
     df = fetch_upbit(symbol, interval, count, to)
     df = add_indicators(df)
 
-    # (시뮬레이션 및 신호 계산 루프: 최신 코드 유지 → res_all, res_dedup 생성)
+    # (시뮬레이션 및 신호 계산 루프 → res_all, res_dedup 생성)
 
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
@@ -221,7 +228,7 @@ interval = st.sidebar.selectbox(
                     showlegend=showlegend
                 ))
 
-    # (이후 ③ 요약 및 차트, ④ 신호결과 테이블 표시: 최신 코드 유지)
+    # (이후 ③ 요약, 차트 표시, ④ 신호결과 테이블 표시: 최신 코드 유지)
 
 except Exception as e:
     st.error(f"오류: {e}")
