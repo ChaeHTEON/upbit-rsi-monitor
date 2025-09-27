@@ -351,10 +351,14 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             l = float(df.at[i0, "low"])
             c = float(df.at[i0, "close"])
             ok = False
+            lowest_up_to_now = df.loc[:i0, "low"].min()
             for L in manual_supply_levels:
-                if l != df.loc[:i0, "low"].min():
-                    continue
-                if (o > L) and (l <= L <= h) and (c >= L):
+                Lf = float(L)
+                is_new_low = (l == lowest_up_to_now)           # 현재 봉이 최저 저가 갱신 봉
+                opened_above = (o > Lf)                         # 시가가 매물대 위
+                touched = (l <= Lf <= h)                        # 장중 매물대 터치/관통
+                closed_back_above = (c >= Lf)                   # 종가가 매물대 위로 회복
+                if is_new_low and opened_above and touched and closed_back_above:
                     ok = True
                     break
             if not ok:
