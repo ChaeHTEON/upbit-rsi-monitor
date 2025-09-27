@@ -367,19 +367,16 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             return None, None
 
         win_slice = df.iloc[anchor_idx + 1:end_idx + 1]
-        end_time = df.at[end_idx, "time"]
-        end_close = float(df.at[end_idx, "close"])
-        final_ret = (end_close / base_price - 1) * 100
-
         min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
         max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
         target = base_price * (1.0 + thr / 100.0)
         result, hit_idx = "중립", None
-
-        # ✅ 표시의 일관성을 위해 인덱스 기반 막대수로 고정
-        bars_after = lookahead               # 기본: 실패/중립은 전체 lookahead
+        bars_after = lookahead
         reach_min = bars_after * minutes_per_bar
+        end_time = df.at[end_idx, "time"]
+        end_close = float(df.at[end_idx, "close"])
+        final_ret = (end_close / base_price - 1) * 100
 
         def _price_for_hit(j):
             c_ = float(df.at[j, "close"])
@@ -388,7 +385,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 return h_
             if hit_basis.startswith("종가 또는 고가"):
                 return max(c_, h_)
-            return c_  # 종가 기준(고정)
+            return c_
 
         for j in range(anchor_idx + 1, end_idx + 1):
             if _price_for_hit(j) >= target:
@@ -396,7 +393,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 break
 
         if hit_idx is not None:
-            # ✅ 성공: 도달 시점에서 종료
             bars_after = hit_idx - anchor_idx
             reach_min = bars_after * minutes_per_bar
             end_time = df.at[hit_idx, "time"]
@@ -404,12 +400,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             final_ret = thr
             result = "성공"
         else:
-            # ✅ 실패/중립: 반드시 lookahead 끝까지 고정
-            bars_after = end_idx - anchor_idx   # (= lookahead)
-            reach_min = bars_after * minutes_per_bar
-            end_time = df.at[end_idx, "time"]
-            end_close = float(df.at[end_idx, "close"])
-            # final_ret는 위에서 end_idx 종가 기준으로 이미 계산됨
             result = "실패" if final_ret <= 0 else "중립"
 
         # BB 값
