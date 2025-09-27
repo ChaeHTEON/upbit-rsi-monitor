@@ -597,7 +597,7 @@ try:
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 제거 (연속 동일 결과 1개)",
         minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립)",
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
     )
     # ↑ 주의: miss_policy 문자열 오탈자 방지 위해 위 괄호 닫힘 확인 필요. 잘못되면 아래처럼 고정 사용:
@@ -622,7 +622,35 @@ try:
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
         # 2) 점선/종료 마커 (anchor_i + 도달캔들(bars) → end_i로 고정)
-for _, row in res.iterrows()
+        for _, row in res.iterrows():
+            a_i = int(row["anchor_i"])
+            e_i = int(row["end_i"])
+
+            x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
+            y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
+
+            # 점선(신호~종료 구간)
+            fig.add_trace(go.Scatter(
+                x=x_seg, y=y_seg, mode="lines",
+                line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
+                showlegend=False, hoverinfo="skip"
+            ))
+
+            # 성공 시, 종료 지점에 ⭐ 마커 (범례는 1회만)
+            showlegend = False
+            if row["결과"] == "성공" and not legend_emitted["성공"]:
+                showlegend = True
+                legend_emitted["성공"] = True
+
+            if row["결과"] == "성공":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]],
+                    y=[float(df.at[e_i, "close"])],
+                    mode="markers",
+                    name="도달⭐",
+                    marker=dict(size=12, symbol="star", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
 
     # ===== 매수가 수평선 =====
     if buy_price and buy_price > 0:
