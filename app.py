@@ -85,14 +85,15 @@ dup_mode = st.radio(
 )
 
 # -----------------------------
-# ① 기본 설정 (날짜 + 시간 컨트롤)
+# ① 기본 설정 (날짜+시간)
 # -----------------------------
 st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
 
 KST = timezone("Asia/Seoul")
-now_kst = datetime.now(KST)
-default_start_dt = now_kst - timedelta(hours=24)
-default_end_dt = now_kst
+now_kst = datetime.now(KST)              # tz-aware
+now = now_kst.replace(tzinfo=None)       # ✅ 비교/요청용: tz-naive(KST 기준 시간값)
+default_start_dt = now - timedelta(hours=24)
+default_end_dt = now
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
@@ -108,17 +109,18 @@ with c4:
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 
-# ✅ 시작/종료 datetime 결합
+# ✅ 시작/종료 datetime 결합 (naive, KST 기준 시각값)
 start_dt = datetime.combine(start_date, start_time)
 end_dt   = datetime.combine(end_date, end_time)
 
-today_kst = now_kst.date()
+today = now.date()
+
 # ✅ 종료 보정 (일봉/분봉)
-if interval_key == "days" and end_date >= today_kst:
+if interval_key == "days" and end_date >= today:
     st.info("일봉은 당일 데이터가 제공되지 않습니다. 전일까지로 보정합니다.")
-    end_dt = datetime.combine(today_kst - timedelta(days=1), datetime.max.time())
-elif end_dt > now_kst:
-    end_dt = now_kst
+    end_dt = datetime.combine(today - timedelta(days=1), datetime.max.time())
+elif end_dt > now:
+    end_dt = now
 
 # ✅ 경고 메시지를 기본 설정 UI 바로 아래에 고정할 placeholder
 warn_box = st.empty()
@@ -136,19 +138,11 @@ with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-    hit_basis = st.selectbox(
-        "성공 판정 기준",
-        ["종가 기준", "고가 기준(스침 인정)", "종가 또는 고가"],
-        index=0
-    )
+    hit_basis = st.selectbox("성공 판정 기준", ["종가 기준", "고가 기준(스침 인정)", "종가 또는 고가"], index=0)
 with c6:
     r1, r2, r3 = st.columns(3)
     with r1:
-        rsi_mode = st.selectbox(
-            "RSI 조건",
-            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
-            index=0
-        )
+        rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], index=0)
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
@@ -162,7 +156,7 @@ with c8:
 with c9:
     bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
-# --- 바닥탐지 옵션 자리(유지) ---
+# 바닥탐지/CCI (자리 유지)
 c10, c11, c12 = st.columns(3)
 with c10:
     bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False,
@@ -180,11 +174,7 @@ sec_cond = st.selectbox(
 )
 supply_filter = None
 if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-    supply_filter = st.selectbox(
-        "매물대 종류",
-        ["모두 포함", "양봉 매물대만", "음봉 매물대만"],
-        index=0
-    )
+    supply_filter = st.selectbox("매물대 종류", ["모두 포함", "양봉 매물대만", "음봉 매물대만"], index=0)
 
 st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
@@ -199,11 +189,10 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 def fetch_upbit_paged(market_code: str, interval_key: str,
                       start_dt: datetime, end_dt: datetime,
                       minutes_per_bar: int, warmup_bars: int = 0) -> pd.DataFrame:
-    """Upbit 캔들 페이징 수집 (워밍업 포함). 최신→과거 방향으로 페이징."""
-    if warmup_bars and warmup_bars > 0:
-        start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
-    else:
-        start_cutoff = start_dt
+    """Upbit 캔들 페이징 수집 (워밍업 포함). 최신→과거 방향으로 페이징.
+       모든 시각은 KST 기준 naive(오프셋 없음)로 처리."""
+    # 워밍업: 지표 안정화 위해 앞쪽 버퍼 확보
+    start_cutoff = start_dt - timedelta(minutes=max(0, warmup_bars) * minutes_per_bar)
 
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
@@ -211,14 +200,10 @@ def fetch_upbit_paged(market_code: str, interval_key: str,
     else:
         url = "https://api.upbit.com/v1/candles/days"
 
-    all_data, to_time = [], None
+    all_data, to_time = [], end_dt
     try:
         for _ in range(60):  # 최대 12,000봉
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                params["to"] = end_dt.strftime("%Y-%m-%d %H:%M:%S")
+            params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
             r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
             r.raise_for_status()
             batch = r.json()
@@ -228,7 +213,7 @@ def fetch_upbit_paged(market_code: str, interval_key: str,
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
             if last_ts <= start_cutoff:
                 break
-            to_time = last_ts - timedelta(seconds=1)
+            to_time = (last_ts - timedelta(seconds=1))
     except Exception:
         return pd.DataFrame()
 
@@ -243,7 +228,7 @@ def fetch_upbit_paged(market_code: str, interval_key: str,
         "trade_price": "close",
         "candle_acc_trade_volume": "volume",
     })
-    df["time"] = pd.to_datetime(df["time"])
+    df["time"] = pd.to_datetime(df["time"])  # KST 문자열 → naive datetime
     df = df[["time", "open", "high", "low", "close", "volume"]].sort_values("time").reset_index(drop=True)
     return df[(df["time"] >= start_cutoff) & (df["time"] <= end_dt)]
 
@@ -260,60 +245,11 @@ def add_indicators(df: pd.DataFrame, bb_window: int, bb_dev: float, cci_window: 
     out["CCI"] = cci.cci()
     return out
 
-@st.cache_data(ttl=3600)
-def build_supply_levels_3m_daily(market_code: str, ref_end_dt: datetime) -> Set[float]:
-    """과거 3개월(약 92일) 일봉 데이터를 기반으로 매물대 가격 집합 생성."""
-    try:
-        start_dt = ref_end_dt - timedelta(days=92)
-        url = "https://api.upbit.com/v1/candles/days"
-        all_rows, to_time = [], None
-        for _ in range(30):
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                params["to"] = ref_end_dt.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch:
-                break
-            all_rows.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_dt:
-                break
-            to_time = last_ts - timedelta(seconds=1)
-        if not all_rows:
-            return set()
-        df_day = (pd.DataFrame(all_rows)
-                  .rename(columns={
-                      "candle_date_time_kst": "time",
-                      "opening_price": "open",
-                      "high_price": "high",
-                      "low_price": "low",
-                      "trade_price": "close",
-                  }))
-        df_day["time"] = pd.to_datetime(df_day["time"])
-        df_day = df_day[["time", "open", "high", "low", "close"]]
-        df_day = df_day[(df_day["time"] >= start_dt) & (df_day["time"] <= ref_end_dt)].sort_values("time")
-        levels: Set[float] = set()
-        for _, row in df_day.iterrows():
-            o, h, c = float(row["open"]), float(row["high"]), float(row["close"])
-            if c > o:      # 양봉
-                levels.add(h); levels.add(c)
-            elif c < o:    # 음봉
-                levels.add(h); levels.add(o)
-        return levels
-    except Exception:
-        return set()
-
 def simulate(df: pd.DataFrame) -> pd.DataFrame:
-    """(자리 유지용) 간단한 신호 테이블 반환. 필요 시 고도화."""
-    # 여기서는 신호 로직을 최소화하여 빈 테이블 또는 더미 출력
+    """자리 유지용 더미 신호 (필요시 기존 신호 로직 붙이면 됨)"""
     cols = ["time", "type", "price", "result", "note"]
     if df.empty:
         return pd.DataFrame(columns=cols)
-    # 예시: 최근 1개 캔들 기준 더미 행 (UI 자리 유지)
     last = df.iloc[-1]
     return pd.DataFrame([{
         "time": last["time"],
@@ -331,7 +267,7 @@ try:
         st.error("시작 시간이 종료 시간보다 이후입니다.")
         st.stop()
 
-    # 워밍업 바 동적 조정 (짧은 구간일 때 과도 방지)
+    # 워밍업 바 동적 조정 (짧은 구간 과도 방지)
     span_days = (end_dt - start_dt).total_seconds() / 86400.0
     base_warm = max(13, int(bb_window), int(cci_window))
     warmup_bars = base_warm * (2 if span_days <= 1.2 else 5)
@@ -361,37 +297,22 @@ try:
     if df.empty:
         st.info("표시할 차트 데이터가 없습니다.")
     else:
-        # 요약 텍스트
         st.markdown(
             f"- 표본 캔들 수: **{len(df)}**개  |  "
             f"표시 구간: **{df['time'].min()} ~ {df['time'].max()}**  |  "
             f"봉: **{tf_label}**",
             unsafe_allow_html=True
         )
-
-        # 차트
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.06,
                             row_heights=[0.72, 0.28], specs=[[{"secondary_y": False}], [{"secondary_y": False}]])
-        fig.add_trace(go.Candlestick(
-            x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
-            name="Price"
-        ), row=1, col=1)
-
-        # BB 라인
-        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"], mode="lines", name="BB Upper"), row=1, col=1)
+        fig.add_trace(go.Candlestick(x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"], name="Price"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_up"],  mode="lines", name="BB Upper"),  row=1, col=1)
         fig.add_trace(go.Scatter(x=df["time"], y=df["BB_mid"], mode="lines", name="BB Middle"), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"], mode="lines", name="BB Lower"), row=1, col=1)
-
-        # RSI 서브차트
-        fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"], mode="lines", name="RSI(13)"), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df["time"], y=df["BB_low"],  mode="lines", name="BB Lower"),  row=1, col=1)
+        fig.add_trace(go.Scatter(x=df["time"], y=df["RSI13"],   mode="lines", name="RSI(13)"),   row=2, col=1)
         fig.update_yaxes(title_text="Price", row=1, col=1)
         fig.update_yaxes(title_text="RSI(13)", row=2, col=1, range=[0, 100])
-
-        fig.update_layout(
-            margin=dict(l=10, r=10, t=10, b=10),
-            xaxis_rangeslider_visible=False,
-            uirevision="chart-static"
-        )
+        fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), xaxis_rangeslider_visible=False, uirevision="chart-static")
         with chart_box:
             st.plotly_chart(fig, use_container_width=True)
 
@@ -405,8 +326,8 @@ try:
     if res.empty:
         st.info("신호 없음")
     else:
-        res_sorted = res.sort_values("time", ascending=False).reset_index(drop=True)
-        st.dataframe(res_sorted, use_container_width=True, hide_index=True)
+        st.dataframe(res.sort_values("time", ascending=False).reset_index(drop=True),
+                     use_container_width=True, hide_index=True)
 
 except Exception as e:
     st.error(f"오류: {e}")
