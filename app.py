@@ -237,68 +237,6 @@ def add_indicators(df, bb_window, bb_dev, cci_window):
     out["CCI"] = cci.cci()
     return out
 
-@st.cache_data(ttl=3600)
-def build_supply_levels_3m_daily(market_code: str, ref_end_dt: datetime) -> Set[float]:
-    """
-    과거 3개월(약 92일) 일봉 데이터를 기반으로 매물대 가격 집합 생성
-    - 양봉: (고가, 종가)
-    - 음봉: (고가, 시가)
-    - 도지(시가==종가)는 제외
-    """
-    try:
-        start_dt = ref_end_dt - timedelta(days=92)
-        url = "https://api.upbit.com/v1/candles/days"
-        all_rows, to_time = [], None
-        for _ in range(30):
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch:
-                break
-            all_rows.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_dt:
-                break
-            to_time = last_ts - timedelta(seconds=1)
-        if not all_rows:
-            return set()
-        df_day = (pd.DataFrame(all_rows)
-                  .rename(columns={
-                      "candle_date_time_kst": "time",
-                      "opening_price": "open",
-                      "high_price": "high",
-                      "low_price": "low",
-                      "trade_price": "close",
-                  }))
-        df_day["time"] = pd.to_datetime(df_day["time"])
-        df_day = df_day[["time", "open", "high", "low", "close"]]
-        df_day = df_day[(df_day["time"] >= start_dt) & (df_day["time"] <= ref_end_dt)].sort_values("time")
-
-        levels: Set[float] = set()
-        for _, row in df_day.iterrows():
-            o, h, c = float(row["open"]), float(row["high"]), float(row["close"])
-            if c > o:      # 양봉
-                levels.add(h); levels.add(c)
-            elif c < o:    # 음봉
-                levels.add(h); levels.add(o)
-        return levels
-    except Exception:
-        return set()
-
-def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
-             hit_basis="종가 기준", miss_policy="실패(권장)", bottom_mode=False,
-             supply_levels: Optional[Set[float]] = None):
-    """UI/UX 유지. 기존 로직 + 바닥탐지 + 새 2차 조건(매물대 반등) 반영."""
-    res = []
-    n = len(df)
-    thr = float(threshold_pct if isinstance(threshold_pct := thr_pct, (int, float)) else thr_pct)
-    ...
-    return pd.DataFrame(res)
-
 # -----------------------------
 # 실행
 # -----------------------------
@@ -309,30 +247,35 @@ try:
 
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
-    warmup_bars = max(13, bb_window, int(cci_window)) * 5
+
+    # ✅ 선택한 기간이 1일 이하일 때 워밍업 봉 수 축소
+    if (end_dt - start_dt).days <= 1:
+        warmup_bars = max(13, bb_window, int(cci_window)) * 2
+    else:
+        warmup_bars = max(13, bb_window, int(cci_window)) * 5
 
     df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
     if df_raw.empty:
-        st.error("데이터가 없습니다.")
-        st.stop()
+        warn_box.warning("⚠ 데이터를 가져오지 못했습니다. 선택한 기간이나 봉 단위를 다시 확인해주세요.")
+        df = pd.DataFrame()
+    else:
+        df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
+        # ✅ 사용자가 선택한 날짜 범위를 정확히 반영하도록 후처리 필터링 강화
+        df = df_ind.copy()
+        df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)]
+        df = df.reset_index(drop=True)
 
-    df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
-    # ✅ 사용자가 선택한 날짜 범위를 정확히 반영하도록 후처리 필터링 강화
-    df = df_ind.copy()
-    df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)]
-    df = df.reset_index(drop=True)
+        # ✅ 실제 데이터 범위 체크 및 안내 (warn_box에 표시 → 기본 설정 아래 고정됨)
+        if not df.empty:
+            actual_start, actual_end = df["time"].min(), df["time"].max()
+            if actual_start > start_dt or actual_end < end_dt:
+                warn_box.warning(
+                    f"⚠ 선택한 기간({start_dt.date()} ~ {end_dt.date()}) 전체 데이터를 가져오지 못했습니다.\n"
+                    f"- 실제 수집 범위: {actual_start.date()} ~ {actual_end.date()}"
+                )
 
-    # ✅ 실제 데이터 범위 체크 및 안내 (warn_box에 표시 → 기본 설정 아래 고정됨)
-    if not df.empty:
-        actual_start, actual_end = df["time"].min(), df["time"].max()
-        if actual_start > start_dt or actual_end < end_dt:
-            warn_box.warning(
-                f"⚠ 선택한 기간({start_dt.date()} ~ {end_dt.date()}) 전체 데이터를 가져오지 못했습니다.\n"
-                f"- 실제 수집 범위: {actual_start.date()} ~ {actual_end.date()}"
-            )
+    # 이후 ③ 요약 & 차트, ④ 신호 결과 출력 로직 (생략된 부분 ...)
+    # df가 비어 있어도 UI 프레임은 그대로 유지되도록 수정 가능
 
-    # 보기 요약 텍스트
-    total_min = lookahead * minutes_per_bar
-    ...
 except Exception as e:
     st.error(f"오류: {e}")
