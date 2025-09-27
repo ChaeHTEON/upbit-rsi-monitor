@@ -532,7 +532,28 @@ try:
         st.stop()
 
     df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
-    df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+    # ✅ 사용자가 선택한 날짜 범위를 정확히 반영하도록 후처리 필터링 강화
+    df = df_ind.copy()
+    df = df[(df["time"] >= start_dt) & (df["time"] <= end_dt)]
+    df = df.reset_index(drop=True)
+
+    # ✅ 실제 데이터 범위 체크 및 안내
+    if not df.empty:
+        actual_start, actual_end = df["time"].min(), df["time"].max()
+        # 1. 최대 이론 수집 가능 일수 계산 (Upbit API: 200봉 × 60페이지 = 최대 12,000봉)
+        if "minutes/" in interval_key:
+            unit_min = minutes_per_bar
+            max_days = int((12000 * unit_min) / 1440)  # 분봉을 일수로 환산
+        else:
+            max_days = 12000  # 일봉은 충분히 넉넉하게 설정
+
+        # 2. 선택한 범위 vs 실제 데이터 비교
+        if actual_start > start_dt or actual_end < end_dt:
+            st.warning(
+                f"⚠ 선택한 기간({start_dt.date()} ~ {end_dt.date()}) 전체를 가져오지 못했습니다.\n"
+                f"- 봉 단위: {tf_label}, 최대 약 {max_days}일치 수집 가능\n"
+                f"- 실제 수집 범위: {actual_start.date()} ~ {actual_end.date()}"
+            )
 
     # 보기 요약 텍스트
     total_min = lookahead * minutes_per_bar
