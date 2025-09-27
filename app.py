@@ -390,9 +390,10 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             final_ret = thr
             result = "성공"
         else:
-            # ✅ 실패/중립 → 무조건 lookahead 마지막 캔들 기준으로 고정
+            # ✅ 실패/중립 → lookahead 마지막 캔들 기준으로 완전 고정
             bars_after = lookahead
-            end_time = df.at[end_idx, "time"]          # ⬅ end_time 확실히 마지막 캔들로 고정
+            end_idx = min(anchor_idx + lookahead, n - 1)   # 안전 보정
+            end_time = df.at[end_idx, "time"]
             end_close = float(df.at[end_idx, "close"])
             final_ret = (end_close / base_price - 1) * 100
             result = "실패" if final_ret <= 0 else "중립"
