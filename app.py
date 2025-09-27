@@ -103,9 +103,8 @@ with c4:
 
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 
-# ✅ 경고 메시지를 기본 설정 UI 바로 아래에 고정할 컨테이너 예약
-warn_box = st.container()
-warn_box.empty()  # 초기에는 아무 것도 표시하지 않음
+# ✅ 경고 메시지를 기본 설정 UI 바로 아래에 고정할 placeholder 예약
+warn_box = st.empty()
 st.markdown("---")
 
 # ✅ 차트 컨테이너
@@ -327,11 +326,10 @@ try:
     if not df.empty:
         actual_start, actual_end = df["time"].min(), df["time"].max()
         if actual_start > start_dt or actual_end < end_dt:
-            with warn_box:
-                st.warning(
-                    f"⚠ 선택한 기간({start_dt.date()} ~ {end_dt.date()}) 전체 데이터를 가져오지 못했습니다.\n"
-                    f"- 실제 수집 범위: {actual_start.date()} ~ {actual_end.date()}"
-                )
+            warn_box.warning(
+                f"⚠ 선택한 기간({start_dt.date()} ~ {end_dt.date()}) 전체 데이터를 가져오지 못했습니다.\n"
+                f"- 실제 수집 범위: {actual_start.date()} ~ {actual_end.date()}"
+            )
 
     # 보기 요약 텍스트
     total_min = lookahead * minutes_per_bar
