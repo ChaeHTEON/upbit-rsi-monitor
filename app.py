@@ -105,6 +105,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 
 # ✅ 경고 메시지를 기본 설정 UI 바로 아래에 고정할 컨테이너 예약
 warn_box = st.container()
+warn_box.empty()  # 초기에는 아무 것도 표시하지 않음
 st.markdown("---")
 
 # ✅ 차트 컨테이너
