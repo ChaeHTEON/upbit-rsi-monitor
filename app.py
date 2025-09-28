@@ -945,7 +945,7 @@ try:
         total_final = df_in["최종수익률(%)"].sum()
         return total, succ, fail, neu, win, total_final
 
-    for label, data in [("중복 포함 (연속 신호 모두)", res_all), ("중복 제거 (연속 동일 결과 1개)", res_dedup)]:
+    for label, data in [("중복 제거 (연속 동일 결과 1개)", res_dedup), ("중복 포함 (연속 신호 모두)", res_all)]:
         total, succ, fail, neu, win, total_final = _summarize(data)
         st.markdown(f"**{label}**")
         m1, m2, m3, m4, m5, m6 = st.columns(6)
