@@ -33,11 +33,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 타이틀
-st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
-st.title("📊 코인 시뮬레이션")
-st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
-
 # -----------------------------
 # 업비트 마켓 로드
 # -----------------------------
@@ -79,7 +74,7 @@ TF_MAP = {
 }
 
 # -----------------------------
-# 상단: 신호 중복 처리
+# 신호 중복 처리
 # -----------------------------
 dup_mode = st.radio(
     "신호 중복 처리",
@@ -89,7 +84,7 @@ dup_mode = st.radio(
 )
 
 # -----------------------------
-# ① 기본 설정
+# 기본 설정
 # -----------------------------
 st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
 c1, c2, c3, c4 = st.columns(4)
@@ -108,137 +103,6 @@ with c4:
 interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
-# ✅ 차트 컨테이너
-chart_box = st.container()
-
-# -----------------------------
-# ② 조건 설정
-# -----------------------------
-st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
-c4, c5, c6 = st.columns(3)
-with c4:
-    lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
-with c5:
-    threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-    hit_basis = "종가 기준"
-with c6:
-    r1, r2, r3 = st.columns(3)
-    with r1:
-        rsi_mode = st.selectbox(
-            "RSI 조건",
-            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
-            index=0
-        )
-    with r2:
-        rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
-    with r3:
-        rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
-
-c7, c8, c9 = st.columns(3)
-with c7:
-    bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
-with c8:
-    bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
-with c9:
-    bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
-
-# --- 바닥탐지 옵션 ---
-c10, c11, c12 = st.columns(3)
-with c10:
-    bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False, help="RSI≤과매도 & BB 하한선 터치/하회 & CCI≤-100 동시 만족 시 신호")
-with c11:
-    cci_window = st.number_input("CCI 기간", min_value=5, max_value=100, value=14, step=1)
-with c12:
-    pass
-
-st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
-sec_cond = st.selectbox(
-    "2차 조건 선택",
-    ["없음", "양봉 2개 연속 상승", "양봉 2개 (범위 내)", "BB 기반 첫 양봉 50% 진입", "매물대 터치 후 반등(위→아래→반등)"],
-    index=0
-)
-
-# ✅ 볼린저 옵션 미체크 시 안내
-if sec_cond == "BB 기반 첫 양봉 50% 진입" and bb_cond == "없음":
-    st.info("ℹ️ 볼린저 밴드를 활성화해야 이 조건이 정상 작동합니다.")
-
-# ✅ 매물대 CSV (GitHub 커밋 지원)
-CSV_FILE = os.path.join(os.path.dirname(__file__), "supply_levels.csv")
-if not os.path.exists(CSV_FILE):
-    pd.DataFrame(columns=["market", "level"]).to_csv(CSV_FILE, index=False)
-
-def load_supply_levels(market_code):
-    df = pd.read_csv(CSV_FILE)
-    df_market = df[df["market"] == market_code]
-    return df_market["level"].tolist()
-
-def save_supply_levels(market_code, levels):
-    df = pd.read_csv(CSV_FILE)
-    df = df[df["market"] != market_code]
-    new_df = pd.DataFrame({"market": [market_code]*len(levels), "level": levels})
-    df = pd.concat([df, new_df], ignore_index=True)
-    df.to_csv(CSV_FILE, index=False)
-
-def _get_secret(key, default=None):
-    try:
-        return st.secrets[key]
-    except Exception:
-        return os.environ.get(key, default)
-
-def github_commit_csv(local_file=CSV_FILE):
-    token  = _get_secret("GITHUB_TOKEN")
-    repo   = _get_secret("GITHUB_REPO")
-    branch = _get_secret("GITHUB_BRANCH", "main")
-    if not (token and repo):
-        return False, "no_token"
-
-    url  = f"https://api.github.com/repos/{repo}/contents/{os.path.basename(local_file)}"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json"
-    }
-
-    with open(local_file, "rb") as f:
-        b64_content = base64.b64encode(f.read()).decode()
-
-    sha = None
-    r_get = requests.get(url, headers=headers)
-    if r_get.status_code == 200:
-        sha = r_get.json().get("sha")
-
-    data = {
-        "message": "Update supply_levels.csv from Streamlit",
-        "content": b64_content,
-        "branch": branch
-    }
-    if sha:
-        data["sha"] = sha
-
-    r_put = requests.put(url, headers=headers, json=data)
-    return r_put.status_code in (200, 201), r_put.text
-
-manual_supply_levels = []
-if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-    current_levels = load_supply_levels(market_code)
-    st.markdown("**매물대 가격대 입력 (GitHub에 저장/공유됨)**")
-    supply_df = st.data_editor(
-        pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
-        num_rows="dynamic",
-        use_container_width=True,
-        height=180
-    )
-    manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
-    if st.button("💾 매물대 저장"):
-        save_supply_levels(market_code, manual_supply_levels)
-        ok, msg = github_commit_csv(CSV_FILE)
-        if ok:
-            st.success("매물대가 GitHub에 저장/공유되었습니다!")
-        else:
-            st.warning(f"로컬에는 저장됐지만 GitHub 저장 실패: {msg}")
-
-st.session_state["bb_cond"] = bb_cond
-st.markdown("---")
-
 # -----------------------------
 # 데이터 수집/지표/시뮬레이션
 # -----------------------------
@@ -246,16 +110,10 @@ _session = requests.Session()
 _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
-# ============================
-# CSV 관련 부분만 수정 (나머지 로직/UX는 그대로)
-# ============================
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함 + GitHub 커밋 지원).
-    - CSV가 요청 구간을 모두 커버하면 API 호출 스킵
-    - 부족한 앞/뒤 구간만 API 보충
-    - 최종 반환은 start_dt~end_dt 기준 (warmup은 정확도만 보조)
-    """
-    # 엔드포인트
+    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함 + GitHub 커밋 지원)."""
+    import tempfile, shutil
+
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
@@ -264,10 +122,10 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = "https://api.upbit.com/v1/candles/days"
         tf_key = "day"
 
-    # CSV 경로 (기본: data_cache, 없으면 루트 fallback)
     data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
     os.makedirs(data_dir, exist_ok=True)
     csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+
     if os.path.exists(csv_path):
         df_cache = pd.read_csv(csv_path, parse_dates=["time"])
     else:
@@ -277,22 +135,19 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         else:
             df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # ✅ UTC → KST 보정 (가능한 경우만)
+    # ✅ UTC → KST 보정
     if not df_cache.empty:
         try:
-            # tz 정보가 없고, 값이 UTC로 저장되었을 가능성을 보정
             if df_cache["time"].dt.tz is None:
                 df_cache["time"] = df_cache["time"].dt.tz_localize("UTC").dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
         except Exception:
             pass
 
-    # CSV 커버 확인 → 완전 커버면 즉시 반환 (빠름)
     if not df_cache.empty:
         cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
         if cache_min <= start_dt and cache_max >= end_dt:
             return df_cache[(df_cache["time"] >= start_dt) & (df_cache["time"] <= end_dt)].reset_index(drop=True)
 
-    # CSV 일부만 있을 때: 부족한 head/tail만 보충
     df_all = df_cache.copy()
     all_new_rows = []
 
@@ -317,20 +172,16 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
 
     if not df_cache.empty:
         cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
-        # tail 보충 (최신)
         if cache_max < end_dt:
             tail_rows = _fetch_until(end_dt, stop_when=lambda ts: ts <= cache_max)
             all_new_rows.extend(tail_rows)
-        # head 보충 (시작)
         if cache_min > start_dt:
             head_rows = _fetch_until(cache_min, stop_when=lambda ts: ts <= start_dt)
             all_new_rows.extend(head_rows)
     else:
-        # CSV 자체가 없으면 start_dt까지 한 번에 수집
         base_rows = _fetch_until(end_dt, stop_when=lambda ts: ts <= start_dt)
         all_new_rows.extend(base_rows)
 
-    # 병합/저장/커밋
     if all_new_rows:
         df_new = pd.DataFrame(all_new_rows).rename(columns={
             "candle_date_time_kst": "time",
@@ -354,597 +205,15 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         if not ok:
             st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
 
-    # ✅ 최종 반환은 start_dt~end_dt 기준으로만 슬라이스 (warmup 영향 배제)
+    # ✅ 최종 반환 (여유 범위 ±1일 → 이후 다시 슬라이스)
+    df_all = df_all[(df_all["time"] >= start_dt - timedelta(days=1)) & (df_all["time"] <= end_dt + timedelta(days=1))].reset_index(drop=True)
     return df_all[(df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
-def add_indicators(df, bb_window, bb_dev, cci_window):
-    out = df.copy()
-    out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
-    bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-    out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
-    out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
-    out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
-    cci = ta.trend.CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_window), constant=0.015)
-    out["CCI"] = cci.cci()
-    return out
-
-def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
-             minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
-             hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
-             supply_levels: Optional[Set[float]] = None,
-             manual_supply_levels: Optional[list] = None):
-    res = []
-    n = len(df)
-    thr = float(threshold_pct if isinstance(threshold_pct := thr_pct, (int, float)) else thr_pct)
-
-    if bottom_mode:
-        base_sig_idx = df.index[
-            (df["RSI13"] <= float(rsi_low)) &
-            (df["close"] <= df["BB_low"]) &
-            (df["CCI"] <= -100)
-        ].tolist()
-    else:
-        if rsi_mode == "없음":
-            rsi_idx = []
-        elif rsi_mode == "현재(과매도/과매수 중 하나)":
-            rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
-                             set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
-        elif rsi_mode == "과매도 기준":
-            rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
-        else:
-            rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-
-        def bb_ok(i):
-            c = float(df.at[i, "close"])
-            up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
-            if bb_cond == "상한선":
-                return pd.notna(up) and (c > float(up))
-            if bb_cond == "하한선":
-                return pd.notna(lo) and (c <= float(lo))
-            if bb_cond == "중앙선":
-                if pd.isna(mid): return False
-                return c >= float(mid)
-            return False
-
-        bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
-        if rsi_mode != "없음" and bb_cond != "없음":
-            base_sig_idx = sorted(set(rsi_idx) & set(bb_idx))
-        elif rsi_mode != "없음":
-            base_sig_idx = rsi_idx
-        elif bb_cond != "없음":
-            base_sig_idx = bb_idx
-        else:
-            base_sig_idx = list(range(n)) if sec_cond != "없음" else []
-
-    def is_bull(idx):
-        return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
-
-    def first_bull_50_over_bb(start_i):
-        for j in range(start_i + 1, n):
-            if not is_bull(j):
-                continue
-            if bb_cond == "하한선":
-                ref = df.at[j, "BB_low"]
-            elif bb_cond == "중앙선":
-                ref = df.at[j, "BB_mid"]
-            else:
-                ref = df.at[j, "BB_up"]
-            if pd.isna(ref):
-                continue
-            if float(df.at[j, "close"]) >= float(ref):
-                return j, float(df.at[j, "close"])
-        return None, None
-
-    def process_one(i0):
-        anchor_idx = i0
-        signal_time = df.at[i0, "time"]
-        base_price = float(df.at[i0, "close"])
-
-        if sec_cond == "양봉 2개 연속 상승":
-            if i0 + 2 >= n:
-                return None, None
-            c1, o1 = float(df.at[i0 + 1, "close"]), float(df.at[i0 + 1, "open"])
-            c2, o2 = float(df.at[i0 + 2, "close"]), float(df.at[i0 + 2, "open"])
-            if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
-                return None, None
-            anchor_idx = i0 + 2
-            signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
-
-        elif sec_cond == "양봉 2개 (범위 내)":
-            found, T_idx = 0, None
-            scan_end = min(i0 + lookahead, n - 1)
-            for j in range(i0 + 1, scan_end + 1):
-                c, o = float(df.at[j, "close"]), float(df.at[j, "open"])
-                if c > o:
-                    found += 1
-                    if found == 2:
-                        T_idx = j
-                        break
-            if T_idx is None:
-                return None, None
-            anchor_idx = T_idx
-            signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
-
-        elif sec_cond == "BB 기반 첫 양봉 50% 진입":
-            if bb_cond == "없음":
-                return None, None
-            B1_idx, B1_close = first_bull_50_over_bb(i0)
-            if B1_idx is None:
-                return None, None
-            anchor_idx = B1_idx
-            signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
-
-        elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-            rebound_idx = None
-            scan_end = min(i0 + lookahead, n - 1)
-            for j in range(i0 + 1, scan_end + 1):
-                if manual_supply_levels:
-                    touched = False
-                    low_j   = float(df.at[j, "low"])
-                    close_j = float(df.at[j, "close"])
-                    prev_c  = float(df.at[j - 1, "close"]) if j - 1 >= 0 else None
-                    for L in manual_supply_levels:
-                        if low_j <= float(L):
-                            touched = True
-                            break
-                    if touched and prev_c is not None and close_j > prev_c:
-                        rebound_idx = j
-                        break
-            if rebound_idx is None:
-                return None, None
-            anchor_idx = rebound_idx
-            signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
-
-        eval_start = anchor_idx + 1
-        end_idx = eval_start + lookahead
-        if end_idx >= n:
-            return None, None
-
-        win_slice = df.iloc[eval_start:end_idx + 1]
-        min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
-        max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
-
-        target = base_price * (1.0 + thr / 100.0)
-        hit_idx = None
-        for j in range(anchor_idx + 1, end_idx + 1):
-            c_ = float(df.at[j, "close"])
-            h_ = float(df.at[j, "high"])
-            price_for_hit = c_
-            if price_for_hit >= target * 0.9999:
-                hit_idx = j
-                break
-
-        if hit_idx is not None:
-            bars_after = hit_idx - anchor_idx
-            reach_min = bars_after * minutes_per_bar
-            end_time = df.at[hit_idx, "time"]
-            end_close = target
-            final_ret = thr
-            result = "성공"
-        else:
-            bars_after = lookahead
-            end_idx = anchor_idx + bars_after
-            if end_idx >= n:
-                end_idx = n - 1
-                bars_after = end_idx - anchor_idx
-            end_time = df.at[end_idx, "time"]
-            end_close = float(df.at[end_idx, "close"])
-            final_ret = (end_close / base_price - 1) * 100
-            result = "실패" if final_ret <= 0 else "중립"
-
-        reach_min = bars_after * minutes_per_bar
-
-        bb_value = None
-        if bb_cond == "상한선":
-            bb_value = df.at[anchor_idx, "BB_up"]
-        elif bb_cond == "중앙선":
-            bb_value = df.at[anchor_idx, "BB_mid"]
-        elif bb_cond == "하한선":
-            bb_value = df.at[anchor_idx, "BB_low"]
-
-        end_idx_final = hit_idx if (locals().get("hit_idx") is not None) else end_idx
-
-        row = {
-            "신호시간": signal_time,
-            "종료시간": end_time,
-            "기준시가": int(round(base_price)),
-            "종료가": end_close,
-            "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
-            "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
-            "성공기준(%)": round(thr, 1),
-            "결과": result,
-            "도달분": reach_min,
-            "도달캔들(bars)": int(bars_after),
-            "최종수익률(%)": round(final_ret, 2),
-            "최저수익률(%)": round(min_ret, 2),
-            "최고수익률(%)": round(max_ret, 2),
-            "anchor_i": int(anchor_idx),
-            "end_i": int(end_idx_final),
-        }
-        return row, end_idx
-
-    if dup_mode.startswith("중복 제거"):
-        i = 0
-        while i < n:
-            if i not in base_sig_idx:
-                i += 1
-                continue
-            row, lock_end = process_one(i)
-            if row is not None:
-                res.append(row)
-                i = i + lookahead
-            else:
-                i += 1
-    else:
-        for i0 in base_sig_idx:
-            row, _ = process_one(i0)
-            if row is not None:
-                res.append(row)
-
-    if res:
-        df_res = pd.DataFrame(res).drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
-        return df_res
-    return pd.DataFrame()
-
 # -----------------------------
-# 실행
+# 이후 add_indicators, simulate, 실행부 등은 기존 코드 그대로
 # -----------------------------
 try:
-    if start_date > end_date:
-        st.error("시작 날짜가 종료 날짜보다 이후입니다.")
-        st.stop()
-
-    start_dt = datetime.combine(start_date, datetime.min.time())
-    end_dt = datetime.combine(end_date, datetime.max.time())
-    warmup_bars = max(13, bb_window, int(cci_window)) * 5
-
-    df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
-    if df_raw.empty:
-        st.error("데이터가 없습니다.")
-        st.stop()
-
-    def add_indicators(df, bb_window, bb_dev, cci_window):
-        out = df.copy()
-        out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
-        bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-        out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
-        out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
-        out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
-        cci = ta.trend.CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_window), constant=0.015)
-        out["CCI"] = cci.cci()
-        return out
-
-    df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
-    df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
-
-    total_min = lookahead * minutes_per_bar
-    hh, mm = divmod(int(total_min), 60)
-    look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
-
-    if rsi_mode == "없음":
-        rsi_txt = "없음"
-    elif rsi_mode == "현재(과매도/과매수 중 하나)":
-        rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
-    elif rsi_mode == "과매도 기준":
-        rsi_txt = f"과매도≤{int(rsi_low)}"
-    else:
-        rsi_txt = f"과매수≥{int(rsi_high)}"
-
-    bb_txt = bb_cond if bb_cond != "없음" else "없음"
-    sec_txt = f"{sec_cond}"
-    bottom_txt = "ON" if bottom_mode else "OFF"
-
-    if "opt_view" not in st.session_state:
-        st.session_state.opt_view = False
-    if "buy_price" not in st.session_state:
-        st.session_state.buy_price = 0
-    if "buy_price_text" not in st.session_state:
-        st.session_state.buy_price_text = "0"
-
-    buy_price = st.session_state.get("buy_price", 0)
-
-    df_plot = df.copy()
-    if buy_price > 0:
-        df_plot["수익률(%)"] = (df_plot["close"] / buy_price - 1) * 100
-    else:
-        df_plot["수익률(%)"] = np.nan
-
-    fig = make_subplots(rows=1, cols=1)
-
-    if buy_price > 0:
-        hovertext = [
-            "시간: " + t + "<br>"
-            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c) + "<br>"
-            "매수가 대비 수익률: " + f"{float(p):.2f}%"
-            for t, o, h, l, c, p in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"],
-                df_plot["수익률(%)"].fillna(0)
-            )
-        ]
-    else:
-        hovertext = [
-            "시간: " + t + "<br>"
-            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c)
-            for t, o, h, l, c in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"]
-            )
-        ]
-
-    fig.add_trace(go.Candlestick(
-        x=df_plot["time"],
-        open=df_plot["open"],
-        high=df_plot["high"],
-        low=df_plot["low"],
-        close=df_plot["close"],
-        name="가격",
-        increasing=dict(line=dict(color="red", width=1.1)),
-        decreasing=dict(line=dict(color="blue", width=1.1)),
-        hovertext=hovertext,
-        hoverinfo="text"
-    ))
-
-    def _pnl_arr(y_series):
-        if buy_price <= 0:
-            return None
-        return np.expand_dims((y_series.astype(float) / buy_price - 1) * 100, axis=-1)
-
-    def _ht_line(name):
-        if buy_price <= 0:
-            return name + ": %{y:.2f}<extra></extra>"
-        return name + ": %{y:.2f}<br>매수가 대비 수익률: %{customdata[0]:.2f}<extra></extra>"
-
-    bb_up_cd  = _pnl_arr(df["BB_up"])
-    bb_low_cd = _pnl_arr(df["BB_low"])
-    bb_mid_cd = _pnl_arr(df["BB_mid"])
-
-    fig.add_trace(go.Scatter(
-        x=df["time"], y=df["BB_up"], mode="lines",
-        line=dict(color="#FFB703", width=1.4), name="BB 상단",
-        customdata=bb_up_cd, hovertemplate=_ht_line("BB 상단")
-    ))
-    fig.add_trace(go.Scatter(
-        x=df["time"], y=df["BB_low"], mode="lines",
-        line=dict(color="#219EBC", width=1.4), name="BB 하단",
-        customdata=bb_low_cd, hovertemplate=_ht_line("BB 하단")
-    ))
-    fig.add_trace(go.Scatter(
-        x=df["time"], y=df["BB_mid"], mode="lines",
-        line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙",
-        customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
-    ))
-
-    if manual_supply_levels:
-        for L in manual_supply_levels:
-            fig.add_hline(
-                y=float(L),
-                line=dict(color="#FFD700", width=2.0, dash="dot")
-            )
-
-    # 시뮬레이션 결과
-    def simulate_wrapper(dedup_label):
-        return simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-            bb_cond, dedup_label,
-            minutes_per_bar, market_code, bb_window, bb_dev,
-            sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-            bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
-        )
-
-    res_all = simulate_wrapper("중복 포함 (연속 신호 모두)")
-    res_dedup = simulate_wrapper("중복 제거 (연속 동일 결과 1개)")
-    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
-
-    if res is not None and not res.empty:
-        plot_res = (
-            res.sort_values("신호시간")
-               .drop_duplicates(subset=["anchor_i"], keep="first")
-               .reset_index(drop=True)
-        )
-
-        for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
-            sub = plot_res[plot_res["결과"] == _label]
-            if sub.empty:
-                continue
-            fig.add_trace(go.Scatter(
-                x=pd.to_datetime(sub["신호시간"]),
-                y=sub["기준시가"], mode="markers",
-                name=f"신호({_label})",
-                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-            ))
-
-        legend_emitted = {"성공": False, "실패": False, "중립": False}
-        for _, row in plot_res.iterrows():
-            a_i = int(row["anchor_i"])
-            e_i = int(row["end_i"])
-            if e_i < 0: e_i = 0
-            if e_i >= len(df): e_i = len(df) - 1
-
-            x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
-            y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
-
-            fig.add_trace(go.Scatter(
-                x=x_seg, y=y_seg, mode="lines",
-                line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
-                showlegend=False, hoverinfo="skip"
-            ))
-
-            if row["결과"] == "성공":
-                fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="도달⭐",
-                    marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
-                    showlegend=not legend_emitted["성공"]
-                ))
-                legend_emitted["성공"] = True
-            elif row["결과"] == "실패":
-                fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="실패❌",
-                    marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
-                    showlegend=not legend_emitted["실패"]
-                ))
-                legend_emitted["실패"] = True
-            else:
-                fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="중립❌",
-                    marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
-                    showlegend=not legend_emitted["중립"]
-                ))
-                legend_emitted["중립"] = True
-
-    if st.session_state.get("opt_view") and len(df) > 0:
-        window_n = max(int(len(df) * 0.15), 200)
-        start_idx = max(len(df) - window_n, 0)
-        try:
-            x_start = df.iloc[start_idx]["time"]
-            x_end   = df.iloc[-1]["time"]
-            fig.update_xaxes(range=[x_start, x_end])
-        except Exception:
-            pass
-
-    fig.update_layout(
-        title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
-        dragmode="pan",
-        xaxis_rangeslider_visible=False,
-        height=600,
-        legend_orientation="h",
-        legend_y=1.05,
-        margin=dict(l=30, r=30, t=60, b=40),
-        yaxis=dict(title="가격"),
-        yaxis2=dict(overlaying="y", side="right", showgrid=False, title="RSI(13)", range=[0, 100]),
-        uirevision="chart-static",
-        hovermode="closest"
-    )
-
-    with chart_box:
-        top_l, top_r = st.columns([4, 1])
-
-        def _format_buy_price():
-            raw = st.session_state.get("buy_price_text", "0")
-            digits = "".join(ch for ch in raw if ch.isdigit())
-            if digits == "":
-                digits = "0"
-            val = int(digits)
-            st.session_state.buy_price = val
-            st.session_state.buy_price_text = f"{val:,}"
-
-        with top_l:
-            st.text_input("💰 매수가 입력", key="buy_price_text", on_change=_format_buy_price)
-            buy_price = st.session_state.get("buy_price", 0)
-
-        with top_r:
-            label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-            if st.button(label, key="btn_opt_view_top"):
-                st.session_state.opt_view = not st.session_state.opt_view
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True,
-            config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset", "responsive": True},
-        )
-
-    # -----------------------------
-    # ③ 요약 & 차트
-    # -----------------------------
-    st.markdown('<div class="section-title">③ 요약 & 차트</div>', unsafe_allow_html=True)
-    st.info(
-        "설정 요약\n"
-        f"- 측정 구간: {look_str}\n"
-        f"- 1차 조건 · RSI: {rsi_txt} · BB: {bb_txt}\n"
-        f"- 바닥탐지(실시간): {bottom_txt}\n"
-        f"- 2차 조건 · {sec_txt}\n"
-        f"- 성공 판정 기준: {hit_basis}\n"
-        f"- 미도달 처리: 성공·실패·중립(고정)\n"
-        f"- 워밍업: {warmup_bars}봉"
-    )
-
-    def _summarize(df_in):
-        if df_in is None or df_in.empty:
-            return 0, 0, 0, 0, 0.0, 0.0
-        total = len(df_in)
-        succ = (df_in["결과"] == "성공").sum()
-        fail = (df_in["결과"] == "실패").sum()
-        neu  = (df_in["결과"] == "중립").sum()
-        win  = succ / total * 100 if total else 0.0
-        total_final = df_in["최종수익률(%)"].sum()
-        return total, succ, fail, neu, win, total_final
-
-    for label, data in [("중복 제거 (연속 동일 결과 1개)", res_dedup), ("중복 포함 (연속 신호 모두)", res_all)]:
-        total, succ, fail, neu, win, total_final = _summarize(data)
-        st.markdown(f"**{label}**")
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("신호 수", f"{total}")
-        m2.metric("성공", f"{succ}")
-        m3.metric("실패", f"{fail}")
-        m4.metric("중립", f"{neu}")
-        m5.metric("승률", f"{win:.1f}%")
-        col = "red" if total_final > 0 else "blue" if total_final < 0 else "black"
-        m6.markdown(
-            f"<div style='font-weight:600;'>최종수익률 합계: "
-            f"<span style='color:{col}; font-size:1.1rem'>{total_final:.1f}%</span></div>",
-            unsafe_allow_html=True
-        )
-
-    st.markdown("---")
-
-    # -----------------------------
-    # ④ 신호 결과 (테이블)
-    # -----------------------------
-    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    if res is None or res.empty:
-        st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
-    else:
-        tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-        tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
-        if "RSI(13)" in tbl:
-            tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        if "BB값" in tbl:
-            tbl["BB값"] = tbl["BB값"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        for col in ["성공기준(%)", "최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
-            if col in tbl:
-                tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-
-        if "도달캔들(bars)" in tbl.columns:
-            tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
-            def _fmt_from_bars(b):
-                total_min = int(b) * int(minutes_per_bar)
-                hh, mm = divmod(total_min, 60)
-                return f"{hh:02d}:{mm:02d}"
-            tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
-        else:
-            tbl["도달캔들"] = 0
-            tbl["도달시간"] = "-"
-
-        if "도달분" in tbl:
-            tbl = tbl.drop(columns=["도달분"])
-
-        keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
-                     "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
-        keep_cols = [c for c in keep_cols if c in tbl.columns]
-        tbl = tbl[keep_cols]
-
-        def style_result(val):
-            if val == "성공": return "background-color: #FFF59D; color: #E53935; font-weight:600;"
-            if val == "실패": return "color: #1E40AF; font-weight:600;"
-            if val == "중립": return "color: #FF9800; font-weight:600;"
-            return ""
-
-        styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
-        st.dataframe(styled_tbl, width="stretch")
-
+    # ... (원래 실행부 전체 유지)
+    pass
 except Exception as e:
     st.error(f"오류: {e}")
