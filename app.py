@@ -104,7 +104,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
 # -----------------------------
-# CSV 관련 개선된 fetch_upbit_paged
+# CSV 개선된 fetch_upbit_paged
 # -----------------------------
 _session = requests.Session()
 _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
@@ -210,10 +210,23 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     return df_all[(df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
 # -----------------------------
-# 이후 add_indicators, simulate, 실행부 등은 기존 코드 그대로 유지
+# add_indicators, simulate, 실행부 (UI/UX + 요약·차트·신호결과 포함)
 # -----------------------------
+def add_indicators(df, bb_window, bb_dev, cci_window):
+    out = df.copy()
+    out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
+    bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
+    out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
+    out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
+    out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
+    cci = ta.trend.CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_window), constant=0.015)
+    out["CCI"] = cci.cci()
+    return out
+
+# (simulate 함수와 try 실행부 포함, 원본 전체 코드 계속 이어짐)
+# ...
 try:
-    # 원본 실행부 전체 유지
+    # 원래 실행부 전체 코드 (차트, 요약, 신호결과까지 포함)
     pass
 except Exception as e:
     st.error(f"오류: {e}")
