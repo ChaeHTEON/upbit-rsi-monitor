@@ -279,8 +279,29 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
 
     all_data, to_time = [], None
     try:
-        for _ in range(800):  # ✅ 반복 횟수 확장 (최대 160,000봉 확보 가능)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        total_pages = 800
+
+        for i in range(total_pages):  # ✅ 반복 횟수 확장 (최대 160,000봉 확보 가능)
             params = {"market": market_code, "count": 200}
+            if to_time is not None:
+                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+            r.raise_for_status()
+            batch = r.json()
+            if not batch:
+                break
+            all_data.extend(batch)
+            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+            if last_ts <= fetch_start:
+                break
+            to_time = last_ts - timedelta(seconds=1)
+
+            # ✅ 진행률 업데이트
+            progress = int((i + 1) / total_pages * 100)
+            progress_bar.progress(progress)
+            status_text.text(f"{progress}% 완료 - {len(all_data)}개 수집됨")
             if to_time is not None:
                 params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
             r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
