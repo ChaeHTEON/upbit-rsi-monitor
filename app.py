@@ -279,7 +279,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
 
     all_data, to_time = [], None
     try:
-        for _ in range(500):  # ✅ 더 깊은 페이지까지 확보 가능
+        for _ in range(800):  # ✅ 반복 횟수 확장 (최대 160,000봉 확보 가능)
             params = {"market": market_code, "count": 200}
             if to_time is not None:
                 params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
