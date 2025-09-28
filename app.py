@@ -357,41 +357,11 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         ok, msg = github_commit_csv(csv_path)
         if not ok:
             st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
-
-    if all_data:
-        df_new = pd.DataFrame(all_data).rename(columns={
-            "candle_date_time_kst": "time",
-            "opening_price": "open",
-            "high_price": "high",
-            "low_price": "low",
-            "trade_price": "close",
-            "candle_acc_trade_volume": "volume",
-        })
-        df_new["time"] = pd.to_datetime(df_new["time"])
-        df_new = df_new[["time", "open", "high", "low", "close", "volume"]]
-
-        # 캐시와 병합 후 정렬/중복제거
-        df_all = pd.concat([df_cache, df_new], ignore_index=True)
-        df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
-
-        # 원자적 저장
-        tmp_path = csv_path + ".tmp"
-        df_all.to_csv(tmp_path, index=False)
-        shutil.move(tmp_path, csv_path)
-
-        # ⚡ GitHub에도 커밋
-        ok, msg = github_commit_csv(csv_path)
-        if not ok:
-            st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
     else:
         df_all = df_cache
 
-    # ✅ 최종 반환은 start_dt 기준으로만 슬라이스
+    # ✅ 최종 반환은 start_dt 기준으로만 슬라이스 (warmup 무시)
     return df_all[(df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)].reset_index(drop=True)
-
-    # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행, 최근 구간만 보충)
-    df_req, to_time = [], end_dt
-    need_update = False
     if df_all.empty:
         need_update = True
     else:
