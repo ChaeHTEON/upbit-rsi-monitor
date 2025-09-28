@@ -378,6 +378,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         base_price = float(df.at[i0, "close"])
 
     # 2차 조건 (신호 여부만 판단, anchor/end/bars 산출은 공통부에서 처리)
+        # 2차 조건 공통 원칙:
+        # - anchor_idx = 실제 진입(신호 확정) 봉
+        # - base_price = close(anchor_idx)
+        # - 평가 시작(eval_start) = anchor_idx + 1  (공통 처리 아래)
+
         if sec_cond == "양봉 2개 연속 상승":
             if i0 + 2 >= n:
                 return None, None
@@ -386,7 +391,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
                 return None, None
 
-            # ✅ 두 번째 양봉을 기준으로 매수 및 측정 시작
+            # ✅ 두 번째 양봉 봉을 anchor로 확정
             anchor_idx = i0 + 2
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
@@ -403,8 +408,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         break
             if T_idx is None:
                 return None, None
-            anchor_idx = i0
-            start_eval = T_idx
+
+            # ✅ 두 번째 양봉 봉을 anchor로 확정
+            anchor_idx = T_idx
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
 
@@ -429,19 +435,38 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if T_idx is None:
                 return None, None
 
-            # ✅ 반드시 앵커를 T_idx로 재지정 (표·차트·dedup 모두 이 기준으로 동작)
-            i0 = T_idx
+            # ✅ 반드시 앵커를 T_idx로 확정
             anchor_idx = T_idx
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-            ...
-        # --- 성과 측정 ---
-        eval_start = anchor_idx + 1
-        if sec_cond == "양봉 2개 (범위 내)" and "start_eval" in locals():
-            eval_start = start_eval
+            rebound_idx = None
+            scan_end = min(i0 + lookahead, n - 1)
+            for j in range(i0 + 1, scan_end + 1):
+                # 예시 조건: 저가가 어떤 매물대 이하로 터치하고(close가 직전 close보다 상승) → 반등 확정
+                if manual_supply_levels:
+                    touched = False
+                    low_j   = float(df.at[j, "low"])
+                    close_j = float(df.at[j, "close"])
+                    prev_c  = float(df.at[j - 1, "close"]) if j - 1 >= 0 else None
+                    for L in manual_supply_levels:
+                        if low_j <= float(L):
+                            touched = True
+                            break
+                    if touched and prev_c is not None and close_j > prev_c:
+                        rebound_idx = j
+                        break
+            if rebound_idx is None:
+                return None, None
 
+            # ✅ 반등 확정 봉을 anchor로 확정
+            anchor_idx = rebound_idx
+            signal_time = df.at[anchor_idx, "time"]
+            base_price  = float(df.at[anchor_idx, "close"])
+
+        # --- 성과 측정 (공통) ---
+        eval_start = anchor_idx + 1
         end_idx = eval_start + lookahead
         if end_idx >= n:
             return None, None
