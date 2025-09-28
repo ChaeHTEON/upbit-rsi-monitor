@@ -922,7 +922,7 @@ try:
                         st.session_state.opt_view_range = None
                 else:
                     st.session_state.opt_view_range = None
-                st.experimental_rerun()  # ✅ 즉시 반영
+                st.rerun()  # ✅ 즉시 반영 (Streamlit 1.30+)
 
         # ✅ 최적화뷰 적용: 저장된 range 그대로 유지
         if st.session_state.get("opt_view") and st.session_state.get("opt_view_range"):
