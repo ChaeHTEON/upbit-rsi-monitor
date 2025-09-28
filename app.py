@@ -273,17 +273,49 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # 최신 시점 파악
+    # CSV 범위 확인
     last_cached_time = df_cache["time"].max() if not df_cache.empty else None
+    first_cached_time = df_cache["time"].min() if not df_cache.empty else None
+
+    # 최신 데이터 보충 시작점
     fetch_start = start_cutoff if last_cached_time is None else max(last_cached_time + timedelta(seconds=1), start_cutoff)
 
     all_data, to_time = [], None
     try:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        total_pages = 800
+        # ✅ 과거 데이터 보충
+        if first_cached_time is None or start_cutoff < first_cached_time:
+            to_time = first_cached_time if first_cached_time is not None else None
+            for _ in range(800):
+                params = {"market": market_code, "count": 200}
+                if to_time is not None:
+                    params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+                r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+                r.raise_for_status()
+                batch = r.json()
+                if not batch:
+                    break
+                all_data.extend(batch)
+                last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+                if last_ts <= start_cutoff:
+                    break
+                to_time = last_ts - timedelta(seconds=1)
 
-        for i in range(total_pages):  # ✅ 반복 횟수 확장 (최대 160,000봉 확보 가능)
+        # ✅ 최신 데이터 보충
+        to_time = None
+        for _ in range(800):  # 최대 160,000봉 확보 가능
+            params = {"market": market_code, "count": 200}
+            if to_time is not None:
+                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+            r.raise_for_status()
+            batch = r.json()
+            if not batch:
+                break
+            all_data.extend(batch)
+            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+            if last_ts <= fetch_start:
+                break
+            to_time = last_ts - timedelta(seconds=1)
             params = {"market": market_code, "count": 200}
             if to_time is not None:
                 params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
