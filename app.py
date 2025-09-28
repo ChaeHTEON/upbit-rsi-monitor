@@ -274,11 +274,15 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     os.makedirs(data_dir, exist_ok=True)
     csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
 
-    # CSV 로드 (있으면)
+    # CSV 로드 (있으면) — 기본: data_cache/, 없으면 루트에서도 탐색
     if os.path.exists(csv_path):
         df_cache = pd.read_csv(csv_path, parse_dates=["time"])
     else:
-        df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
+        root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
+        if os.path.exists(root_csv):
+            df_cache = pd.read_csv(root_csv, parse_dates=["time"])
+        else:
+            df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
     # ✅ CSV가 요청 구간을 모두 커버하면 → API 호출 완전 스킵
     if not df_cache.empty:
