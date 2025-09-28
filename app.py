@@ -911,8 +911,11 @@ try:
             if st.button(label, key="btn_opt_view_top"):
                 st.session_state.opt_view = not st.session_state.opt_view
                 if st.session_state.opt_view and len(df) > 0:
-                    # ✅ 최근 N개의 캔들만 유지 (분봉/기간 무관 동일 개수)
-                    window_bars = 120
+                    # ✅ 최초 최적화뷰 진입 시 보이는 캔들 수 기억
+                    default_visible = 30  # 기본값 (처음엔 30개 정도)
+                    if "opt_view_bars" not in st.session_state or st.session_state.opt_view_bars is None:
+                        st.session_state.opt_view_bars = default_visible
+                    window_bars = st.session_state.opt_view_bars
                     start_idx = max(len(df) - window_bars, 0)
                     try:
                         st.session_state.opt_view_range = (
@@ -924,10 +927,13 @@ try:
                     st.session_state.opt_view_range = None
                 st.rerun()  # ✅ 즉시 반영
 
-        # ✅ 최적화뷰 적용: 저장된 range 그대로 유지
-        if st.session_state.get("opt_view") and st.session_state.get("opt_view_range"):
+        # ✅ 최적화뷰 적용: 저장된 보이는 캔들 수 기반으로 유지
+        if st.session_state.get("opt_view"):
             try:
-                x_start, x_end = st.session_state.opt_view_range
+                window_bars = st.session_state.get("opt_view_bars", 30)
+                start_idx = max(len(df) - window_bars, 0)
+                x_start = df.iloc[start_idx]["time"]
+                x_end   = df.iloc[-1]["time"]
                 fig.update_xaxes(autorange=False, range=[x_start, x_end])
             except Exception:
                 fig.update_xaxes(autorange=True)
