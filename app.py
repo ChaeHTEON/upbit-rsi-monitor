@@ -336,23 +336,24 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         df_all = df_cache
 
-    # 2차: 요청 구간 강제 갱신
+    # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행)
     df_req, to_time = [], end_dt
-    try:
-        for _ in range(500):
-            params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch:
-                break
-            df_req.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_cutoff:
-                break
-            to_time = last_ts - timedelta(seconds=1)
-    except Exception:
-        pass
+    if df_all.empty or df_all["time"].min() > start_cutoff or df_all["time"].max() < end_dt:
+        try:
+            while True:
+                params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
+                r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+                r.raise_for_status()
+                batch = r.json()
+                if not batch:
+                    break
+                df_req.extend(batch)
+                last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+                if last_ts <= start_cutoff:
+                    break
+                to_time = last_ts - timedelta(seconds=1)
+        except Exception:
+            pass
 
     if df_req:
         df_req = pd.DataFrame(df_req).rename(columns={
