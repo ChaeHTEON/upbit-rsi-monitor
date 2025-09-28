@@ -567,8 +567,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             row, lock_end = process_one(i)
             if row is not None:
                 res.append(row)
-                # ✅ 성공/실패/중립 구분 없이 항상 lookahead 윈도우 전체 점유
-                i = i + lookahead
+                # ✅ anchor_idx 또는 lock_end 이후부터 탐색
+                i = lock_end + 1 if lock_end is not None else i + lookahead
             else:
                 i += 1
     else:
