@@ -248,7 +248,13 @@ _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 5
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함). 요청 구간(start_dt~end_dt)은 항상 갱신."""
+    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함).
+    - API 기본 반환(최신→과거)을 정렬하여 항상 시간 오름차순 유지
+    - 요청 구간(start_dt~end_dt)은 항상 API 호출 후 갱신
+    - CSV는 원자적 쓰기(tmp→move)로 저장 안정성 강화
+    """
+    import tempfile, shutil
+
     if warmup_bars and warmup_bars > 0:
         start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
     else:
@@ -273,10 +279,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # 최신 시점 파악
-    last_cached_time = df_cache["time"].max() if not df_cache.empty else None
-    fetch_start = start_cutoff if last_cached_time is None else max(last_cached_time + timedelta(seconds=1), start_cutoff)
-
+    # 1차: 캐시 + 최신 데이터 보충
     all_data, to_time = [], None
     try:
         for _ in range(500):
@@ -290,7 +293,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
                 break
             all_data.extend(batch)
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= fetch_start:
+            if last_ts <= start_cutoff:
                 break
             to_time = last_ts - timedelta(seconds=1)
     except Exception:
@@ -308,16 +311,19 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_new["time"] = pd.to_datetime(df_new["time"])
         df_new = df_new[["time", "open", "high", "low", "close", "volume"]]
 
-        # 기존 캐시와 합치고 중복 제거
+        # 캐시와 병합 후 정렬/중복제거
         df_all = pd.concat([df_cache, df_new], ignore_index=True)
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
-        df_all.to_csv(csv_path, index=False)
+
+        # 원자적 저장
+        tmp_path = csv_path + ".tmp"
+        df_all.to_csv(tmp_path, index=False)
+        shutil.move(tmp_path, csv_path)
     else:
         df_all = df_cache
 
-    # ✅ 요청한 기간(start_dt~end_dt)은 항상 API로 다시 불러와 덮어쓰기
-    df_req = []
-    to_time = end_dt
+    # 2차: 요청 구간 강제 갱신
+    df_req, to_time = [], end_dt
     try:
         for _ in range(500):
             params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
@@ -346,12 +352,16 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_req["time"] = pd.to_datetime(df_req["time"])
         df_req = df_req[["time", "open", "high", "low", "close", "volume"]].sort_values("time")
 
-        # 기존 df_all에서 해당 구간 제거 후 새 데이터 삽입
+        # 해당 구간 삭제 후 새 데이터 삽입
         df_all = df_all[(df_all["time"] < start_cutoff) | (df_all["time"] > end_dt)]
         df_all = pd.concat([df_all, df_req], ignore_index=True).drop_duplicates(subset=["time"]).sort_values("time")
-        df_all.to_csv(csv_path, index=False)
 
-    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)]
+        # 원자적 저장
+        tmp_path = csv_path + ".tmp"
+        df_all.to_csv(tmp_path, index=False)
+        shutil.move(tmp_path, csv_path)
+
+    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
 def add_indicators(df, bb_window, bb_dev, cci_window):
     out = df.copy()
