@@ -889,12 +889,18 @@ try:
         hovermode="closest"
     )
 
-    # ✅ 가로·세로 비율 동일하게 유지
-    fig.update_yaxes(
-        scaleanchor="x",
-        scaleratio=1
-    )
-
+    # ✅ 최적화뷰: 최근 N개 캔들만 유지 (분봉/기간 무관 동일 개수)
+    if st.session_state.get("opt_view") and len(df) > 0:
+        window_bars = 120
+        start_idx = max(len(df) - window_bars, 0)
+        try:
+            x_start = df.iloc[start_idx]["time"]
+            x_end   = df.iloc[-1]["time"]
+            fig.update_xaxes(autorange=False, range=[x_start, x_end])
+        except Exception:
+            fig.update_xaxes(autorange=True)
+    else:
+        fig.update_xaxes(autorange=True)
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
     with chart_box:
         top_l, top_r = st.columns([4, 1])
