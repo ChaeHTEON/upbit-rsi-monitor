@@ -874,17 +874,6 @@ try:
             name="PnL Hover"
         ))
 
-    # ===== 최적화뷰: x축 범위 적용 =====
-    if st.session_state.get("opt_view") and len(df) > 0:
-        window_n = max(int(len(df) * 0.15), 200)
-        start_idx = max(len(df) - window_n, 0)
-        try:
-            x_start = df.iloc[start_idx]["time"]
-            x_end   = df.iloc[-1]["time"]
-            fig.update_xaxes(range=[x_start, x_end])
-        except Exception:
-            pass
-
     # ===== 레이아웃 =====
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
@@ -921,6 +910,22 @@ try:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
             if st.button(label, key="btn_opt_view_top"):
                 st.session_state.opt_view = not st.session_state.opt_view
+
+        # ✅ 최적화뷰 비율 고정: 토글 직후 즉시 반영
+        if st.session_state.get("opt_view") and len(df) > 0:
+            window_ratio = 0.15  # 보이는 구간 비율(전체 대비)
+            min_bars = 200       # 최소 보장 봉 수
+            window_n = max(int(len(df) * window_ratio), min_bars)
+            start_idx = max(len(df) - window_n, 0)
+            try:
+                x_start = df.iloc[start_idx]["time"]
+                x_end   = df.iloc[-1]["time"]
+                fig.update_xaxes(autorange=False, range=[x_start, x_end])
+            except Exception:
+                pass
+        else:
+            # 최적화뷰 해제 시 자동범위
+            fig.update_xaxes(autorange=True)
 
         st.plotly_chart(
             fig,
