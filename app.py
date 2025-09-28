@@ -277,28 +277,66 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     last_cached_time = df_cache["time"].max() if not df_cache.empty else None
     first_cached_time = df_cache["time"].min() if not df_cache.empty else None
 
-    # 최신 데이터 보충 시작점
-    fetch_start = start_cutoff if last_cached_time is None else max(last_cached_time + timedelta(seconds=1), start_cutoff)
+    all_batches = []
 
-    all_data, to_time = [], None
-    try:
-        # ✅ 과거 데이터 보충
-        if first_cached_time is None or start_cutoff < first_cached_time:
-            to_time = first_cached_time if first_cached_time is not None else None
-            for _ in range(800):
-                params = {"market": market_code, "count": 200}
-                if to_time is not None:
-                    params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-                r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-                r.raise_for_status()
-                batch = r.json()
-                if not batch:
-                    break
-                all_data.extend(batch)
-                last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                if last_ts <= start_cutoff:
-                    break
-                to_time = last_ts - timedelta(seconds=1)
+    # ✅ 과거 데이터 보충 (요청한 시작일이 캐시보다 더 과거라면)
+    if first_cached_time is None or start_cutoff < first_cached_time:
+        to_time = first_cached_time if first_cached_time is not None else None
+        for _ in range(800):
+            params = {"market": market_code, "count": 200}
+            if to_time is not None:
+                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+            r.raise_for_status()
+            batch = r.json()
+            if not batch:
+                break
+            all_batches.extend(batch)
+            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+            if last_ts <= start_cutoff:
+                break
+            to_time = last_ts - timedelta(seconds=1)
+
+    # ✅ 최신 데이터 보충 (요청한 종료일이 캐시보다 더 최신이라면)
+    if last_cached_time is None or end_dt > last_cached_time:
+        to_time = None
+        fetch_start = start_cutoff if last_cached_time is None else last_cached_time + timedelta(seconds=1)
+        for _ in range(800):
+            params = {"market": market_code, "count": 200}
+            if to_time is not None:
+                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+            r.raise_for_status()
+            batch = r.json()
+            if not batch:
+                break
+            all_batches.extend(batch)
+            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+            if last_ts <= fetch_start:
+                break
+            to_time = last_ts - timedelta(seconds=1)
+
+    # ✅ DataFrame 변환 및 CSV 갱신
+    if all_batches:
+        df_new = pd.DataFrame(all_batches).rename(columns={
+            "candle_date_time_kst": "time",
+            "opening_price": "open",
+            "high_price": "high",
+            "low_price": "low",
+            "trade_price": "close",
+            "candle_acc_trade_volume": "volume",
+        })
+        df_new["time"] = pd.to_datetime(df_new["time"])
+        df_new = df_new[["time", "open", "high", "low", "close", "volume"]]
+
+        df_all = pd.concat([df_cache, df_new], ignore_index=True)
+        df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
+
+        df_all.to_csv(csv_path, index=False)
+    else:
+        df_all = df_cache
+
+    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)]
 
         # ✅ 최신 데이터 보충
         to_time = None
