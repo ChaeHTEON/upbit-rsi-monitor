@@ -674,7 +674,8 @@ try:
         for L in manual_supply_levels:
             fig.add_hline(
                 y=float(L),
-                line=dict(color="#FFD700", width=1.5)  # ✅ 노랑색, 투명도 제거
+                line=dict(color="#FFD700", width=1.5),  # ✅ 노랑색 + 살짝 두껍게
+                opacity=0.15  # ✅ 훨씬 더 연하게
             )
 
     # ===== 시뮬레이션 (중복 포함/제거) =====
@@ -874,6 +875,17 @@ try:
             name="PnL Hover"
         ))
 
+    # ===== 최적화뷰: x축 범위 적용 =====
+    if st.session_state.get("opt_view") and len(df) > 0:
+        window_n = max(int(len(df) * 0.15), 200)
+        start_idx = max(len(df) - window_n, 0)
+        try:
+            x_start = df.iloc[start_idx]["time"]
+            x_end   = df.iloc[-1]["time"]
+            fig.update_xaxes(range=[x_start, x_end])
+        except Exception:
+            pass
+
     # ===== 레이아웃 =====
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
@@ -888,6 +900,7 @@ try:
         uirevision="chart-static",
         hovermode="closest"
     )
+
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
     with chart_box:
         top_l, top_r = st.columns([4, 1])
@@ -909,36 +922,6 @@ try:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
             if st.button(label, key="btn_opt_view_top"):
                 st.session_state.opt_view = not st.session_state.opt_view
-                if st.session_state.opt_view and len(df) > 0:
-                    # ✅ 최초 최적화뷰 진입 시 보이는 캔들 수 기억
-                    default_visible = 30  # 기본값 (처음엔 30개 정도)
-                    if "opt_view_bars" not in st.session_state or st.session_state.opt_view_bars is None:
-                        st.session_state.opt_view_bars = default_visible
-                    window_bars = st.session_state.opt_view_bars
-                    start_idx = max(len(df) - window_bars, 0)
-                    try:
-                        st.session_state.opt_view_range = (
-                            df.iloc[start_idx]["time"], df.iloc[-1]["time"]
-                        )
-                    except Exception:
-                        st.session_state.opt_view_range = None
-                else:
-                    st.session_state.opt_view_range = None
-                st.rerun()  # ✅ 즉시 반영
-
-        # ✅ 최적화뷰 적용: 저장된 보이는 캔들 수 기반으로 유지
-        if st.session_state.get("opt_view"):
-            try:
-                window_bars = st.session_state.get("opt_view_bars", 30)
-                start_idx = max(len(df) - window_bars, 0)
-                x_start = df.iloc[start_idx]["time"]
-                x_end   = df.iloc[-1]["time"]
-                fig.update_xaxes(autorange=False, range=[x_start, x_end])
-            except Exception:
-                fig.update_xaxes(autorange=True)
-        else:
-            # 최적화뷰 해제 시 자동범위
-            fig.update_xaxes(autorange=True)
 
         st.plotly_chart(
             fig,
