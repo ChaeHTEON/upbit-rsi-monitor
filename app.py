@@ -156,6 +156,10 @@ sec_cond = st.selectbox(
     index=0
 )
 
+# ✅ 볼린저 옵션 미체크 시 안내 문구
+if sec_cond == "BB 기반 첫 양봉 50% 진입" and not st.session_state.get("use_bb", False):
+    st.info("ℹ️ 볼린저 밴드를 활성화해야 이 조건이 정상 작동합니다.")
+
 # ✅ 매물대 조건 UI 추가 (CSV 저장/불러오기 + GitHub commit/push)
 import os, base64, requests
 
@@ -415,6 +419,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             base_price  = float(df.at[anchor_idx, "close"])
 
         elif sec_cond == "BB 기반 첫 양봉 50% 진입":
+            # ✅ 볼린저 옵션 미체크 시 안내 후 동작 차단
+            if not st.session_state.get("use_bb", False):
+                st.warning("⚠️ BB 기반 신호를 사용하려면 상단에서 볼린저 밴드 옵션을 활성화하세요.")
+                return None, None
+
             B1_idx, B1_close = first_bull_50_over_bb(i0)
             if B1_idx is None:
                 return None, None
