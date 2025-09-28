@@ -386,6 +386,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
                 return None, None
 
+            # ✅ 두 번째 양봉을 기준으로 매수 및 측정 시작
+            anchor_idx = i0 + 2
+            signal_time = df.at[anchor_idx, "time"]
+            base_price  = float(df.at[anchor_idx, "close"])
+
         elif sec_cond == "양봉 2개 (범위 내)":
             found, T_idx = 0, None
             scan_end = min(i0 + lookahead, n - 1)
@@ -400,6 +405,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                 return None, None
             anchor_idx = i0
             start_eval = T_idx
+            signal_time = df.at[anchor_idx, "time"]
+            base_price  = float(df.at[anchor_idx, "close"])
 
         elif sec_cond == "BB 기반 첫 양봉 50% 진입":
             B1_idx, B1_close = first_bull_50_over_bb(i0)
@@ -429,37 +436,17 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             base_price  = float(df.at[anchor_idx, "close"])
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-            if not manual_supply_levels:
-                return None, None
-            o = float(df.at[i0, "open"])
-            h = float(df.at[i0, "high"])
-            l = float(df.at[i0, "low"])
-            c = float(df.at[i0, "close"])
-            ok = False
-
-            t0 = df.at[i0, "time"]
-            start_24h = t0 - timedelta(hours=24)
-            wmask = (df["time"] >= start_24h) & (df["time"] <= t0)
-            lowest_24h = float(df.loc[wmask, "low"].min()) if wmask.any() else l
-
-            for L in manual_supply_levels:
-                Lf = float(L)
-                is_24h_low = (l <= lowest_24h + 1e-9)
-                opened_above = (o > Lf)
-                touched = (l <= Lf <= h)
-                closed_back_above = (c >= Lf)
-                if is_24h_low and opened_above and touched and closed_back_above:
-                    ok = True
-                    break
-            if not ok:
-                return None, None
-
+            ...
         # --- 성과 측정 ---
-        end_idx = anchor_idx + lookahead
+        eval_start = anchor_idx + 1
+        if sec_cond == "양봉 2개 (범위 내)" and "start_eval" in locals():
+            eval_start = start_eval
+
+        end_idx = eval_start + lookahead
         if end_idx >= n:
             return None, None
 
-        win_slice = df.iloc[anchor_idx + 1:end_idx + 1]
+        win_slice = df.iloc[eval_start:end_idx + 1]
         min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
         max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
