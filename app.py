@@ -910,19 +910,27 @@ try:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
             if st.button(label, key="btn_opt_view_top"):
                 st.session_state.opt_view = not st.session_state.opt_view
+                if st.session_state.opt_view and len(df) > 0:
+                    # ✅ 현재 차트의 마지막 구간 range 저장 (최초 상태 고정용)
+                    window_n = max(int(len(df) * 0.15), 200)
+                    start_idx = max(len(df) - window_n, 0)
+                    try:
+                        st.session_state.opt_view_range = (
+                            df.iloc[start_idx]["time"], df.iloc[-1]["time"]
+                        )
+                    except Exception:
+                        st.session_state.opt_view_range = None
+                else:
+                    st.session_state.opt_view_range = None
+                st.experimental_rerun()  # ✅ 즉시 반영
 
-        # ✅ 최적화뷰 비율 고정: 토글 직후 즉시 반영
-        if st.session_state.get("opt_view") and len(df) > 0:
-            window_ratio = 0.15  # 보이는 구간 비율(전체 대비)
-            min_bars = 200       # 최소 보장 봉 수
-            window_n = max(int(len(df) * window_ratio), min_bars)
-            start_idx = max(len(df) - window_n, 0)
+        # ✅ 최적화뷰 적용: 저장된 range 그대로 유지
+        if st.session_state.get("opt_view") and st.session_state.get("opt_view_range"):
             try:
-                x_start = df.iloc[start_idx]["time"]
-                x_end   = df.iloc[-1]["time"]
+                x_start, x_end = st.session_state.opt_view_range
                 fig.update_xaxes(autorange=False, range=[x_start, x_end])
             except Exception:
-                pass
+                fig.update_xaxes(autorange=True)
         else:
             # 최적화뷰 해제 시 자동범위
             fig.update_xaxes(autorange=True)
