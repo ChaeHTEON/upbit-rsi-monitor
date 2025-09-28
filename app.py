@@ -249,18 +249,19 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
     """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함 + GitHub 커밋 지원).
-    - API 기본 반환(최신→과거)을 정렬하여 항상 시간 오름차순 유지
-    - 요청 구간(start_dt~end_dt)은 항상 API 호출 후 갱신
-    - CSV는 원자적 쓰기(tmp→move)로 저장 안정성 강화
-    - 저장 후 GitHub에도 커밋(push)
+    - CSV가 요청 구간을 모두 커버하면 API 호출 스킵
+    - 부족한 앞/뒤 구간만 API 보충
+    - 최종 반환은 start_dt~end_dt (가능 시 warmup 포함)
     """
     import tempfile, shutil
 
+    # 1) 워밍업 컷오프 계산
     if warmup_bars and warmup_bars > 0:
         start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
     else:
         start_cutoff = start_dt
 
+    # 2) 엔드포인트/키
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
@@ -269,12 +270,11 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = "https://api.upbit.com/v1/candles/days"
         tf_key = "day"
 
-    # CSV 경로 설정
+    # 3) CSV 경로 + 로드 (fallback: 루트)
     data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
     os.makedirs(data_dir, exist_ok=True)
     csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
 
-    # CSV 로드 (있으면) — 기본: data_cache/, 없으면 루트에서도 탐색
     if os.path.exists(csv_path):
         df_cache = pd.read_csv(csv_path, parse_dates=["time"])
     else:
@@ -284,41 +284,23 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         else:
             df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # ✅ CSV가 요청 구간을 모두 커버하면 → API 호출 완전 스킵
+    # 4) CSV 커버 확인 → 즉시 반환(빠름)
     if not df_cache.empty:
         cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
-        # warmup이 아니라 실제 start_dt 기준으로 커버 판단
+        # (A) warmup까지 완전 커버
+        if cache_min <= start_cutoff and cache_max >= end_dt:
+            return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].reset_index(drop=True)
+        # (B) warmup은 부족하지만 실구간(start_dt~end_dt)은 커버 → 정확도↓ 대신 속도↑
         if cache_min <= start_dt and cache_max >= end_dt:
             return df_cache[(df_cache["time"] >= start_dt) & (df_cache["time"] <= end_dt)].reset_index(drop=True)
 
-    # ⚡ CSV에 일부만 있는 경우
+    # 5) 부족분만 보충 (df_all을 기준으로 병합)
     df_all = df_cache.copy()
-    all_data, to_time = [], None
 
-    # 최근 데이터 부족 → cache_max 이후만 보충
-    if not df_cache.empty:
-        cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
-        if cache_max < end_dt:
-            to_time = end_dt
-            try:
-                while True:
-                    params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
-                    r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-                    r.raise_for_status()
-                    batch = r.json()
-                    if not batch:
-                        break
-                    all_data.extend(batch)
-                    last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                    if last_ts <= cache_max:  # 이미 CSV 끝까지 채우면 중단
-                        break
-                    to_time = last_ts - timedelta(seconds=1)
-            except Exception:
-                pass
-    else:
-        # CSV 자체가 없으면 전체 수집
+    def _fetch_until(to_time, stop_when):
+        """to_time부터 과거로 페이징. stop_when(last_ts)->True면 중단."""
+        got = []
         try:
-            to_time = end_dt
             while True:
                 params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
                 r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
@@ -326,16 +308,36 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
                 batch = r.json()
                 if not batch:
                     break
-                all_data.extend(batch)
+                got.extend(batch)
                 last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                if last_ts <= start_dt:
+                if stop_when(last_ts):
                     break
                 to_time = last_ts - timedelta(seconds=1)
         except Exception:
             pass
+        return got
 
-    if all_data:
-        df_new = pd.DataFrame(all_data).rename(columns={
+    all_new_rows = []
+
+    if not df_cache.empty:
+        cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
+        # (tail) 최신 구간 부족 → end_dt ~ cache_max 까지만 보충
+        if cache_max < end_dt:
+            tail_rows = _fetch_until(end_dt, stop_when=lambda ts: ts <= cache_max)
+            all_new_rows.extend(tail_rows)
+        # (head) 과거 워밍업/시작 구간 부족 → cache_min 기준으로 보충
+        head_target = start_cutoff
+        if cache_min > head_target:
+            head_rows = _fetch_until(cache_min, stop_when=lambda ts: ts <= head_target)
+            all_new_rows.extend(head_rows)
+    else:
+        # CSV 없음 → start_dt까지 전체 수집
+        base_rows = _fetch_until(end_dt, stop_when=lambda ts: ts <= start_dt)
+        all_new_rows.extend(base_rows)
+
+    # 6) 병합/저장/커밋
+    if all_new_rows:
+        df_new = pd.DataFrame(all_new_rows).rename(columns={
             "candle_date_time_kst": "time",
             "opening_price": "open",
             "high_price": "high",
@@ -346,7 +348,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_new["time"] = pd.to_datetime(df_new["time"])
         df_new = df_new[["time", "open", "high", "low", "close", "volume"]]
 
-        # 캐시와 병합
         df_all = pd.concat([df_all, df_new], ignore_index=True)
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
 
@@ -358,66 +359,13 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         if not ok:
             st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
     else:
-        df_all = df_cache
+        # 새로 받은 것이 없어도 df_all은 유지
+        df_all = df_all.copy()
 
-    # ✅ 최종 반환은 start_dt 기준으로만 슬라이스 (warmup 무시)
-    return df_all[(df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)].reset_index(drop=True)
-    if df_all.empty:
-        need_update = True
-    else:
-        cache_min, cache_max = df_all["time"].min(), df_all["time"].max()
-        if cache_min > start_cutoff:
-            need_update = True
-        if cache_max < end_dt:
-            # CSV는 과거까지 커버하지만 최신(end_dt)까지 부족 → 부족한 부분만 보충
-            to_time = end_dt
-            need_update = True
-
-    if need_update:
-        try:
-            while True:
-                params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
-                r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-                r.raise_for_status()
-                batch = r.json()
-                if not batch:
-                    break
-                df_req.extend(batch)
-                last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                # ✅ 과거 전체를 긁지 않고, 부족한 start_cutoff까지만 채움
-                if last_ts <= start_cutoff or (not df_all.empty and last_ts <= cache_max):
-                    break
-                to_time = last_ts - timedelta(seconds=1)
-        except Exception:
-            pass
-
-    if df_req:
-        df_req = pd.DataFrame(df_req).rename(columns={
-            "candle_date_time_kst": "time",
-            "opening_price": "open",
-            "high_price": "high",
-            "low_price": "low",
-            "trade_price": "close",
-            "candle_acc_trade_volume": "volume",
-        })
-        df_req["time"] = pd.to_datetime(df_req["time"])
-        df_req = df_req[["time", "open", "high", "low", "close", "volume"]].sort_values("time")
-
-        # 해당 구간 삭제 후 새 데이터 삽입
-        df_all = df_all[(df_all["time"] < start_cutoff) | (df_all["time"] > end_dt)]
-        df_all = pd.concat([df_all, df_req], ignore_index=True).drop_duplicates(subset=["time"]).sort_values("time")
-
-        # 원자적 저장
-        tmp_path = csv_path + ".tmp"
-        df_all.to_csv(tmp_path, index=False)
-        shutil.move(tmp_path, csv_path)
-
-        # ✅ GitHub에도 커밋
-        ok, msg = github_commit_csv(csv_path)
-        if not ok:
-            st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
-
-    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].reset_index(drop=True)
+    # 7) 최종 반환 (가능하면 warmup 포함, 아니면 실구간만)
+    have_min, have_max = (df_all["time"].min(), df_all["time"].max()) if not df_all.empty else (None, None)
+    range_start = start_cutoff if (have_min is not None and have_min <= start_cutoff) else start_dt
+    return df_all[(df_all["time"] >= range_start) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
 def add_indicators(df, bb_window, bb_dev, cci_window):
     out = df.copy()
