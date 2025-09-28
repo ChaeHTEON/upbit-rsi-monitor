@@ -418,25 +418,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             B1_idx, B1_close = first_bull_50_over_bb(i0)
             if B1_idx is None:
                 return None, None
-            bull_cnt, B3_idx = 0, None
-            scan_end = min(B1_idx + lookahead, n - 1)
-            for j in range(B1_idx + 1, scan_end + 1):
-                if is_bull(j):
-                    bull_cnt += 1
-                    if bull_cnt == 2:
-                        B3_idx = j; break
-            if B3_idx is None:
-                return None, None
-            T_idx = None
-            for j in range(B3_idx + 1, n):
-                cj = df.at[j, "close"]
-                if pd.notna(cj) and float(cj) >= B1_close:
-                    T_idx = j; break
-            if T_idx is None:
-                return None, None
 
-            # ✅ 반드시 앵커를 T_idx로 확정
-            anchor_idx = T_idx
+            # ✅ 첫 번째 양봉을 anchor로 확정
+            anchor_idx = B1_idx
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
 
