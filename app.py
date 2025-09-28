@@ -280,16 +280,16 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # ✅ CSV가 요청 구간을 모두 커버하면 API 호출 스킵
+    # ✅ CSV가 요청 구간을 모두 커버하면 → API 호출 완전 스킵
     if not df_cache.empty:
         cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
         if cache_min <= start_cutoff and cache_max >= end_dt:
             return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].reset_index(drop=True)
 
-    # ⚡ CSV에 일부만 있는 경우 → 부족한 앞/뒤 구간만 API 호출하여 보충
+    # ⚡ CSV에 일부만 있는 경우 → 부족한 앞/뒤 구간만 API 보충
     all_data, to_time = [], None
     try:
-        for _ in range(500):
+        while True:
             params = {"market": market_code, "count": 200}
             if to_time is not None:
                 params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
