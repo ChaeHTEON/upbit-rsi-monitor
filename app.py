@@ -222,6 +222,7 @@ if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
         pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
         num_rows="dynamic",
         use_container_width=True,
+        height=100  # ✅ 입력창 높이 축소 (약 3줄 수준)
     )
     manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
     if st.button("💾 매물대 저장"):
