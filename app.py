@@ -249,13 +249,13 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
     """Upbit 캔들 수집 최적화
-    1) CSV 범위가 요청 구간을 전부 커버 → API 호출 스킵 (CSV 필터만)
-    2) CSV에 없는 앞/뒤 구간만 최소한 API로 보충
-    3) 반환은 항상 시간 오름차순의 [start_cutoff ~ end_dt] 구간
+    - CSV가 요청 구간을 전부 커버하면 API 호출 스킵
+    - 부족한 앞/뒤 구간만 API 보충
+    - 최종 반환은 [start_cutoff ~ end_dt] 오름차순
     """
-    import tempfile, shutil
+    import shutil
 
-    # 워밍업 적용 시작 컷오프
+    # 시작 컷오프 (워밍업 적용)
     if warmup_bars and warmup_bars > 0:
         start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
     else:
@@ -270,7 +270,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = "https://api.upbit.com/v1/candles/days"
         tf_key = "day"
 
-    # CSV 경로/로드
+    # CSV 로드
     data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
     os.makedirs(data_dir, exist_ok=True)
     csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
@@ -280,25 +280,18 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # 0) CSV가 요청 구간을 이미 전부 커버 → API 스킵
+    # CSV가 요청 구간 전부 커버 → API 스킵
     if not df_cache.empty:
         first_cached = df_cache["time"].min()
         last_cached  = df_cache["time"].max()
         if first_cached <= start_cutoff and last_cached >= end_dt:
-            df_out = df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
-            return df_out.sort_values("time").reset_index(drop=True)
+            return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].sort_values("time").reset_index(drop=True)
 
-    # 보충 대상 판단
     df_all = df_cache.copy()
-    first_cached = df_cache["time"].min() if not df_cache.empty else None
-    last_cached  = df_cache["time"].max() if not df_cache.empty else None
-    need_front = (first_cached is None) or (start_cutoff < first_cached)
-    need_back  = (last_cached  is None) or (end_dt      > last_cached)
 
-    # 공통: 업비트는 최신→과거 반환. 'to' 기준으로 뒤로 밀며 수집.
-    def _fetch_until(to_time_init, stop_when_ts_leq):
+    def _fetch(to_time_init, stop_when):
         out, to_time = [], to_time_init
-        for _ in range(500):  # 안전 가드
+        for _ in range(500):
             params = {"market": market_code, "count": 200}
             if to_time is not None:
                 params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -309,7 +302,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
                 break
             out.extend(batch)
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if stop_when_ts_leq is not None and last_ts <= stop_when_ts_leq:
+            if stop_when is not None and last_ts <= stop_when:
                 break
             to_time = last_ts - timedelta(seconds=1)
 
@@ -327,51 +320,40 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_new["time"] = pd.to_datetime(df_new["time"])
         return df_new[["time","open","high","low","close","volume"]]
 
-    # 1) 앞쪽(더 과거) 부족분: first_cached 이전으로 확장 (start_cutoff까지)
-    if need_front and first_cached is not None:
+    # 앞쪽 부족 → start_cutoff까지 수집
+    if df_cache.empty or start_cutoff < (df_cache["time"].min() if not df_cache.empty else end_dt):
         try:
-            df_front = _fetch_until(first_cached - timedelta(seconds=1), stop_when_ts_leq=start_cutoff)
-            if not df_front.empty:
-                df_all = pd.concat([df_all, df_front], ignore_index=True)
-        except Exception:
-            pass
-    elif need_front and first_cached is None:
-        # 캐시가 비어 있으면 start_cutoff까지 내려갈 때까지 최신부터 수집
-        try:
-            df_front = _fetch_until(None, stop_when_ts_leq=start_cutoff)
+            df_front = _fetch(None, stop_when=start_cutoff)
             if not df_front.empty:
                 df_all = pd.concat([df_all, df_front], ignore_index=True)
         except Exception:
             pass
 
-    # 2) 뒤쪽(최근) 부족분: last_cached 이후로 확장 (end_dt까지)
-    if need_back:
-        stop_ts = last_cached if last_cached is not None else start_cutoff
+    # 뒤쪽 부족 → end_dt까지 수집
+    if df_cache.empty or end_dt > (df_cache["time"].max() if not df_cache.empty else start_cutoff):
         try:
-            df_back = _fetch_until(None, stop_when_ts_leq=stop_ts)
+            df_back = _fetch(end_dt, stop_when=None)
             if not df_back.empty:
                 df_all = pd.concat([df_all, df_back], ignore_index=True)
         except Exception:
             pass
 
-    # 3) 병합/정렬/저장(+GitHub 커밋 1회)
     if not df_all.empty:
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
         tmp_path = csv_path + ".tmp"
         df_all.to_csv(tmp_path, index=False)
         shutil.move(tmp_path, csv_path)
 
-        # 원본과 동일하게 GitHub 커밋 시도 (토큰/레포 설정 시)
+        # GitHub 커밋 시도 (환경에 따라 실패 무시)
         try:
             ok, msg = github_commit_csv(csv_path)
             if not ok:
-                st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
+                st.warning(f"CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
         except Exception:
-            # GitHub 설정이 없는 환경 고려 (조용히 무시)
             pass
 
-    # 4) 최종 반환: 요청 구간 필터링
     return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].sort_values("time").reset_index(drop=True)
+
 def add_indicators(df, bb_window, bb_dev, cci_window):
     out = df.copy()
     out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
