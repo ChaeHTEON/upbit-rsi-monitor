@@ -889,6 +889,12 @@ try:
         hovermode="closest"
     )
 
+    # ✅ 가로·세로 비율 동일하게 유지
+    fig.update_yaxes(
+        scaleanchor="x",
+        scaleratio=1
+    )
+
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
     with chart_box:
         top_l, top_r = st.columns([4, 1])
