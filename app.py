@@ -10,7 +10,6 @@ import ta
 from datetime import datetime, timedelta
 from pytz import timezone
 import numpy as np
-from typing import Optional, Set
 import os, base64, shutil
 
 # -----------------------------
@@ -118,7 +117,6 @@ with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-    hit_basis = "종가 기준"
 with c6:
     r1, r2, r3 = st.columns(3)
     with r1:
@@ -142,21 +140,18 @@ with c9:
 
 c10, c11, c12 = st.columns(3)
 with c10:
-    bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False, help="RSI≤과매도 & BB 하한선 터치/하회 & CCI≤-100 동시 만족 시 신호")
+    bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False)
 with c11:
     cci_window = st.number_input("CCI 기간", min_value=5, max_value=100, value=14, step=1)
 with c12:
     pass
 
-st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
+st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용</div>', unsafe_allow_html=True)
 sec_cond = st.selectbox(
     "2차 조건 선택",
     ["없음", "양봉 2개 연속 상승", "양봉 2개 (범위 내)", "BB 기반 첫 양봉 50% 진입", "매물대 터치 후 반등(위→아래→반등)"],
     index=0
 )
-
-if sec_cond == "BB 기반 첫 양봉 50% 진입" and bb_cond == "없음":
-    st.info("ℹ️ 볼린저 밴드를 활성화해야 이 조건이 정상 작동합니다.")
 
 # -----------------------------
 # GitHub 저장 연동 (매물대)
@@ -177,53 +172,6 @@ def save_supply_levels(market_code, levels):
     df = pd.concat([df, new_df], ignore_index=True)
     df.to_csv(CSV_FILE, index=False)
 
-def _get_secret(key, default=None):
-    try:
-        return st.secrets[key]
-    except Exception:
-        return os.environ.get(key, default)
-
-def github_commit_csv(local_file=CSV_FILE):
-    token  = _get_secret("GITHUB_TOKEN")
-    repo   = _get_secret("GITHUB_REPO")
-    branch = _get_secret("GITHUB_BRANCH", "main")
-    if not (token and repo):
-        return False, "no_token"
-    url  = f"https://api.github.com/repos/{repo}/contents/{os.path.basename(local_file)}"
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-    with open(local_file, "rb") as f:
-        b64_content = base64.b64encode(f.read()).decode()
-    sha = None
-    r_get = requests.get(url, headers=headers)
-    if r_get.status_code == 200:
-        sha = r_get.json().get("sha")
-    data = {"message": "Update supply_levels.csv from Streamlit", "content": b64_content, "branch": branch}
-    if sha: data["sha"] = sha
-    r_put = requests.put(url, headers=headers, json=data)
-    return r_put.status_code in (200, 201), r_put.text
-
-manual_supply_levels = []
-if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-    current_levels = load_supply_levels(market_code)
-    st.markdown("**매물대 가격대 입력 (GitHub에 저장/공유됨)**")
-    supply_df = st.data_editor(
-        pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
-        num_rows="dynamic",
-        use_container_width=True,
-        height=180
-    )
-    manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
-    if st.button("💾 매물대 저장"):
-        save_supply_levels(market_code, manual_supply_levels)
-        ok, msg = github_commit_csv(CSV_FILE)
-        if ok:
-            st.success("매물대가 GitHub에 저장/공유되었습니다!")
-        else:
-            st.warning(f"로컬에는 저장됐지만 GitHub 저장 실패: {msg}")
-
-st.session_state["bb_cond"] = bb_cond
-st.markdown("---")
-
 # -----------------------------
 # 데이터 수집/지표/시뮬레이션 함수
 # -----------------------------
@@ -232,8 +180,7 @@ _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 5
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-    """최적화: CSV 범위 검증 후 부족한 앞/뒤 구간만 API 보충"""
-    import tempfile
+    import shutil
     if warmup_bars and warmup_bars > 0:
         start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
     else:
@@ -275,40 +222,22 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
                 break
             to_time = last_ts - timedelta(seconds=1)
         return out
-    if df_cache.empty or start_cutoff < (df_cache["time"].min() if not df_cache.empty else end_dt):
-        try:
-            all_data = _fetch(None)
-            if all_data:
-                df_new = pd.DataFrame(all_data).rename(columns={
-                    "candle_date_time_kst": "time",
-                    "opening_price": "open",
-                    "high_price": "high",
-                    "low_price": "low",
-                    "trade_price": "close",
-                    "candle_acc_trade_volume": "volume",
-                })
-                df_new["time"] = pd.to_datetime(df_new["time"])
-                df_new = df_new[["time","open","high","low","close","volume"]]
-                df_all = pd.concat([df_all, df_new], ignore_index=True)
-        except Exception:
-            pass
-    if df_cache.empty or end_dt > (df_cache["time"].max() if not df_cache.empty else start_cutoff):
-        try:
-            df_req = _fetch(end_dt)
-            if df_req:
-                df_req = pd.DataFrame(df_req).rename(columns={
-                    "candle_date_time_kst": "time",
-                    "opening_price": "open",
-                    "high_price": "high",
-                    "low_price": "low",
-                    "trade_price": "close",
-                    "candle_acc_trade_volume": "volume",
-                })
-                df_req["time"] = pd.to_datetime(df_req["time"])
-                df_req = df_req[["time","open","high","low","close","volume"]]
-                df_all = pd.concat([df_all, df_req], ignore_index=True)
-        except Exception:
-            pass
+    try:
+        new_data = _fetch(end_dt)
+        if new_data:
+            df_new = pd.DataFrame(new_data).rename(columns={
+                "candle_date_time_kst": "time",
+                "opening_price": "open",
+                "high_price": "high",
+                "low_price": "low",
+                "trade_price": "close",
+                "candle_acc_trade_volume": "volume",
+            })
+            df_new["time"] = pd.to_datetime(df_new["time"])
+            df_new = df_new[["time","open","high","low","close","volume"]]
+            df_all = pd.concat([df_all, df_new], ignore_index=True)
+    except Exception:
+        pass
     if not df_all.empty:
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
         tmp_path = csv_path + ".tmp"
@@ -326,10 +255,6 @@ def add_indicators(df, bb_window, bb_dev, cci_window):
     cci = ta.trend.CCIIndicator(df["high"], df["low"], df["close"], window=cci_window)
     df["cci"] = cci.cci()
     return df
-
-def simulate(df, lookahead, threshold_pct, rsi_mode, rsi_low, rsi_high, bb_cond, bottom_mode, manual_supply_levels, sec_cond, dup_mode):
-    # 👉 신호 판정 로직 (원본 코드 전체 유지)
-    return []
 
 # -----------------------------
 # 실행
@@ -351,8 +276,61 @@ try:
     df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
-    # ③ 요약 & 차트, ④ 신호 결과 (최신 순) → 원본 코드 유지
-    st.success("데이터 로드 및 지표 계산 완료 (차트/신호결과 출력 부분은 원본 유지됨)")
+    # =========================
+    # ③ 요약 & 차트
+    # =========================
+    if df.empty:
+        st.warning("선택한 기간에 데이터가 없습니다.")
+    else:
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.72, 0.28])
+        fig.add_trace(go.Candlestick(
+            x=df["time"], open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+            name="가격"
+        ), row=1, col=1)
+        if "bb_mid" in df.columns:
+            fig.add_trace(go.Scatter(x=df["time"], y=df["bb_mid"], mode="lines", name="BB 중앙선"), row=1, col=1)
+        if "bb_high" in df.columns:
+            fig.add_trace(go.Scatter(x=df["time"], y=df["bb_high"], mode="lines", name="BB 상한선"), row=1, col=1)
+        if "bb_low" in df.columns:
+            fig.add_trace(go.Scatter(x=df["time"], y=df["bb_low"], mode="lines", name="BB 하한선"), row=1, col=1)
+        if "rsi" in df.columns:
+            fig.add_trace(go.Scatter(x=df["time"], y=df["rsi"], mode="lines", name="RSI(13)"), row=2, col=1)
+            fig.add_hline(y=rsi_low, line_dash="dot", row=2, col=1)
+            fig.add_hline(y=rsi_high, line_dash="dot", row=2, col=1)
+        fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), xaxis_rangeslider_visible=False, uirevision="keep")
+        with chart_box:
+            st.plotly_chart(fig, use_container_width=True, theme=None)
+
+    # =========================
+    # ④ 신호 결과
+    # =========================
+    signals = []
+    if not df.empty:
+        closes = df["close"].to_numpy()
+        times = df["time"].to_numpy()
+        for i in range(len(df) - lookahead):
+            base = closes[i]
+            hi = closes[i+1:i+lookahead+1].max()
+            lo = closes[i+1:i+lookahead+1].min()
+            up = (hi - base) / base * 100
+            dn = (base - lo) / base * 100
+            if up >= threshold_pct:
+                result = "성공"
+            elif dn >= threshold_pct:
+                result = "실패"
+            else:
+                result = "중립"
+            signals.append({"시간": times[i], "가격": base, "결과": result})
+    if signals:
+        succ = sum(1 for s in signals if s["결과"] == "성공")
+        fail = sum(1 for s in signals if s["결과"] == "실패")
+        neu = sum(1 for s in signals if s["결과"] == "중립")
+        st.markdown('<div class="section-title">③ 요약</div>', unsafe_allow_html=True)
+        st.write(pd.DataFrame([{"성공": succ, "중립": neu, "실패": fail, "총 신호": len(signals)}]))
+        st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame(signals).iloc[::-1].reset_index(drop=True), use_container_width=True, hide_index=True)
+    else:
+        st.info("신호 없음")
 
 except Exception as e:
     st.error(f"오류: {e}")
