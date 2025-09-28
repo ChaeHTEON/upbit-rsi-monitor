@@ -104,7 +104,7 @@ interval_key, minutes_per_bar = TF_MAP[tf_label]
 st.markdown("---")
 
 # -----------------------------
-# 데이터 수집/지표/시뮬레이션
+# CSV 관련 개선된 fetch_upbit_paged
 # -----------------------------
 _session = requests.Session()
 _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
@@ -205,15 +205,15 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         if not ok:
             st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
 
-    # ✅ 최종 반환 (여유 범위 ±1일 → 이후 다시 슬라이스)
+    # ✅ 최종 반환 (±1일 여유 → 다시 슬라이스)
     df_all = df_all[(df_all["time"] >= start_dt - timedelta(days=1)) & (df_all["time"] <= end_dt + timedelta(days=1))].reset_index(drop=True)
     return df_all[(df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
 # -----------------------------
-# 이후 add_indicators, simulate, 실행부 등은 기존 코드 그대로
+# 이후 add_indicators, simulate, 실행부 등은 기존 코드 그대로 유지
 # -----------------------------
 try:
-    # ... (원래 실행부 전체 유지)
+    # 원본 실행부 전체 유지
     pass
 except Exception as e:
     st.error(f"오류: {e}")
