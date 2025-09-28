@@ -377,7 +377,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         signal_time = df.at[i0, "time"]
         base_price = float(df.at[i0, "close"])
 
-        # 2차 조건 (신호 여부만 판단, anchor/end/bars 산출은 공통부에서 처리)
+    # 2차 조건 (신호 여부만 판단, anchor/end/bars 산출은 공통부에서 처리)
         if sec_cond == "양봉 2개 연속 상승":
             if i0 + 2 >= n:
                 return None, None
@@ -385,6 +385,21 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             c2, o2 = float(df.at[i0 + 2, "close"]), float(df.at[i0 + 2, "open"])
             if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
                 return None, None
+
+        elif sec_cond == "양봉 2개 (범위 내)":
+            found, T_idx = 0, None
+            scan_end = min(i0 + lookahead, n - 1)
+            for j in range(i0 + 1, scan_end + 1):
+                c, o = float(df.at[j, "close"]), float(df.at[j, "open"])
+                if c > o:
+                    found += 1
+                    if found == 2:
+                        T_idx = j
+                        break
+            if T_idx is None:
+                return None, None
+            anchor_idx = i0
+            start_eval = T_idx
 
         elif sec_cond == "BB 기반 첫 양봉 50% 진입":
             B1_idx, B1_close = first_bull_50_over_bb(i0)
