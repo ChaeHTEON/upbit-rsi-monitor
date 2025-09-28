@@ -338,58 +338,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
 
     return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)]
 
-        # ✅ 최신 데이터 보충
-        to_time = None
-        for _ in range(800):  # 최대 160,000봉 확보 가능
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch:
-                break
-            all_data.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= fetch_start:
-                break
-            to_time = last_ts - timedelta(seconds=1)
-            params = {"market": market_code, "count": 200}
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch:
-                break
-            all_data.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= fetch_start:
-                break
-            to_time = last_ts - timedelta(seconds=1)
-
-            # ✅ 진행률 업데이트
-            progress = int((i + 1) / total_pages * 100)
-            progress_bar.progress(progress)
-            status_text.text(f"{progress}% 완료 - {len(all_data)}개 수집됨")
-            if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-            r.raise_for_status()
-            batch = r.json()
-            if not batch:
-                break
-            all_data.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= fetch_start:
-                break
-            to_time = last_ts - timedelta(seconds=1)
-    except Exception:
-        return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
-
-    if all_data:
-        df_new = pd.DataFrame(all_data).rename(columns={
-            "candle_date_time_kst": "time",
+    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)]
             "opening_price": "open",
             "high_price": "high",
             "low_price": "low",
