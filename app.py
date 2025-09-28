@@ -248,10 +248,11 @@ _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 5
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함).
+    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함 + GitHub 커밋 지원).
     - API 기본 반환(최신→과거)을 정렬하여 항상 시간 오름차순 유지
     - 요청 구간(start_dt~end_dt)은 항상 API 호출 후 갱신
     - CSV는 원자적 쓰기(tmp→move)로 저장 안정성 강화
+    - 저장 후 GitHub에도 커밋(push)
     """
     import tempfile, shutil
 
@@ -319,6 +320,11 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         tmp_path = csv_path + ".tmp"
         df_all.to_csv(tmp_path, index=False)
         shutil.move(tmp_path, csv_path)
+
+        # ✅ GitHub에도 커밋
+        ok, msg = github_commit_csv(csv_path)
+        if not ok:
+            st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
     else:
         df_all = df_cache
 
@@ -360,6 +366,11 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         tmp_path = csv_path + ".tmp"
         df_all.to_csv(tmp_path, index=False)
         shutil.move(tmp_path, csv_path)
+
+        # ✅ GitHub에도 커밋
+        ok, msg = github_commit_csv(csv_path)
+        if not ok:
+            st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
 
     return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
