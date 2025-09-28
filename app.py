@@ -358,9 +358,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         if not ok:
             st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
 
-    # ✅ CSV 일부만 있어도 가능한 범위 반환 (empty 방지)
-    return df_all[(df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)].reset_index(drop=True)
-
     if all_data:
         df_new = pd.DataFrame(all_data).rename(columns={
             "candle_date_time_kst": "time",
@@ -382,10 +379,15 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_all.to_csv(tmp_path, index=False)
         shutil.move(tmp_path, csv_path)
 
-        # ⚡ GitHub 커밋은 최종 저장 시 1회만 실행
-        # (중간 보충/강제 갱신 단계에서는 커밋하지 않음)
+        # ⚡ GitHub에도 커밋
+        ok, msg = github_commit_csv(csv_path)
+        if not ok:
+            st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
     else:
         df_all = df_cache
+
+    # ✅ 최종 반환은 start_dt 기준으로만 슬라이스
+    return df_all[(df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
     # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행, 최근 구간만 보충)
     df_req, to_time = [], end_dt
