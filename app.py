@@ -248,7 +248,7 @@ _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 5
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-    """Upbit 캔들 페이징 수집 (워밍업 포함). 최신→과거 방향으로 페이징."""
+    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함). 과거는 캐시, 최신만 API 보충."""
     if warmup_bars and warmup_bars > 0:
         start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
     else:
@@ -257,12 +257,29 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
+        tf_key = f"{unit}min"
     else:
         url = "https://api.upbit.com/v1/candles/days"
+        tf_key = "day"
+
+    # CSV 경로 설정
+    data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
+    os.makedirs(data_dir, exist_ok=True)
+    csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+
+    # CSV 로드 (있으면)
+    if os.path.exists(csv_path):
+        df_cache = pd.read_csv(csv_path, parse_dates=["time"])
+    else:
+        df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
+
+    # 최신 시점 파악
+    last_cached_time = df_cache["time"].max() if not df_cache.empty else None
+    fetch_start = start_cutoff if last_cached_time is None else max(last_cached_time + timedelta(seconds=1), start_cutoff)
 
     all_data, to_time = [], None
     try:
-        for _ in range(60):
+        for _ in range(500):  # ✅ 더 깊은 페이지까지 확보 가능
             params = {"market": market_code, "count": 200}
             if to_time is not None:
                 params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -273,26 +290,34 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
                 break
             all_data.extend(batch)
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_cutoff:
+            if last_ts <= fetch_start:
                 break
             to_time = last_ts - timedelta(seconds=1)
     except Exception:
-        return pd.DataFrame()
+        return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
 
-    if not all_data:
-        return pd.DataFrame()
+    if all_data:
+        df_new = pd.DataFrame(all_data).rename(columns={
+            "candle_date_time_kst": "time",
+            "opening_price": "open",
+            "high_price": "high",
+            "low_price": "low",
+            "trade_price": "close",
+            "candle_acc_trade_volume": "volume",
+        })
+        df_new["time"] = pd.to_datetime(df_new["time"])
+        df_new = df_new[["time", "open", "high", "low", "close", "volume"]]
 
-    df = pd.DataFrame(all_data).rename(columns={
-        "candle_date_time_kst": "time",
-        "opening_price": "open",
-        "high_price": "high",
-        "low_price": "low",
-        "trade_price": "close",
-        "candle_acc_trade_volume": "volume",
-    })
-    df["time"] = pd.to_datetime(df["time"])
-    df = df[["time", "open", "high", "low", "close", "volume"]].sort_values("time").reset_index(drop=True)
-    return df[(df["time"] >= start_cutoff) & (df["time"] <= end_dt)]
+        # 기존 캐시와 합치고 중복 제거
+        df_all = pd.concat([df_cache, df_new], ignore_index=True)
+        df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
+
+        # CSV 저장
+        df_all.to_csv(csv_path, index=False)
+    else:
+        df_all = df_cache
+
+    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)]
 
 def add_indicators(df, bb_window, bb_dev, cci_window):
     out = df.copy()
