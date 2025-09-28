@@ -233,16 +233,13 @@ _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
     """최적화: CSV 범위 검증 후 부족한 앞/뒤 구간만 API 보충"""
-    # (👉 이전 개선 코드 유지)
-    ...
+    # 👉 여기 전체 코드 그대로 유지 (앞/뒤 부족한 구간만 API 호출)
 
 def add_indicators(df, bb_window, bb_dev, cci_window):
-    # (👉 원본 코드 그대로 유지)
-    ...
+    # 👉 그대로 유지
 
 def simulate(...):
-    # (👉 원본 코드 그대로 유지)
-    ...
+    # 👉 그대로 유지
 
 # -----------------------------
 # 실행
@@ -264,8 +261,7 @@ try:
     df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
-    # (👉 이후 차트, 요약, 신호결과, UI 모두 원본 코드 유지)
-    ...
+    # 👉 이후 차트, 요약, 신호결과 그대로 실행
 
 except Exception as e:
     st.error(f"오류: {e}")
