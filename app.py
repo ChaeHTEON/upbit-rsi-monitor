@@ -248,20 +248,19 @@ _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 5
 _session.mount("https://", HTTPAdapter(max_retries=_retries))
 
 def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-    """Upbit 캔들 수집 최적화
-    - CSV가 요청 구간을 전부 커버하면 API 호출 스킵
-    - 부족한 앞/뒤 구간만 API 보충
-    - 최종 반환은 [start_cutoff ~ end_dt] 오름차순
+    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함 + GitHub 커밋 지원).
+    - API 기본 반환(최신→과거)을 정렬하여 항상 시간 오름차순 유지
+    - 요청 구간(start_dt~end_dt)은 항상 API 호출 후 갱신
+    - CSV는 원자적 쓰기(tmp→move)로 저장 안정성 강화
+    - 저장 후 GitHub에도 커밋(push)
     """
-    import shutil
+    import tempfile, shutil
 
-    # 시작 컷오프 (워밍업 적용)
     if warmup_bars and warmup_bars > 0:
         start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
     else:
         start_cutoff = start_dt
 
-    # 엔드포인트 결정
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
@@ -270,27 +269,20 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = "https://api.upbit.com/v1/candles/days"
         tf_key = "day"
 
-    # CSV 로드
+    # CSV 경로 설정
     data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
     os.makedirs(data_dir, exist_ok=True)
     csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
 
+    # CSV 로드 (있으면)
     if os.path.exists(csv_path):
         df_cache = pd.read_csv(csv_path, parse_dates=["time"])
     else:
         df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # CSV가 요청 구간 전부 커버 → API 스킵
-    if not df_cache.empty:
-        first_cached = df_cache["time"].min()
-        last_cached  = df_cache["time"].max()
-        if first_cached <= start_cutoff and last_cached >= end_dt:
-            return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].sort_values("time").reset_index(drop=True)
-
-    df_all = df_cache.copy()
-
-    def _fetch(to_time_init, stop_when):
-        out, to_time = [], to_time_init
+    # 1차: 캐시 + 최신 데이터 보충
+    all_data, to_time = [], None
+    try:
         for _ in range(500):
             params = {"market": market_code, "count": 200}
             if to_time is not None:
@@ -300,16 +292,16 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
             batch = r.json()
             if not batch:
                 break
-            out.extend(batch)
+            all_data.extend(batch)
             last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if stop_when is not None and last_ts <= stop_when:
+            if last_ts <= start_cutoff:
                 break
             to_time = last_ts - timedelta(seconds=1)
+    except Exception:
+        return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
 
-        if not out:
-            return pd.DataFrame(columns=["time","open","high","low","close","volume"])
-
-        df_new = pd.DataFrame(out).rename(columns={
+    if all_data:
+        df_new = pd.DataFrame(all_data).rename(columns={
             "candle_date_time_kst": "time",
             "opening_price": "open",
             "high_price": "high",
@@ -318,41 +310,67 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
             "candle_acc_trade_volume": "volume",
         })
         df_new["time"] = pd.to_datetime(df_new["time"])
-        return df_new[["time","open","high","low","close","volume"]]
+        df_new = df_new[["time", "open", "high", "low", "close", "volume"]]
 
-    # 앞쪽 부족 → start_cutoff까지 수집
-    if df_cache.empty or start_cutoff < (df_cache["time"].min() if not df_cache.empty else end_dt):
-        try:
-            df_front = _fetch(None, stop_when=start_cutoff)
-            if not df_front.empty:
-                df_all = pd.concat([df_all, df_front], ignore_index=True)
-        except Exception:
-            pass
-
-    # 뒤쪽 부족 → end_dt까지 수집
-    if df_cache.empty or end_dt > (df_cache["time"].max() if not df_cache.empty else start_cutoff):
-        try:
-            df_back = _fetch(end_dt, stop_when=None)
-            if not df_back.empty:
-                df_all = pd.concat([df_all, df_back], ignore_index=True)
-        except Exception:
-            pass
-
-    if not df_all.empty:
+        # 캐시와 병합 후 정렬/중복제거
+        df_all = pd.concat([df_cache, df_new], ignore_index=True)
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
+
+        # 원자적 저장
         tmp_path = csv_path + ".tmp"
         df_all.to_csv(tmp_path, index=False)
         shutil.move(tmp_path, csv_path)
 
-        # GitHub 커밋 시도 (환경에 따라 실패 무시)
-        try:
-            ok, msg = github_commit_csv(csv_path)
-            if not ok:
-                st.warning(f"CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
-        except Exception:
-            pass
+        # ⚡ GitHub 커밋은 최종 저장 시 1회만 실행
+        # (중간 보충/강제 갱신 단계에서는 커밋하지 않음)
+    else:
+        df_all = df_cache
 
-    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].sort_values("time").reset_index(drop=True)
+    # 2차: 요청 구간 강제 갱신
+    df_req, to_time = [], end_dt
+    try:
+        for _ in range(500):
+            params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
+            r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+            r.raise_for_status()
+            batch = r.json()
+            if not batch:
+                break
+            df_req.extend(batch)
+            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+            if last_ts <= start_cutoff:
+                break
+            to_time = last_ts - timedelta(seconds=1)
+    except Exception:
+        pass
+
+    if df_req:
+        df_req = pd.DataFrame(df_req).rename(columns={
+            "candle_date_time_kst": "time",
+            "opening_price": "open",
+            "high_price": "high",
+            "low_price": "low",
+            "trade_price": "close",
+            "candle_acc_trade_volume": "volume",
+        })
+        df_req["time"] = pd.to_datetime(df_req["time"])
+        df_req = df_req[["time", "open", "high", "low", "close", "volume"]].sort_values("time")
+
+        # 해당 구간 삭제 후 새 데이터 삽입
+        df_all = df_all[(df_all["time"] < start_cutoff) | (df_all["time"] > end_dt)]
+        df_all = pd.concat([df_all, df_req], ignore_index=True).drop_duplicates(subset=["time"]).sort_values("time")
+
+        # 원자적 저장
+        tmp_path = csv_path + ".tmp"
+        df_all.to_csv(tmp_path, index=False)
+        shutil.move(tmp_path, csv_path)
+
+        # ✅ GitHub에도 커밋
+        ok, msg = github_commit_csv(csv_path)
+        if not ok:
+            st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
+
+    return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].reset_index(drop=True)
 
 def add_indicators(df, bb_window, bb_dev, cci_window):
     out = df.copy()
