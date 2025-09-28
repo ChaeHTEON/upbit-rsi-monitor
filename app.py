@@ -321,10 +321,8 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_all.to_csv(tmp_path, index=False)
         shutil.move(tmp_path, csv_path)
 
-        # ✅ GitHub에도 커밋
-        ok, msg = github_commit_csv(csv_path)
-        if not ok:
-            st.warning(f"캔들 CSV는 로컬에 저장됐지만 GitHub 반영 실패: {msg}")
+        # ⚡ GitHub 커밋은 최종 저장 시 1회만 실행
+        # (중간 보충/강제 갱신 단계에서는 커밋하지 않음)
     else:
         df_all = df_cache
 
