@@ -674,8 +674,8 @@ try:
         for L in manual_supply_levels:
             fig.add_hline(
                 y=float(L),
-                line=dict(color="red", width=1),
-                opacity=0.4
+                line=dict(color="#FFD700", width=1.5),  # ✅ 노랑색 + 살짝 두껍게
+                opacity=0.15  # ✅ 훨씬 더 연하게
             )
 
     # ===== 시뮬레이션 (중복 포함/제거) =====
