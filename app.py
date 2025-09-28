@@ -336,9 +336,21 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         df_all = df_cache
 
-    # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행)
+    # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행, 최근 구간만 보충)
     df_req, to_time = [], end_dt
-    if df_all.empty or df_all["time"].min() > start_cutoff or df_all["time"].max() < end_dt:
+    need_update = False
+    if df_all.empty:
+        need_update = True
+    else:
+        cache_min, cache_max = df_all["time"].min(), df_all["time"].max()
+        if cache_min > start_cutoff:
+            need_update = True
+        if cache_max < end_dt:
+            # CSV는 과거까지 커버하지만 최신(end_dt)까지 부족 → 부족한 부분만 보충
+            to_time = end_dt
+            need_update = True
+
+    if need_update:
         try:
             while True:
                 params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
@@ -349,7 +361,8 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
                     break
                 df_req.extend(batch)
                 last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                if last_ts <= start_cutoff:
+                # ✅ 과거 전체를 긁지 않고, 부족한 start_cutoff까지만 채움
+                if last_ts <= start_cutoff or (not df_all.empty and last_ts <= cache_max):
                     break
                 to_time = last_ts - timedelta(seconds=1)
         except Exception:
