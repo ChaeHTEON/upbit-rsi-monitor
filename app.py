@@ -888,8 +888,6 @@ try:
         uirevision="chart-static",
         hovermode="closest"
     )
-    else:
-        fig.update_xaxes(autorange=True)
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
     with chart_box:
         top_l, top_r = st.columns([4, 1])
