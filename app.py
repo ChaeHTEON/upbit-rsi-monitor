@@ -1142,20 +1142,46 @@ try:
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+        tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+        tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
+        if "RSI(13)" in tbl:
+            tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
+        for col in ["성공기준(%)", "최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
+            if col in tbl:
+                tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
-        # ✅ style_result 함수 정의
+        # 도달캔들(bars) → 도달시간(HH:MM) 변환
+        if "도달캔들(bars)" in tbl.columns:
+            tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
+            def _fmt_from_bars(b):
+                total_min = int(b) * int(minutes_per_bar)
+                hh, mm = divmod(total_min, 60)
+                return f"{hh:02d}:{mm:02d}"
+            tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
+        else:
+            tbl["도달캔들"] = 0
+            tbl["도달시간"] = "-"
+
+        # 불필요한 컬럼 제거
+        drop_cols = [c for c in ["BB값", "도달분", "도달캔들(bars)"] if c in tbl.columns]
+        if drop_cols:
+            tbl = tbl.drop(columns=drop_cols)
+
+        # 최종 표시 컬럼 순서
+        keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
+                     "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
+        keep_cols = [c for c in keep_cols if c in tbl.columns]
+        tbl = tbl[keep_cols]
+
+        # style 함수 정의
         def style_result(val):
-            if val == "성공":
-                return "background-color:#FFF59D; color:#E53935; font-weight:600;"
-            elif val == "실패":
-                return "color:#1E40AF; font-weight:600;"
-            elif val == "중립":
-                return "color:#FF9800; font-weight:600;"
+            if val == "성공": return "background-color: #FFF59D; color: #E53935; font-weight:600;"
+            if val == "실패": return "color: #1E40AF; font-weight:600;"
+            if val == "중립": return "color: #FF9800; font-weight:600;"
             return ""
 
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
         st.dataframe(styled_tbl, width="stretch")
-
     # -----------------------------
     # CSV GitHub 업로드 버튼 (원할 때만 커밋)
     # -----------------------------
