@@ -709,8 +709,9 @@ try:
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
     # 보기 요약 텍스트
-    total_min = lookahead * minutes_per_bar
-    hh, mm = divmod(int(total_min), 60)
+    # ✅ 항상 선택한 봉 종류(minutes_per_bar)를 정확히 반영하여 시간 환산
+    total_min = lookahead * int(minutes_per_bar)
+    hh, mm = divmod(total_min, 60)
     look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
 
     if rsi_mode == "없음":
