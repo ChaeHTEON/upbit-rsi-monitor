@@ -1156,7 +1156,7 @@ try:
                             for sec_c in sec_list:
                                 # 시뮬레이션 (중복 제거 기준으로 평가)
                                 res_s = simulate(
-                                    df_s, rsi_m, rsi_low, rsi_high, lookahead_s, thr_pct,
+                                    df_s, rsi_m, rsi_low, rsi_high, lookahead_s, target_thr,
                                     bb_c, "중복 제거 (연속 동일 결과 1개)",
                                     mpb_s, sweep_market, bb_window, bb_dev,
                                     sec_cond=sec_c, hit_basis="종가 기준",
