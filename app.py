@@ -396,10 +396,16 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_all = df_all[(df_all["time"] < start_cutoff) | (df_all["time"] > end_dt)]
         df_all = pd.concat([df_all, df_req], ignore_index=True).drop_duplicates(subset=["time"]).sort_values("time")
 
-        # 원자적 저장
+        # 원자적 저장 (디렉토리 보장 + 에러 안전 처리)
+        data_dir = os.path.dirname(csv_path)
+        os.makedirs(data_dir, exist_ok=True)
         tmp_path = csv_path + ".tmp"
         df_all.to_csv(tmp_path, index=False)
-        shutil.move(tmp_path, csv_path)
+        try:
+            shutil.move(tmp_path, csv_path)
+        except FileNotFoundError:
+            # tmp 생성 실패 시 직접 저장
+            df_all.to_csv(csv_path, index=False)
 
         # ⚡ GitHub 커밋은 자동 실행하지 않음 (수동 버튼에서만 실행)
 
