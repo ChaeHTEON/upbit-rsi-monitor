@@ -284,19 +284,25 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         else:
             df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # ✅ CSV가 있으면 우선 캐시에서 슬라이스 후 반환
+    # ✅ CSV 활용 우선
     if not df_cache.empty:
         cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
-        # 요청 구간이 CSV에 전부 포함되면 그대로 반환 (API/저장 스킵)
+
+        # 요청 구간이 CSV에 완전히 포함 → 즉시 반환 (API/저장 로직 완전 스킵)
         if cache_min <= start_cutoff and cache_max >= end_dt:
-            df_slice = df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].copy()
-            return df_slice.reset_index(drop=True)
+            return (
+                df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
+                .reset_index(drop=True)
+            )
 
         # 부분적으로라도 데이터가 있으면 우선 반환 (부족분만 API 보충)
         df_slice = df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].copy()
         if not df_slice.empty:
             return df_slice.reset_index(drop=True)
 
+        need_api = True
+    else:
+        df_slice = pd.DataFrame(columns=["time","open","high","low","close","volume"])
         need_api = True
     else:
         df_slice = pd.DataFrame(columns=["time","open","high","low","close","volume"])
