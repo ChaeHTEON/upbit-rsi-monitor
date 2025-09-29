@@ -1233,10 +1233,10 @@ try:
                     else:
                         df_show["날짜"] = ""
 
-                # ✅ 퍼센트 포맷
+                # ✅ 퍼센트 포맷 (소수점 둘째 자리까지 통일)
                 for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
                     if col in df_show:
-                        df_show[col] = df_show[col].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                        df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
                 if "BB_승수" in df_show:
                     df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
 
