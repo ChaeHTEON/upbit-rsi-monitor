@@ -152,9 +152,13 @@ with c12:
 st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
 sec_cond = st.selectbox(
     "2차 조건 선택",
-    ["없음", "양봉 2개 연속 상승", "양봉 2개 (범위 내)", "BB 기반 첫 양봉 50% 진입", "매물대 터치 후 반등(위→아래→반등)"],
-    index=0
+    ["없음", "양봉 2개 (범위 내)", "매물대 터치 후 반등(위→아래→반등)"]
 )
+
+# ✅ 매물대 반등 조건일 때만 N봉 입력 노출
+if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
+    maemul_n = st.number_input("매물대 반등 조건: 이전 캔들 수", min_value=5, max_value=500, value=50, step=5)
+    st.session_state["maemul_n"] = maemul_n
 
 # ✅ 볼린저 옵션 미체크 시 안내 문구 (bb_cond 값으로 판단)
 if sec_cond == "BB 기반 첫 양봉 50% 진입" and bb_cond == "없음":
@@ -546,15 +550,14 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         if low_j <= float(L):
                             touched = True
                             break
-                    # ② 직전 24시간 최저가 여부 확인
-                    is_daily_low = False
-                    t_j = df.at[j, "time"]
-                    window_start = t_j - pd.Timedelta(hours=24)
-                    lows_24h = df[(df["time"] >= window_start) & (df["time"] <= t_j)]["low"]
-                    if not lows_24h.empty and low_j <= lows_24h.min():
-                        is_daily_low = True
-                    # ③ 최종 조건: 매물대 터치 + 24시간 최저가 + 매물대 위 종가 복귀
-                    if touched and is_daily_low and close_j > max(manual_supply_levels):
+                    # ② 직전 N봉 최저가 여부 확인
+                    is_nbar_low = False
+                    lookback_n = st.session_state.get("maemul_n", 50)  # 기본값 50봉
+                    past_n = df.loc[:j].tail(lookback_n)
+                    if not past_n.empty and low_j <= past_n["low"].min():
+                        is_nbar_low = True
+                    # ③ 최종 조건: 매물대 터치 + N봉 최저가 + 매물대 위 종가 복귀
+                    if touched and is_nbar_low and close_j > max(manual_supply_levels):
                         rebound_idx = j
                         break
             if rebound_idx is None:
@@ -562,7 +565,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             anchor_idx = rebound_idx
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
-
         # --- 성과 측정 (공통) ---
         eval_start = anchor_idx + 1
         end_idx = eval_start + lookahead
