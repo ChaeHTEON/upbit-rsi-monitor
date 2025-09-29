@@ -1135,7 +1135,25 @@ try:
     st.markdown("---")
 
     # -----------------------------
-# ④ 신호 결과 (테이블
+    # ④ 신호 결과 (테이블)
+    # -----------------------------
+    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+    if res is None or res.empty:
+        st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
+    else:
+        tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+
+        def style_result(val):
+            if val == "성공":
+                return "background-color:#FFF59D; color:#E53935; font-weight:600;"
+            elif val == "실패":
+                return "color:#1E40AF; font-weight:600;"
+            elif val == "중립":
+                return "color:#FF9800; font-weight:600;"
+            return ""
+
+        styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
+        st.dataframe(styled_tbl, use_container_width=True)
 
     # -----------------------------
     # CSV GitHub 업로드 버튼 (원할 때만 커밋)
