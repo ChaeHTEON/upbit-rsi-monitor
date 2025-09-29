@@ -287,10 +287,12 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     # CSV 로드 (있으면) — 기본: data_cache/, 없으면 루트에서도 탐색
     if os.path.exists(csv_path):
         df_cache = pd.read_csv(csv_path, parse_dates=["time"])
+        df_cache["time"] = pd.to_datetime(df_cache["time"]).dt.tz_localize(None)
     else:
         root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
         if os.path.exists(root_csv):
             df_cache = pd.read_csv(root_csv, parse_dates=["time"])
+            df_cache["time"] = pd.to_datetime(df_cache["time"]).dt.tz_localize(None)
         else:
             df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
