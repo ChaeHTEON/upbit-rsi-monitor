@@ -1145,11 +1145,11 @@ try:
                                 total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
                                 avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
 
-                                # ✅ 조합 판정 요약 (요청 반영: 승률+수익률 모두 만족해야 성공)
+                                # ✅ 조합 판정 요약 (최종 규칙: 승률+수익률+적중 신호 모두 만족해야 성공)
                                 target_thr_val = float(target_thr)
                                 wr_val = float(winrate_thr)
 
-                                if (win >= wr_val) and (total_ret >= target_thr_val):
+                                if (succ > 0) and (win >= wr_val) and (total_ret >= target_thr_val):
                                     final_result = "성공"
                                 elif total_ret >= 0:
                                     final_result = "중립"
