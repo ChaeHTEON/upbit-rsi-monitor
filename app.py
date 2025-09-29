@@ -1149,15 +1149,45 @@ try:
                                 })
 
             if not sweep_rows:
-                st.info("조합 결과가 없습니다. (데이터 없음)")
+                st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
             else:
-                df_sweep = pd.DataFrame(sweep_rows).sort_values(
-                    ["필터통과", "승률(%)", "신호수", "합계수익률(%)"],
-                    ascending=[False, False, False, False]
-                ).reset_index(drop=True)
-                st.dataframe(df_sweep, use_container_width=True)
-                csv_bytes = df_sweep.to_csv(index=False).encode("utf-8-sig")
-                st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
+                # ✅ 성공 기준(승률 ≥ winrate_thr) 충족 조합만 표시
+                df_sweep = pd.DataFrame(sweep_rows)
+                df_sweep = df_sweep[df_sweep["승률(%)"] >= winrate_thr]
+
+                if df_sweep.empty:
+                    st.info("조건을 만족하는 조합이 없습니다. (성공 케이스 없음)")
+                else:
+                    # 정렬
+                    df_sweep = df_sweep.sort_values(
+                        ["승률(%)", "신호수", "합계수익률(%)"],
+                        ascending=[False, False, False]
+                    ).reset_index(drop=True)
+
+                    # ✅ 포맷팅: 소수점 1자리 + % 기호
+                    for col in ["목표수익률(%)", "승률(%)", "평균수익률(%)", "합계수익률(%)"]:
+                        if col in df_sweep:
+                            df_sweep[col] = df_sweep[col].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+
+                    # ✅ 색상 스타일 적용
+                    def style_result(val):
+                        try:
+                            num = float(val.replace("%",""))
+                        except Exception:
+                            return ""
+                        if num > 0:
+                            return "color:#E53935; font-weight:600;"  # 빨강
+                        elif num < 0:
+                            return "color:#1E40AF; font-weight:600;"  # 파랑
+                        else:
+                            return "color:#FF9800; font-weight:600;"  # 주황(중립)
+                    
+                    styled_tbl = df_sweep.style.applymap(style_result, subset=["평균수익률(%)","합계수익률(%)"])
+                    st.dataframe(styled_tbl, use_container_width=True)
+
+                    # CSV 다운로드 (원본 데이터)
+                    csv_bytes = df_sweep.to_csv(index=False).encode("utf-8-sig")
+                    st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
 
     # -----------------------------
     # ④ 신호 결과 (테이블)
