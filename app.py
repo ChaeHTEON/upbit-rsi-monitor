@@ -1054,10 +1054,18 @@ try:
     st.markdown("---")
 
     # -----------------------------
-    # 🔎 통계/조합 탐색 (실험)
+    # 🔎 통계/조합 탐색 (고도화)
     # -----------------------------
-    with st.expander("🔎 통계/조합 탐색 (목표: 1% 수익, 승률 ≥ N%)", expanded=False):
-        st.caption("※ 2025년 1월 이후의 리플(XRP)을 대상으로, 15·30·60분봉 등 여러 조합을 자동 시뮬레이션하여 조건을 만족하는 조합만 추립니다.")
+    with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=False):
+        st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
+
+        # 별도 옵션
+        sweep_market_label, sweep_market = st.selectbox("종목 선택 (통계 전용)", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
+        sweep_start = st.date_input("시작일 (통계 전용)", value=datetime(2025, 1, 1).date())
+        sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date)
+        target_thr  = st.number_input("목표 수익률 (%)", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
+        winrate_thr = st.number_input("목표 승률 (%)", min_value=10, max_value=100, value=60, step=5)
+
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True)
 
         def _winrate(df_in: pd.DataFrame):
@@ -1072,11 +1080,9 @@ try:
 
         if run_sweep:
             sweep_rows = []
-            # 스캔 기준: 2025-01-01 ~ 현재 UI에서 선택한 종료일, 종목은 KRW-XRP 고정
-            sweep_market = "KRW-XRP"
-            # ✅ fetch_upbit_paged/CSV가 naive 타임스탬프를 쓰므로 비교도 naive로 맞춘다
-            sdt = datetime(2025, 1, 1, 0, 0, 0)  # naive
-            edt = datetime.combine(end_date, datetime.max.time())  # naive
+            # 스캔 기준: 사용자 지정 종목/기간
+            sdt = datetime.combine(sweep_start, datetime.min.time())
+            edt = datetime.combine(sweep_end, datetime.max.time())
 
             tf_list = ["15분", "30분", "60분"]
             rsi_list = ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"]
@@ -1089,9 +1095,53 @@ try:
                 "매물대 터치 후 반등(위→아래→반등)",
             ]
             lookahead_list = [5, 10, 15, 20, 30]
-            thr_pct = 1.0  # 목표 수익률 1%
-            winrate_thr = st.number_input("목표 승률 (%)", min_value=10, max_value=100, value=60, step=5)
 
+            for tf_lbl in tf_list:
+                interval_key_s, mpb_s = TF_MAP[tf_lbl]
+                df_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
+                if df_s is None or df_s.empty:
+                    continue
+                df_s = add_indicators(df_s, bb_window, bb_dev, cci_window)
+
+                for lookahead_s in lookahead_list:
+                    for rsi_m in rsi_list:
+                        for bb_c in bb_list:
+                            for sec_c in sec_list:
+                                res_s = simulate(
+                                    df_s, rsi_m, rsi_low, rsi_high, lookahead_s, target_thr,
+                                    bb_c, "중복 제거 (연속 동일 결과 1개)",
+                                    mpb_s, sweep_market, bb_window, bb_dev,
+                                    sec_cond=sec_c, hit_basis="종가 기준",
+                                    miss_policy="(고정) 성공·실패·중립",
+                                    bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
+                                )
+                                win, total, succ, fail = _winrate(res_s)
+                                if total > 0 and win >= winrate_thr:
+                                    total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
+                                    avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s else 0.0
+                                    sweep_rows.append({
+                                        "타임프레임": tf_lbl,
+                                        "측정N(봉)": lookahead_s,
+                                        "RSI": rsi_m,
+                                        "BB": bb_c,
+                                        "2차조건": sec_c,
+                                        "신호수": int(total),
+                                        "성공": int(succ),
+                                        "실패": int(fail),
+                                        "승률(%)": round(win, 1),
+                                        "평균수익률(%)": round(avg_ret, 2),
+                                        "합계수익률(%)": round(total_ret, 1),
+                                    })
+
+            if not sweep_rows:
+                st.info("조건을 만족하는 조합이 없습니다. (승률 ≥ 입력값, 목표 수익률 조건)")
+            else:
+                df_sweep = pd.DataFrame(sweep_rows).sort_values(
+                    ["승률(%)", "신호수", "합계수익률(%)"], ascending=[False, False, False]
+                ).reset_index(drop=True)
+                st.dataframe(df_sweep, use_container_width=True)
+                csv_bytes = df_sweep.to_csv(index=False).encode("utf-8-sig")
+                st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
             for tf_lbl in tf_list:
                 interval_key_s, mpb_s = TF_MAP[tf_lbl]
                 # 데이터 로드 + 지표
