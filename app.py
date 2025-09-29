@@ -689,8 +689,13 @@ try:
         st.error("시작 날짜가 종료 날짜보다 이후입니다.")
         st.stop()
 
+    KST = timezone("Asia/Seoul")
     start_dt = datetime.combine(start_date, datetime.min.time())
-    end_dt = datetime.combine(end_date, datetime.max.time())
+    if end_date == datetime.now(KST).date():
+        # 오늘 날짜 → 현재 시각까지만 데이터 요청
+        end_dt = datetime.now(KST)
+    else:
+        end_dt = datetime.combine(end_date, datetime.max.time())
     warmup_bars = max(13, bb_window, int(cci_window)) * 5
 
     df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
