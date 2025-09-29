@@ -1094,19 +1094,15 @@ try:
     with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=st.session_state["sweep_expanded"]):
         st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
 
-        # 별도 옵션 (변경 시에도 펼침 유지)
+        main_idx_for_sweep = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == market_code), default_idx)
         sweep_market_label, sweep_market = st.selectbox(
-            "종목 선택 (통계 전용)", MARKET_LIST, index=default_idx,
+            "종목 선택 (통계 전용)", MARKET_LIST, index=main_idx_for_sweep,
             format_func=lambda x: x[0], key="sweep_market_sel", on_change=_keep_sweep_open
         )
-        sweep_start = st.date_input("시작일 (통계 전용)", value=datetime(2025, 1, 1).date(),
+        sweep_start = st.date_input("시작일 (통계 전용)", value=start_date,
                                     key="sweep_start", on_change=_keep_sweep_open)
         sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
                                     key="sweep_end", on_change=_keep_sweep_open)
-        target_thr  = st.number_input("목표 수익률 (%)", min_value=0.1, max_value=10.0, value=1.0, step=0.1,
-                                      key="sweep_target_thr", on_change=_keep_sweep_open)
-        winrate_thr = st.number_input("목표 승률 (%)", min_value=10, max_value=100, value=60, step=5,
-                                      key="sweep_winrate_thr", on_change=_keep_sweep_open)
 
         # ⚡ 빠른 테스트 모드 (최근 30일)
         fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
