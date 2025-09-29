@@ -1112,6 +1112,9 @@ try:
         if run_sweep:
             st.session_state["sweep_expanded"] = True
 
+        # ✅ 스캔에서도 라디오의 중복 모드를 그대로 사용
+        dedup_label = "중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"
+
         def _winrate(df_in: pd.DataFrame):
             # ✅ 항상 5개 반환 (win, total, succ, fail, neu)
             if df_in is None or df_in.empty:
@@ -1160,7 +1163,7 @@ try:
                             for sec_c in sec_list:
                                 res_s = simulate(
                                     df_s, rsi_m, rsi_low, rsi_high, lookahead_s, target_thr,
-                                    bb_c, "중복 제거 (연속 동일 결과 1개)",
+                                    bb_c, dedup_label,
                                     mpb_s, sweep_market, bb_window, bb_dev,
                                     sec_cond=sec_c, hit_basis="종가 기준",
                                     miss_policy="(고정) 성공·실패·중립",
@@ -1295,7 +1298,7 @@ try:
                         res_detail = simulate(
                             df_sel, sel["RSI"], rsi_low, rsi_high,
                             int(sel["측정N(봉)"]), target_thr,
-                            sel["BB"], "중복 제거 (연속 동일 결과 1개)",
+                            sel["BB"], dedup_label,
                             mpb_s, sweep_market, bb_window, bb_dev,
                             sec_cond=sel["2차조건"], hit_basis="종가 기준",
                             miss_policy="(고정) 성공·실패·중립",
