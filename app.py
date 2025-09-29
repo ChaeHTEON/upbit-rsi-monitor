@@ -1224,8 +1224,8 @@ try:
                 ).reset_index(drop=True)
 
                 # ✅ 날짜 컬럼 추가 (신호시간이 있다면 날짜만 추출)
-                if "신호시간" in df_keep:
-                    df_show["날짜"] = pd.to_datetime(df_keep["신호시간"]).dt.strftime("%Y-%m-%d")
+                if "신호시간" in df_show:
+                    df_show["날짜"] = pd.to_datetime(df_show["신호시간"]).dt.strftime("%Y-%m-%d")
                 else:
                     df_show["날짜"] = ""
 
