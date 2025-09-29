@@ -304,9 +304,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         df_slice = pd.DataFrame(columns=["time","open","high","low","close","volume"])
         need_api = True
-    else:
-        df_slice = pd.DataFrame(columns=["time","open","high","low","close","volume"])
-        need_api = True
 
     # ⚡ CSV에 일부만 있는 경우 → 부족한 앞/뒤 구간만 API 보충
     all_data, to_time = [], None
