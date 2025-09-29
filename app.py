@@ -1193,10 +1193,10 @@ try:
         # ② 표시 단계: 세션에 저장된 결과를 항상 우선 표시
         # -----------------------------
         sweep_rows_saved = st.session_state.get("sweep_state", {}).get("rows", [])
-            if not sweep_rows:
-                st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
-            else:
-                df_all = pd.DataFrame(sweep_rows)
+        if not sweep_rows_saved:
+            st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
+        else:
+            df_all = pd.DataFrame(sweep_rows_saved)
     
                 # ✅ 성공/중립만 남기되, 성공은 승률·합계수익률 재검증
                 wr_num = float(winrate_thr)
