@@ -1192,19 +1192,21 @@ try:
     # CSV GitHub 업로드 버튼 (원할 때만 커밋)
     # -----------------------------
     tf_key = (interval_key.split("/")[1] + "min") if "minutes/" in interval_key else "day"
-csv_path = os.path.join(os.path.dirname(__file__), "data_cache", f"{market_code}_{tf_key}.csv")
-root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
+    data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
+    csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+    root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
 
-if st.button("📤 CSV GitHub 업로드"):
-    target_file = csv_path if os.path.exists(csv_path) else root_csv
-    if os.path.exists(target_file):
-        ok, msg = github_commit_csv(target_file)
-        if ok:
-            st.success("CSV가 GitHub에 저장/공유되었습니다!")
+    if st.button("📤 CSV GitHub 업로드"):
+        # data_cache 우선, 없으면 루트도 확인
+        target_file = csv_path if os.path.exists(csv_path) else root_csv
+        if os.path.exists(target_file):
+            ok, msg = github_commit_csv(target_file)
+            if ok:
+                st.success("CSV가 GitHub에 저장/공유되었습니다!")
+            else:
+                st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
         else:
-            st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
-    else:
-        st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
+            st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
 
 except Exception as e:
     st.error(f"오류: {e}")
