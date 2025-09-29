@@ -1221,7 +1221,13 @@ try:
                 df_show = df_keep.sort_values(
                     ["결과","승률(%)","신호수","합계수익률(%)"],
                     ascending=[True,False,False,False]
-                ).reset_index()
+                ).reset_index(drop=True)
+
+                # ✅ 날짜 컬럼 추가 (신호시간이 있다면 날짜만 추출)
+                if "신호시간" in df_keep:
+                    df_show["날짜"] = pd.to_datetime(df_keep["신호시간"]).dt.strftime("%Y-%m-%d")
+                else:
+                    df_show["날짜"] = ""
 
                 # ✅ 퍼센트 포맷
                 for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
