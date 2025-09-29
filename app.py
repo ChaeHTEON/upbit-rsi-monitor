@@ -1141,8 +1141,10 @@ try:
     if res is None or res.empty:
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
+        # 결과 테이블 정리
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
 
+        # 결과값 스타일링 함수 (원래 누락되어 있던 부분만 추가)
         def style_result(val):
             if val == "성공":
                 return "background-color:#FFF59D; color:#E53935; font-weight:600;"
@@ -1153,7 +1155,7 @@ try:
             return ""
 
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
-        st.dataframe(styled_tbl, use_container_width=True)
+        st.dataframe(styled_tbl, width="stretch")
 
     # -----------------------------
     # CSV GitHub 업로드 버튼 (원할 때만 커밋)
