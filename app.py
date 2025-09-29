@@ -722,9 +722,9 @@ def run_combination_scan_chunked(
     end_dt,
     days_per_chunk: int = 7,
     checkpoint_key: str = "combo_scan_ckpt_v1",
-    max_minutes: float | None = None,
+    max_minutes: Optional[float] = None,
     on_progress=None,
-    simulate_kwargs: dict | None = None,
+    simulate_kwargs: Optional[dict] = None,
 ):
     """
     긴 기간을 청크로 나눠 안전하게 스캔 실행:
@@ -1239,68 +1239,64 @@ try:
         fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
                                 key="sweep_fast_mode", on_change=_keep_sweep_open)
 
-        run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
-        if run_sweep:
-        # -----------------------------
-        # (추가) 긴 기간 안전 스캔 래퍼
-        # - 기존 run_sweep 루프를 대체하지 않고, 먼저 '안정 실행'을 시도
-        # - 실패/빈결 시 기존 루프가 백업처럼 동작하게 순서를 유지
-        # -----------------------------
-        if run_sweep:
-            prog = st.progress(0)
-            def _on_progress(p): prog.progress(min(max(p, 0.0), 1.0))
+run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
+if run_sweep:
+    # -----------------------------
+    # (추가) 긴 기간 안전 스캔 래퍼
+    # - 기존 run_sweep 루프를 대체하지 않고, 먼저 '안정 실행'을 시도
+    # - 실패/빈결 시 기존 루프가 백업처럼 동작하게 순서를 유지
+    # -----------------------------
+    prog = st.progress(0)
+    def _on_progress(p): prog.progress(min(max(p, 0.0), 1.0))
 
-            # 기간 계산 (빠른 모드 ON → 최근 30일)
-            if fast_mode:
-                sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
-            else:
-                sdt = datetime.combine(sweep_start, datetime.min.time())
-            edt = datetime.combine(sweep_end, datetime.max.time())
+    # 기간 계산 (빠른 모드 ON → 최근 30일)
+    if fast_mode:
+        sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
+    else:
+        sdt = datetime.combine(sweep_start, datetime.min.time())
+    edt = datetime.combine(sweep_end, datetime.max.time())
 
-            try:
-                # 현재 화면의 주요 옵션을 simulate_kwargs로 전달
-                simulate_kwargs = dict(
-                    rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
-                    lookahead=lookahead, threshold_pct=threshold_pct,
-                    bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
-                    sec_cond=sec_cond, bottom_mode=bottom_mode,
-                    manual_supply_levels=manual_supply_levels,
-                )
+    try:
+        # 현재 화면의 주요 옵션을 simulate_kwargs로 전달
+        simulate_kwargs = dict(
+            rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
+            lookahead=lookahead, threshold_pct=threshold_pct,
+            bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+            sec_cond=sec_cond, bottom_mode=bottom_mode,
+            manual_supply_levels=manual_supply_levels,
+        )
 
-                # 타임프레임은 사용자가 실제 선택한 것(= 메인 화면 기준)으로 1회 실행
-                merged_df, ckpt = run_combination_scan_chunked(
-                    symbol=sweep_market,
-                    interval_key=interval_key,                # 메인과 동일 interval_key 사용
-                    minutes_per_bar=minutes_per_bar,          # 메인과 동일 minutes_per_bar 사용
-                    start_dt=sdt,
-                    end_dt=edt,
-                    days_per_chunk=7,
-                    checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}",
-                    max_minutes=15,
-                    on_progress=_on_progress,
-                    simulate_kwargs=simulate_kwargs,
-                )
+        # 타임프레임은 메인 화면 기준으로 1회 실행
+        merged_df, ckpt = run_combination_scan_chunked(
+            symbol=sweep_market,
+            interval_key=interval_key,
+            minutes_per_bar=minutes_per_bar,
+            start_dt=sdt,
+            end_dt=edt,
+            days_per_chunk=7,
+            checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}",
+            max_minutes=15,
+            on_progress=_on_progress,
+            simulate_kwargs=simulate_kwargs,
+        )
 
-                # 안전 스캔 결과가 있으면 그대로 세션에 저장하고, 기존 루프는 건너뜀
-                if merged_df is not None and not merged_df.empty:
-                    if "sweep_state" not in st.session_state:
-                        st.session_state["sweep_state"] = {}
-                    # 기존 표의 컬럼/디자인 규칙을 해치지 않도록 최소 컬럼만 저장
-                    st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
-                    st.session_state["sweep_state"]["params"] = {
-                        "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
-                        "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
-                        "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                        "target_thr": float(threshold_pct)
-                    }
-                    # 기존 루프를 타지 않도록 가벼운 힌트를 표시
-                    st.success("✅ 긴 기간 안전 스캔(조각처리/캐시/체크포인트) 결과가 적용되었습니다.")
-                    # 이후의 기존 run_sweep 루프는 실행되지 않도록 플래그 설정
-                    run_sweep = False
-            except Exception as _e:
-                # 문제가 있으면 조용히 패스 → 아래 기존 루프가 백업처럼 실행
-                st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
-            st.session_state["sweep_expanded"] = True
+        # 안전 스캔 성공 시: 결과를 세션에 저장하고, 이후 기본 루프는 건너뛰도록 플래그 설정
+        if merged_df is not None and not merged_df.empty:
+            if "sweep_state" not in st.session_state:
+                st.session_state["sweep_state"] = {}
+            st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
+            st.session_state["sweep_state"]["params"] = {
+                "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
+                "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
+                "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
+                "target_thr": float(threshold_pct)
+            }
+            st.success("✅ 긴 기간 안전 스캔(조각처리/캐시/체크포인트) 결과가 적용되었습니다.")
+            st.session_state["use_sweep_wrapper"] = True
+    except Exception as _e:
+        st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
+
+    st.session_state["sweep_expanded"] = True
 
         # ✅ 스캔에서도 라디오의 중복 모드를 그대로 사용
         dedup_label = "중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"
@@ -1319,7 +1315,7 @@ try:
         # -----------------------------
         # ① 실행 시: 스캔 수행 후 세션에 저장
         # -----------------------------
-        if run_sweep:
+        if run_sweep and not st.session_state.get("use_sweep_wrapper"):
             # 기간 계산 (빠른 모드 ON → 최근 30일)
             if fast_mode:
                 sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
