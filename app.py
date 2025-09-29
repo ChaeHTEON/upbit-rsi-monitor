@@ -323,17 +323,20 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         while True:
             params = {"market": market_code, "count": 200}
             if to_time is not None:
-                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+                params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")  # ✅ UTC 기준
             r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
             r.raise_for_status()
             batch = r.json()
             if not batch:
                 break
             all_data.extend(batch)
-            last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-            if last_ts <= start_cutoff:
+
+            # ✅ 경계 판정은 KST, 페이징 파라미터는 UTC 사용
+            last_kst = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+            last_utc = pd.to_datetime(batch[-1]["candle_date_time_utc"])
+            if last_kst <= start_cutoff:
                 break
-            to_time = last_ts - timedelta(seconds=1)
+            to_time = (last_utc - timedelta(seconds=1))
     except Exception:
         return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
 
@@ -365,21 +368,31 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_all = df_cache
 
     # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행)
-    df_req, to_time = [], end_dt
+    #     - to_time 시작점을 end_dt(KST)를 UTC로 변환해 사용
+    from pytz import timezone as _tz
+    _KST = _tz("Asia/Seoul"); _UTC = _tz("UTC")
+    df_req = []
+    to_time = _KST.localize(end_dt).astimezone(_UTC).replace(tzinfo=None)
+
     if df_all.empty or df_all["time"].min() > start_cutoff or df_all["time"].max() < end_dt:
         try:
             while True:
-                params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
+        try:
+            while True:
+                params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}  # ✅ UTC
                 r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
                 r.raise_for_status()
                 batch = r.json()
                 if not batch:
                     break
                 df_req.extend(batch)
-                last_ts = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                if last_ts <= start_cutoff:
+
+                # ✅ 경계 판정은 KST, 페이징 파라미터는 UTC 사용
+                last_kst = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+                last_utc = pd.to_datetime(batch[-1]["candle_date_time_utc"])
+                if last_kst <= start_cutoff:
                     break
-                to_time = last_ts - timedelta(seconds=1)
+                to_time = (last_utc - timedelta(seconds=1))
         except Exception:
             pass
 
