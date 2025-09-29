@@ -524,17 +524,16 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             rebound_idx = None
             scan_end = min(i0 + lookahead, n - 1)
             for j in range(i0 + 1, scan_end + 1):
-                # 예시 조건: 저가가 어떤 매물대 이하로 터치하고(close가 직전 close보다 상승) → 반등 확정
+                # 조건: 저가가 매물대 이하로 터치하고 → 종가가 매물대 위로 회복하면 반등 확정
                 if manual_supply_levels:
                     touched = False
                     low_j   = float(df.at[j, "low"])
                     close_j = float(df.at[j, "close"])
-                    prev_c  = float(df.at[j - 1, "close"]) if j - 1 >= 0 else None
                     for L in manual_supply_levels:
                         if low_j <= float(L):
                             touched = True
                             break
-                    if touched and prev_c is not None and close_j > prev_c:
+                    if touched and close_j > max(manual_supply_levels):
                         rebound_idx = j
                         break
             if rebound_idx is None:
