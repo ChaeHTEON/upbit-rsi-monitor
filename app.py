@@ -344,7 +344,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
             "trade_price": "close",
             "candle_acc_trade_volume": "volume",
         })
-        df_new["time"] = pd.to_datetime(df_new["time"])
+        df_new["time"] = pd.to_datetime(df_new["time"]).dt.tz_localize(None)
         df_new = df_new[["time", "open", "high", "low", "close", "volume"]]
 
         # 캐시와 병합 후 정렬/중복제거
@@ -390,7 +390,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
             "trade_price": "close",
             "candle_acc_trade_volume": "volume",
         })
-        df_req["time"] = pd.to_datetime(df_req["time"])
+        df_req["time"] = pd.to_datetime(df_req["time"]).dt.tz_localize(None)
         df_req = df_req[["time", "open", "high", "low", "close", "volume"]].sort_values("time")
 
         # 해당 구간 삭제 후 새 데이터 삽입
@@ -692,8 +692,8 @@ try:
     KST = timezone("Asia/Seoul")
     start_dt = datetime.combine(start_date, datetime.min.time())
     if end_date == datetime.now(KST).date():
-        # 오늘 날짜 → 현재 시각까지만 데이터 요청 (tz-naive로 통일)
-        end_dt = datetime.now(KST).replace(tzinfo=None)
+        # 오늘 날짜 → 현재 시각까지만 데이터 요청 (tz-naive 변환)
+        end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
     else:
         end_dt = datetime.combine(end_date, datetime.max.time())
     warmup_bars = max(13, bb_window, int(cci_window)) * 5
