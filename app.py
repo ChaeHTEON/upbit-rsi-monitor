@@ -1268,10 +1268,51 @@ try:
                         if res_detail is not None and not res_detail.empty:
                             st.subheader("세부 신호 결과 (최신 순)")
                             res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
+
+                            # 시간/퍼센트 포맷 적용
+                            if "신호시간" in res_detail:
+                                res_detail["신호시간"] = pd.to_datetime(res_detail["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
                             for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
                                 if col in res_detail:
                                     res_detail[col] = res_detail[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-                            st.dataframe(res_detail.head(50), use_container_width=True)
+
+                            # 도달캔들(bars) → 도달시간(HH:MM) 변환
+                            if "도달캔들(bars)" in res_detail.columns:
+                                res_detail["도달캔들"] = res_detail["도달캔들(bars)"].astype(int)
+                                def _fmt_from_bars(b):
+                                    total_min = int(b) * int(mpb_s)
+                                    hh, mm = divmod(total_min, 60)
+                                    return f"{hh:02d}:{mm:02d}"
+                                res_detail["도달시간"] = res_detail["도달캔들"].map(_fmt_from_bars)
+
+                            # 컬럼 순서 메인 ④ 신호 결과와 동일
+                            keep_cols = ["신호시간","기준시가","RSI(13)","성공기준(%)","결과",
+                                         "최종수익률(%)","최저수익률(%)","최고수익률(%)","도달캔들","도달시간"]
+                            keep_cols = [c for c in keep_cols if c in res_detail.columns]
+                            res_detail = res_detail[keep_cols]
+
+                            # 스타일 적용 (메인 표와 동일)
+                            def style_result(val):
+                                if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
+                                if val == "실패": return "color:#1E40AF; font-weight:600;"
+                                if val == "중립": return "color:#FF9800; font-weight:600;"
+                                return ""
+                            styled_detail = res_detail.style.applymap(style_result, subset=["결과"])
+                            st.dataframe(styled_detail.head(50), use_container_width=True)
+                            # 컬럼 순서 메인 ④ 신호 결과와 동일
+                            keep_cols = ["신호시간","기준시가","RSI(13)","성공기준(%)","결과",
+                                         "최종수익률(%)","최저수익률(%)","최고수익률(%)","도달캔들","도달시간"]
+                            keep_cols = [c for c in keep_cols if c in res_detail.columns]
+                            res_detail = res_detail[keep_cols]
+
+                            # 스타일 적용 (메인 표와 동일)
+                            def style_result(val):
+                                if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
+                                if val == "실패": return "color:#1E40AF; font-weight:600;"
+                                if val == "중립": return "color:#FF9800; font-weight:600;"
+                                return ""
+                            styled_detail = res_detail.style.applymap(style_result, subset=["결과"])
+                            st.dataframe(styled_detail.head(50), use_container_width=True)
     # -----------------------------
     # ④ 신호 결과 (테이블)
     # -----------------------------
