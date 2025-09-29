@@ -698,12 +698,28 @@ try:
     # 이 블록에서는 입력창을 렌더하지 않고 값만 참조합니다.
     buy_price = st.session_state.get("buy_price", 0)
 
+    # ===== 시뮬레이션 (중복 포함/제거) — 먼저 계산하여 res/plot_res 사용 보장 =====
+    res_all = simulate(
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+        bb_cond, "중복 포함 (연속 신호 모두)",
+        minutes_per_bar, market_code, bb_window, bb_dev,
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
+    )
+    res_dedup = simulate(
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+        bb_cond, "중복 제거 (연속 동일 결과 1개)",
+        minutes_per_bar, market_code, bb_window, bb_dev,
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
+    )
+    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+
     # -----------------------------
-    # 차트 표시용 기본 구간 설정 (최근 2000봉)
+    # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (df_view/plot_res 안전 보장)
     # -----------------------------
     df_view = df.iloc[-2000:].reset_index(drop=True)
-
-    # 신호 선택 → 해당 구간 ±2000봉으로 업데이트
+    plot_res = pd.DataFrame()
     if res is not None and not res.empty:
         plot_res = (
             res.sort_values("신호시간")
@@ -802,51 +818,8 @@ try:
         for L in manual_supply_levels:
             fig.add_hline(
                 y=float(L),
-                line=dict(color="#FFD700", width=2.0, dash="dot")  # ✅ 노랑색 점선, 굵게, 불투명
+                line=dict(color="#FFD700", width=2.0, dash="dot")
             )
-
-    # ===== 시뮬레이션 (중복 포함/제거) =====
-    res_all = simulate(
-        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-        bb_cond, "중복 포함 (연속 신호 모두)",
-        minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
-    )
-    res_dedup = simulate(
-        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-        bb_cond, "중복 제거 (연속 동일 결과 1개)",
-        minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
-    )
-    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
-
-    # -----------------------------
-    # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (plot_res 안전 보장)
-    # -----------------------------
-    df_view = df.iloc[-2000:].reset_index(drop=True)
-    plot_res = pd.DataFrame()
-
-    if res is not None and not res.empty:
-        plot_res = (
-            res.sort_values("신호시간")
-               .drop_duplicates(subset=["anchor_i"], keep="first")
-               .reset_index(drop=True)
-        )
-
-        # 신호 인덱스(anchor_i) 선택 UI
-        sel_anchor = st.selectbox(
-            "🔎 특정 신호 구간 보기 (anchor 인덱스)",
-            options=plot_res["anchor_i"].tolist(),
-            index=len(plot_res) - 1  # 기본은 가장 최근 신호
-        )
-
-        # 선택한 anchor 기준 ±2000봉 슬라이싱
-        if sel_anchor is not None:
-            start_idx = max(int(sel_anchor) - 1000, 0)
-            end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
-            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
 
     # ===== anchor(신호 시작 캔들) 마커/점선 (신호가 있을 때만) =====
     if not plot_res.empty:
@@ -989,7 +962,6 @@ try:
                     marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
-
             # 실패 시, 종료 지점 ❌ (파란색)
             showlegend = False
             if row["결과"] == "실패" and not legend_emitted["실패"]:
@@ -1005,7 +977,6 @@ try:
                     marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
-
             # 중립 시, 종료 지점 ❌ (주황색)
             showlegend = False
             if row["결과"] == "중립" and not legend_emitted["중립"]:
