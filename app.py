@@ -342,10 +342,16 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         df_all = pd.concat([df_cache, df_new], ignore_index=True)
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
 
-        # 원자적 저장
+        # 원자적 저장 (디렉토리 보장 + 에러 안전 처리)
+        data_dir = os.path.dirname(csv_path)
+        os.makedirs(data_dir, exist_ok=True)
         tmp_path = csv_path + ".tmp"
         df_all.to_csv(tmp_path, index=False)
-        shutil.move(tmp_path, csv_path)
+        try:
+            shutil.move(tmp_path, csv_path)
+        except FileNotFoundError:
+            # tmp 생성 실패 시 직접 저장
+            df_all.to_csv(csv_path, index=False)
 
         # ⚡ GitHub 커밋은 최종 저장 시 1회만 실행
         # (중간 보충/강제 갱신 단계에서는 커밋하지 않음)
