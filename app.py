@@ -520,11 +520,20 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                     touched = False
                     low_j   = float(df.at[j, "low"])
                     close_j = float(df.at[j, "close"])
+                    # ① 매물대 터치 여부
                     for L in manual_supply_levels:
                         if low_j <= float(L):
                             touched = True
                             break
-                    if touched and close_j > max(manual_supply_levels):
+                    # ② 직전 24시간 최저가 여부 확인
+                    is_daily_low = False
+                    t_j = df.at[j, "time"]
+                    window_start = t_j - pd.Timedelta(hours=24)
+                    lows_24h = df[(df["time"] >= window_start) & (df["time"] <= t_j)]["low"]
+                    if not lows_24h.empty and low_j <= lows_24h.min():
+                        is_daily_low = True
+                    # ③ 최종 조건: 매물대 터치 + 24시간 최저가 + 매물대 위 종가 복귀
+                    if touched and is_daily_low and close_j > max(manual_supply_levels):
                         rebound_idx = j
                         break
             if rebound_idx is None:
