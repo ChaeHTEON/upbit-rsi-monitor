@@ -1162,7 +1162,7 @@ try:
                         for bb_c in bb_list:
                             for sec_c in sec_list:
                                 res_s = simulate(
-                                    df_s, rsi_m, rsi_low, rsi_high, lookahead_s, target_thr,
+                                    df_s, rsi_m, rsi_low, rsi_high, lookahead_s, threshold_pct,
                                     bb_c, dedup_label,
                                     mpb_s, sweep_market, bb_window, bb_dev,
                                     sec_cond=sec_c, hit_basis="종가 기준",
@@ -1174,7 +1174,7 @@ try:
                                 avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
 
                                 # ✅ 조합 판정 요약 (최종 규칙: 성공=승률+수익률 모두 충족 / 중립=승률 충족+수익률 미달 / 나머지는 실패)
-                                target_thr_val = float(target_thr)
+                                target_thr_val = float(threshold_pct)
                                 wr_val = float(winrate_thr)
                                 EPS = 1e-3  # 퍼센트 비교시 경계값 오차 보정
 
@@ -1195,7 +1195,7 @@ try:
                                     "BB_기간": int(bb_window),
                                     "BB_승수": round(float(bb_dev), 1),
                                     "2차조건": sec_c,
-                                    "목표수익률(%)": float(target_thr),
+                                    "목표수익률(%)": float(threshold_pct),
                                     "승률기준(%)": f"{int(winrate_thr)}%",
                                     "신호수": int(total),
                                     "성공": int(succ),
