@@ -117,6 +117,7 @@ with c4:
     lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
 with c5:
     threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
+    winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1)
     # 성공 판정 기준은 항상 종가 기준으로 고정 (UI 제거 요청에 따라 값만 고정)
     hit_basis = "종가 기준"
 with c6:
