@@ -699,6 +699,28 @@ try:
     buy_price = st.session_state.get("buy_price", 0)
 
     # -----------------------------
+    # 차트 표시용 기본 구간 설정 (최근 2000봉)
+    # -----------------------------
+    df_view = df.iloc[-2000:].reset_index(drop=True)
+
+    # 신호 선택 → 해당 구간 ±2000봉으로 업데이트
+    if res is not None and not res.empty:
+        plot_res = (
+            res.sort_values("신호시간")
+               .drop_duplicates(subset=["anchor_i"], keep="first")
+               .reset_index(drop=True)
+        )
+        sel_anchor = st.selectbox(
+            "🔎 특정 신호 구간 보기 (anchor 인덱스)",
+            options=plot_res["anchor_i"].tolist(),
+            index=len(plot_res) - 1
+        )
+        if sel_anchor is not None:
+            start_idx = max(int(sel_anchor) - 1000, 0)
+            end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
+            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+
+    # -----------------------------
     # 차트 (선택 구간만 표시)
     # -----------------------------
     df_plot = df_view.copy()
