@@ -1187,8 +1187,9 @@ try:
                                     "평균수익률(%)": round(avg_ret, 1),
                                     "합계수익률(%)": round(total_ret, 1),
                                     "결과": final_result,
-                                    # ✅ 신호시간 기준 날짜 기록 (anchor_idx 미사용)
-                                    "날짜": pd.to_datetime(res_s["신호시간"].iloc[0]).strftime("%Y-%m-%d") if "신호시간" in res_s and not res_s.empty else "",
+                                    # ✅ 그룹(해당 조합)의 '최초 신호 시간'에서 날짜만 추출
+                                    "날짜": (pd.to_datetime(res_s["신호시간"].min()).strftime("%Y-%m-%d")
+                                            if ("신호시간" in res_s and not res_s.empty) else ""),
                                 })
 
             # 세션 저장 (초기화 방지)
@@ -1225,11 +1226,12 @@ try:
                     ascending=[True,False,False,False]
                 ).reset_index(drop=True)
 
-                # ✅ 날짜 컬럼 추가 (신호시간이 있다면 날짜만 추출)
-                if "신호시간" in df_show:
-                    df_show["날짜"] = pd.to_datetime(df_show["신호시간"]).dt.strftime("%Y-%m-%d")
-                else:
-                    df_show["날짜"] = ""
+                # ✅ 날짜 컬럼: sweep_rows에서 이미 있으면 그대로 사용, 없을 때만 생성
+                if "날짜" not in df_show:
+                    if "신호시간" in df_show:
+                        df_show["날짜"] = pd.to_datetime(df_show["신호시간"]).dt.strftime("%Y-%m-%d")
+                    else:
+                        df_show["날짜"] = ""
 
                 # ✅ 퍼센트 포맷
                 for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
