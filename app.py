@@ -1066,8 +1066,8 @@ try:
         target_thr  = st.number_input("목표 수익률 (%)", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
         winrate_thr = st.number_input("목표 승률 (%)", min_value=10, max_value=100, value=60, step=5)
 
-        # ⚡ 빠른 테스트 모드 (최근 3개월만)
-        fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 3개월만)", value=False)
+        # ⚡ 빠른 테스트 모드 (최근 30일만)
+        fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False)
 
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True)
 
@@ -1079,12 +1079,15 @@ try:
             fail = (df_in["결과"] == "실패").sum()
             neu  = (df_in["결과"] == "중립").sum()
             win  = (succ / total * 100.0) if total else 0.0
-            return win, total, succ, fail
+            return win, total, succ, fail, neu
 
+        # -----------------------------
+        # ① 실행 시: 스캔 수행 후 세션에 저장
+        # -----------------------------
         if run_sweep:
-            # 기간 계산 (빠른 모드 ON → 최근 90일로 강제)
+            # 기간 계산 (빠른 모드 ON → 최근 30일)
             if fast_mode:
-                sdt = datetime.combine(sweep_end - timedelta(days=90), datetime.min.time())
+                sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
             else:
                 sdt = datetime.combine(sweep_start, datetime.min.time())
             edt = datetime.combine(sweep_end, datetime.max.time())
@@ -1107,7 +1110,6 @@ try:
                 df_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
                 if df_s is None or df_s.empty:
                     continue
-                # 지표는 타임프레임별로 1회만 계산(성능)
                 df_s = add_indicators(df_s, bb_window, bb_dev, cci_window)
 
                 for lookahead_s in lookahead_list:
@@ -1122,14 +1124,15 @@ try:
                                     miss_policy="(고정) 성공·실패·중립",
                                     bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
                                 )
-                                win, total, succ, fail = _winrate(res_s)
-                                neu = (res_s["결과"] == "중립").sum() if "결과" in res_s else 0
-
+                                win, total, succ, fail, neu = _winrate(res_s)
                                 total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
                                 avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
 
-                                # ✅ 조합 판정 요약 (강화: 승률 기준 + 합계수익률 동시 반영)
-                                if (succ > 0) and (total_ret > 0) and (win >= float(winrate_thr)):
+                                # ✅ 최종 판정 규칙 (요청사항 반영)
+                                # - 성공: 목표 도달 신호가 존재(succ>0) AND 승률(%) ≥ winrate_thr AND 합계수익률 > 0
+                                # - 중립: 목표 도달 신호 없음(succ==0) AND 합계수익률 > 0
+                                # - 실패: 그 외 (표시 제외)
+                                if (succ > 0) and (win >= float(winrate_thr)) and (total_ret > 0):
                                     final_result = "성공"
                                 elif (succ == 0) and (total_ret > 0):
                                     final_result = "중립"
@@ -1144,10 +1147,10 @@ try:
                                     "RSI_high": int(rsi_high),
                                     "BB": bb_c,
                                     "BB_기간": int(bb_window),
-                                    "BB_승수": float(bb_dev),
+                                    "BB_승수": round(float(bb_dev), 1),
                                     "2차조건": sec_c,
                                     "목표수익률(%)": float(target_thr),
-                                    "승률기준(%)": int(winrate_thr),
+                                    "승률기준(%)": f"{int(winrate_thr)}%",
                                     "신호수": int(total),
                                     "성공": int(succ),
                                     "중립": int(neu),
@@ -1158,105 +1161,97 @@ try:
                                     "결과": final_result,
                                 })
 
-            if not sweep_rows:
-                st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
+            # 세션 저장 (초기화 방지)
+            if "sweep_state" not in st.session_state:
+                st.session_state["sweep_state"] = {}
+            st.session_state["sweep_state"]["rows"] = sweep_rows
+            st.session_state["sweep_state"]["params"] = {
+                "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
+                "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
+                "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
+                "target_thr": float(target_thr)
+            }
+
+        # -----------------------------
+        # ② 표시 단계: 세션에 저장된 결과를 항상 우선 표시
+        # -----------------------------
+        sweep_rows_saved = st.session_state.get("sweep_state", {}).get("rows", [])
+        if not sweep_rows_saved:
+            st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
+        else:
+            df_all = pd.DataFrame(sweep_rows_saved)
+
+            # 성공·중립만 노출 (실패 제외) + 성공은 승률·합계수익률 기준 재검증
+            wr_num = float(winrate_thr)
+            mask_success = (df_all["결과"] == "성공") & (df_all["승률(%)"] >= wr_num) & (df_all["합계수익률(%)"] > 0)
+            mask_neutral = (df_all["결과"] == "중립") & (df_all["합계수익률(%)"] > 0)
+            df_keep = df_all[mask_success | mask_neutral].copy()
+
+            if df_keep.empty:
+                st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
             else:
-                df_all = pd.DataFrame(sweep_rows)
+                df_show = df_keep.sort_values(
+                    ["결과","승률(%)","신호수","합계수익률(%)"],
+                    ascending=[True,False,False,False]
+                ).reset_index()
 
-                # ✅ 성공·중립만 남기되, '성공'은 승률·합계수익률 조건을 동시에 만족해야 노출
-                mask_success = (df_all["결과"] == "성공") & (df_all["승률(%)"] >= float(winrate_thr)) & (df_all["합계수익률(%)"] > 0)
-                mask_neutral = (df_all["결과"] == "중립") & (df_all["합계수익률(%)"] > 0)
-                df_keep = df_all[mask_success | mask_neutral].copy()
+                # 표 포맷
+                for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
+                    if col in df_show:
+                        df_show[col] = df_show[col].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                if "BB_승수" in df_show:
+                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
 
-                # ✅ 결과/파라미터를 세션에 저장 → 선택 드롭다운으로 재실행되어도 표 유지
-                if "sweep_state" not in st.session_state:
-                    st.session_state["sweep_state"] = {}
-                st.session_state["sweep_state"]["df_raw"] = df_keep
-                st.session_state["sweep_state"]["params"] = {
-                    "sweep_market": sweep_market,
-                    "sdt": sdt, "edt": edt,
-                    "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
-                    "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                    "target_thr": float(target_thr)
-                }
+                styled_tbl = df_show.style.apply(
+                    lambda col: [
+                        ("color:#E53935; font-weight:600;" if r=="성공" else "color:#FF9800; font-weight:600;")
+                        for r in df_show["결과"]
+                    ],
+                    subset=["평균수익률(%)","합계수익률(%)"]
+                )
+                st.dataframe(styled_tbl, use_container_width=True)
 
-                if df_keep.empty:
-                    st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
-                else:
-                    # 정렬
-                    df_show = df_keep.sort_values(
-                        ["결과","승률(%)","신호수","합계수익률(%)"],
-                        ascending=[True,False,False,False]
-                    ).reset_index()
+                # CSV 다운로드
+                csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
+                st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
 
-                    # ✅ 표시용 포맷
-                    for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
-                        if col in df_show:
-                            df_show[col] = df_show[col].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
-                    if "BB_승수" in df_show:
-                        df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
-                    if "승률기준(%)" in df_show and df_show["승률기준(%)"].dtype != object:
-                        df_show["승률기준(%)"] = df_show["승률기준(%)"].map(lambda v: f"{int(v)}%" if pd.notna(v) else "")
+                # 세부 결과 확인 (세션 보존 상태에서 안전 재계산)
+                base_df = df_keep  # 원본 인덱스 유지
+                selected_idx = st.selectbox(
+                    "세부 결과 확인할 조합 선택",
+                    base_df.index,
+                    key="sweep_select_idx",
+                    format_func=lambda i: f"{i} - {base_df.loc[i,'결과']} · {base_df.loc[i,'타임프레임']} · RSI:{base_df.loc[i,'RSI']} · BB:{base_df.loc[i,'BB']} · 2차:{base_df.loc[i,'2차조건']} · N={base_df.loc[i,'측정N(봉)']}"
+                )
+                if selected_idx is not None:
+                    sel = base_df.loc[selected_idx]
+                    st.info(f"선택된 조건: {sel.to_dict()}")
 
-                    # 색상 스타일 (성공=빨강, 중립=주황)
-                    def style_result(val, result_type):
-                        try:
-                            num = float(val.replace("%",""))
-                        except Exception:
-                            return ""
-                        if result_type == "성공":
-                            return "color:#E53935; font-weight:600;"
-                        elif result_type == "중립":
-                            return "color:#FF9800; font-weight:600;"
-                        return ""
+                    # 파라미터 복원
+                    P = st.session_state["sweep_state"]["params"]
+                    tf_lbl = sel["타임프레임"]
+                    interval_key_s, mpb_s = TF_MAP[tf_lbl]
 
-                    styled_tbl = df_show.style.apply(
-                        lambda col: [style_result(v,r) for v,r in zip(col,df_show["결과"])],
-                        subset=["평균수익률(%)","합계수익률(%)"]
-                    )
-                    st.dataframe(styled_tbl, use_container_width=True)
-
-                    # ✅ CSV
-                    csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
-                    st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
-
-                    # ✅ 세부 신호 결과 확인 (세션 보존 + 안전 재계산)
-                    base_df = st.session_state["sweep_state"]["df_raw"]
-                    selected_idx = st.selectbox(
-                        "세부 결과 확인할 조합 선택",
-                        base_df.index,  # 원본 인덱스 사용
-                        key="sweep_select_idx",
-                        format_func=lambda i: f"{i} - {base_df.loc[i,'결과']} · {base_df.loc[i,'타임프레임']} · RSI:{base_df.loc[i,'RSI']} · BB:{base_df.loc[i,'BB']} · 2차:{base_df.loc[i,'2차조건']} · N={base_df.loc[i,'측정N(봉)']}"
-                    )
-
-                    if selected_idx is not None:
-                        sel = base_df.loc[selected_idx]
-                        st.info(f"선택된 조건: {sel.to_dict()}")
-
-                        # 저장된 파라미터로 데이터 로드/지표 재계산
-                        P = st.session_state["sweep_state"]["params"]
-                        tf_lbl = sel["타임프레임"]
-                        interval_key_s, mpb_s = TF_MAP[tf_lbl]
-
-                        df_raw_sel = fetch_upbit_paged(P["sweep_market"], interval_key_s, P["sdt"], P["edt"], mpb_s, warmup_bars)
-                        if df_raw_sel is not None and not df_raw_sel.empty:
-                            df_sel = add_indicators(df_raw_sel, P["bb_window"], P["bb_dev"], P["cci_window"])
-                            res_detail = simulate(
-                                df_sel, sel["RSI"], P["rsi_low"], P["rsi_high"],
-                                int(sel["측정N(봉)"]), P["target_thr"],
-                                sel["BB"], "중복 제거 (연속 동일 결과 1개)",
-                                mpb_s, P["sweep_market"], P["bb_window"], P["bb_dev"],
-                                sec_cond=sel["2차조건"], hit_basis="종가 기준",
-                                miss_policy="(고정) 성공·실패·중립",
-                                bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
-                            )
-                            if res_detail is not None and not res_detail.empty:
-                                st.subheader("세부 신호 결과 (최신 순)")
-                                res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
-                                for c in ["최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
-                                    if c in res_detail:
-                                        res_detail[c] = res_detail[c].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-                                st.dataframe(res_detail.head(50), use_container_width=True)
+                    # 데이터 로드/지표 재계산
+                    df_raw_sel = fetch_upbit_paged(P["sweep_market"], interval_key_s, P["sdt"], P["edt"], mpb_s, warmup_bars)
+                    if df_raw_sel is not None and not df_raw_sel.empty:
+                        df_sel = add_indicators(df_raw_sel, P["bb_window"], P["bb_dev"], P["cci_window"])
+                        res_detail = simulate(
+                            df_sel, sel["RSI"], P["rsi_low"], P["rsi_high"],
+                            int(sel["측정N(봉)"]), P["target_thr"],
+                            sel["BB"], "중복 제거 (연속 동일 결과 1개)",
+                            mpb_s, P["sweep_market"], P["bb_window"], P["bb_dev"],
+                            sec_cond=sel["2차조건"], hit_basis="종가 기준",
+                            miss_policy="(고정) 성공·실패·중립",
+                            bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
+                        )
+                        if res_detail is not None and not res_detail.empty:
+                            st.subheader("세부 신호 결과 (최신 순)")
+                            res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
+                            for c in ["최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
+                                if c in res_detail:
+                                    res_detail[c] = res_detail[c].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
+                            st.dataframe(res_detail.head(50), use_container_width=True)
     # -----------------------------
     # ④ 신호 결과 (테이블)
     # -----------------------------
