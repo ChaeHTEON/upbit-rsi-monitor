@@ -692,8 +692,8 @@ try:
     KST = timezone("Asia/Seoul")
     start_dt = datetime.combine(start_date, datetime.min.time())
     if end_date == datetime.now(KST).date():
-        # 오늘 날짜 → 현재 시각까지만 데이터 요청
-        end_dt = datetime.now(KST)
+        # 오늘 날짜 → 현재 시각까지만 데이터 요청 (tz-naive로 통일)
+        end_dt = datetime.now(KST).replace(tzinfo=None)
     else:
         end_dt = datetime.combine(end_date, datetime.max.time())
     warmup_bars = max(13, bb_window, int(cci_window)) * 5
