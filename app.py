@@ -289,23 +289,16 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
         df_slice = df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].copy()
 
-        # 요청 구간이 캐시 범위 안쪽에 포함되면 → 바로 반환 (API 호출 안함)
         if cache_min <= start_cutoff and cache_max >= end_dt:
             return df_slice.reset_index(drop=True)
 
-        # ⚡ 캐시로 일부만 커버 가능할 경우: 우선 캐시 결과 즉시 반환
         if not df_slice.empty:
             return df_slice.reset_index(drop=True)
 
-        # 정말 캐시에 전혀 없을 때만 API 호출
         need_api = True
     else:
         df_slice = pd.DataFrame(columns=["time","open","high","low","close","volume"])
         need_api = True
-    else:
-        df_slice = pd.DataFrame(columns=["time","open","high","low","close","volume"])
-        need_api = True
-
     # ⚡ CSV에 일부만 있는 경우 → 부족한 앞/뒤 구간만 API 보충
     all_data, to_time = [], None
     try:
