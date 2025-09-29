@@ -576,7 +576,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             base_price  = float(df.at[anchor_idx, "close"])
         # --- 성과 측정 (공통) ---
         eval_start = anchor_idx + 1
-        end_idx = eval_start + lookahead
+        end_idx = anchor_idx + lookahead  # ✅ 정확히 N봉까지만 탐색
         if end_idx >= n:
             return None, None
 
