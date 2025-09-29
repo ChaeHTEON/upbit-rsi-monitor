@@ -652,7 +652,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             "종료시간": end_time,
             "기준시가": int(round(base_price)),
             "종료가": end_close,
-            "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 1) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
+            "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 2) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
             "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
             "성공기준(%)": round(thr, 1),
             "결과": result,
@@ -1545,8 +1545,10 @@ try:
         tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
         tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
         if "RSI(13)" in tbl:
-            tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
-        for col in ["성공기준(%)", "최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
+            tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+        if "성공기준(%)" in tbl:
+            tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+        for col in ["최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
             if col in tbl:
                 tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
