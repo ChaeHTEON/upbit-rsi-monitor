@@ -497,9 +497,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
     # --- 3) 공통 처리(하나의 신호 평가) ---
     def process_one(i0):
-        anchor_idx = i0
-        signal_time = df.at[i0, "time"]
-        base_price = float(df.at[i0, "close"])
+        anchor_idx = i0 + 1  # ✅ 신호 확인 후, 실제 진입은 다음 봉
+        if anchor_idx >= n:
+            return None, None
+        signal_time = df.at[anchor_idx, "time"]
+        base_price = float(df.at[anchor_idx, "open"])  # ✅ 매수가를 다음 봉 시가 기준
 
         # 2차 조건 공통 원칙:
         # - anchor_idx = 실제 진입(신호 확정) 봉
@@ -513,9 +515,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             c2, o2 = float(df.at[i0 + 2, "close"]), float(df.at[i0 + 2, "open"])
             if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
                 return None, None
-            anchor_idx = i0 + 2
+            anchor_idx = i0 + 3  # ✅ 조건 확인 후, 진입은 그 다음 봉
+            if anchor_idx >= n:
+                return None, None
             signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
+            base_price  = float(df.at[anchor_idx, "open"])  # ✅ 시가 기준
 
         elif sec_cond == "양봉 2개 (범위 내)":
             found, T_idx = 0, None
@@ -529,9 +533,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         break
             if T_idx is None:
                 return None, None
-            anchor_idx = T_idx
+            anchor_idx = T_idx + 1  # ✅ 신호봉 직후 캔들에서 진입
+            if anchor_idx >= n:
+                return None, None
             signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
+            base_price  = float(df.at[anchor_idx, "open"])  # ✅ 시가 기준
 
         elif sec_cond == "BB 기반 첫 양봉 50% 진입":
             if bb_cond == "없음":
@@ -539,9 +545,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             B1_idx, B1_close = first_bull_50_over_bb(i0)
             if B1_idx is None:
                 return None, None
-            anchor_idx = B1_idx
+            anchor_idx = B1_idx + 1  # ✅ BB 신호 확인 후 다음 캔들에서 진입
+            if anchor_idx >= n:
+                return None, None
             signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
+            base_price  = float(df.at[anchor_idx, "open"])  # ✅ 시가 기준
 
         elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
             rebound_idx = None
@@ -571,9 +579,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         break
             if rebound_idx is None:
                 return None, None
-            anchor_idx = rebound_idx
+            anchor_idx = rebound_idx + 1  # ✅ 반등 신호 확인 후 다음 캔들 진입
+            if anchor_idx >= n:
+                return None, None
             signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "close"])
+            base_price  = float(df.at[anchor_idx, "open"])  # ✅ 시가 기준
         # --- 성과 측정 (공통) ---
         eval_start = anchor_idx + 1
         end_idx = anchor_idx + lookahead  # ✅ 정확히 N봉까지만 탐색
