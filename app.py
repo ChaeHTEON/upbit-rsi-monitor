@@ -1066,6 +1066,9 @@ try:
         target_thr  = st.number_input("목표 수익률 (%)", min_value=0.1, max_value=10.0, value=1.0, step=0.1)
         winrate_thr = st.number_input("목표 승률 (%)", min_value=10, max_value=100, value=60, step=5)
 
+        # ⚡ 빠른 테스트 모드 (최근 3개월만)
+        fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 3개월만)", value=False)
+
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True)
 
         def _winrate(df_in: pd.DataFrame):
@@ -1079,11 +1082,14 @@ try:
             return win, total, succ, fail
 
         if run_sweep:
-            sweep_rows = []
-            # 스캔 기준: 사용자 지정 종목/기간
-            sdt = datetime.combine(sweep_start, datetime.min.time())
+            # 기간 계산 (빠른 모드 ON → 최근 90일로 강제)
+            if fast_mode:
+                sdt = datetime.combine(sweep_end - timedelta(days=90), datetime.min.time())
+            else:
+                sdt = datetime.combine(sweep_start, datetime.min.time())
             edt = datetime.combine(sweep_end, datetime.max.time())
 
+            sweep_rows = []
             tf_list = ["15분", "30분", "60분"]
             rsi_list = ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"]
             bb_list  = ["없음", "상한선", "중앙선", "하한선"]
@@ -1101,6 +1107,7 @@ try:
                 df_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
                 if df_s is None or df_s.empty:
                     continue
+                # 지표는 타임프레임별로 1회만 계산(성능)
                 df_s = add_indicators(df_s, bb_window, bb_dev, cci_window)
 
                 for lookahead_s in lookahead_list:
@@ -1116,76 +1123,37 @@ try:
                                     bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
                                 )
                                 win, total, succ, fail = _winrate(res_s)
-                                if total > 0 and win >= winrate_thr:
-                                    total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
-                                    avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s else 0.0
-                                    sweep_rows.append({
-                                        "타임프레임": tf_lbl,
-                                        "측정N(봉)": lookahead_s,
-                                        "RSI": rsi_m,
-                                        "BB": bb_c,
-                                        "2차조건": sec_c,
-                                        "신호수": int(total),
-                                        "성공": int(succ),
-                                        "실패": int(fail),
-                                        "승률(%)": round(win, 1),
-                                        "평균수익률(%)": round(avg_ret, 2),
-                                        "합계수익률(%)": round(total_ret, 1),
-                                    })
+
+                                # ✅ 모든 조합을 결과표에 기록하고, 필터 충족 여부를 별도 컬럼으로 표기
+                                total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
+                                avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
+                                sweep_rows.append({
+                                    "타임프레임": tf_lbl,
+                                    "측정N(봉)": lookahead_s,
+                                    "RSI": rsi_m,
+                                    "RSI_low": int(rsi_low),
+                                    "RSI_high": int(rsi_high),
+                                    "BB": bb_c,
+                                    "BB_기간": int(bb_window),
+                                    "BB_승수": float(bb_dev),
+                                    "2차조건": sec_c,
+                                    "목표수익률(%)": float(target_thr),
+                                    "승률기준(%)": int(winrate_thr),
+                                    "신호수": int(total),
+                                    "성공": int(succ),
+                                    "실패": int(fail),
+                                    "승률(%)": round(win, 1),
+                                    "평균수익률(%)": round(avg_ret, 2),
+                                    "합계수익률(%)": round(total_ret, 1),
+                                    "필터통과": "Y" if (total > 0 and win >= winrate_thr) else "N",
+                                })
 
             if not sweep_rows:
-                st.info("조건을 만족하는 조합이 없습니다. (승률 ≥ 입력값, 목표 수익률 조건)")
+                st.info("조합 결과가 없습니다. (데이터 없음)")
             else:
                 df_sweep = pd.DataFrame(sweep_rows).sort_values(
-                    ["승률(%)", "신호수", "합계수익률(%)"], ascending=[False, False, False]
-                ).reset_index(drop=True)
-                st.dataframe(df_sweep, use_container_width=True)
-                csv_bytes = df_sweep.to_csv(index=False).encode("utf-8-sig")
-                st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
-            for tf_lbl in tf_list:
-                interval_key_s, mpb_s = TF_MAP[tf_lbl]
-                # 데이터 로드 + 지표
-                df_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
-                if df_s is None or df_s.empty:
-                    continue
-                df_s = add_indicators(df_s, bb_window, bb_dev, cci_window)
-
-                for lookahead_s in lookahead_list:
-                    for rsi_m in rsi_list:
-                        for bb_c in bb_list:
-                            for sec_c in sec_list:
-                                # 시뮬레이션 (중복 제거 기준으로 평가)
-                                res_s = simulate(
-                                    df_s, rsi_m, rsi_low, rsi_high, lookahead_s, target_thr,
-                                    bb_c, "중복 제거 (연속 동일 결과 1개)",
-                                    mpb_s, sweep_market, bb_window, bb_dev,
-                                    sec_cond=sec_c, hit_basis="종가 기준",
-                                    miss_policy="(고정) 성공·실패·중립",
-                                    bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
-                                )
-                                win, total, succ, fail = _winrate(res_s)
-                                if total > 0 and win >= winrate_thr:
-                                    total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
-                                    avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s else 0.0
-                                    sweep_rows.append({
-                                        "타임프레임": tf_lbl,
-                                        "측정N(봉)": lookahead_s,
-                                        "RSI": rsi_m,
-                                        "BB": bb_c,
-                                        "2차조건": sec_c,
-                                        "신호수": int(total),
-                                        "성공": int(succ),
-                                        "실패": int(fail),
-                                        "승률(%)": round(win, 1),
-                                        "평균수익률(%)": round(avg_ret, 2),
-                                        "합계수익률(%)": round(total_ret, 1),
-                                    })
-
-            if not sweep_rows:
-                st.info("조건을 만족하는 조합이 없습니다. (승률 ≥ 입력값, 목표 1%)")
-            else:
-                df_sweep = pd.DataFrame(sweep_rows).sort_values(
-                    ["승률(%)", "신호수", "합계수익률(%)"], ascending=[False, False, False]
+                    ["필터통과", "승률(%)", "신호수", "합계수익률(%)"],
+                    ascending=[False, False, False, False]
                 ).reset_index(drop=True)
                 st.dataframe(df_sweep, use_container_width=True)
                 csv_bytes = df_sweep.to_csv(index=False).encode("utf-8-sig")
