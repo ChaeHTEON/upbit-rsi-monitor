@@ -1074,9 +1074,9 @@ try:
             sweep_rows = []
             # 스캔 기준: 2025-01-01 ~ 현재 UI에서 선택한 종료일, 종목은 KRW-XRP 고정
             sweep_market = "KRW-XRP"
-            KST = timezone("Asia/Seoul")
-            sdt = datetime(2025, 1, 1, 0, 0, 0, tzinfo=KST)
-            edt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=KST)
+            # ✅ fetch_upbit_paged/CSV가 naive 타임스탬프를 쓰므로 비교도 naive로 맞춘다
+            sdt = datetime(2025, 1, 1, 0, 0, 0)  # naive
+            edt = datetime.combine(end_date, datetime.max.time())  # naive
 
             tf_list = ["15분", "30분", "60분"]
             rsi_list = ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"]
