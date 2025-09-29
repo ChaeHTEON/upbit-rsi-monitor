@@ -1142,7 +1142,17 @@ try:
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-        ...
+
+        # ✅ style_result 함수 정의
+        def style_result(val):
+            if val == "성공":
+                return "background-color:#FFF59D; color:#E53935; font-weight:600;"
+            elif val == "실패":
+                return "color:#1E40AF; font-weight:600;"
+            elif val == "중립":
+                return "color:#FF9800; font-weight:600;"
+            return ""
+
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
         st.dataframe(styled_tbl, width="stretch")
 
