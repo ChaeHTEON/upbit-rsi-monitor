@@ -377,8 +377,6 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     if df_all.empty or df_all["time"].min() > start_cutoff or df_all["time"].max() < end_dt:
         try:
             while True:
-        try:
-            while True:
                 params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}  # ✅ UTC
                 r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
                 r.raise_for_status()
