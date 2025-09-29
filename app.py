@@ -284,20 +284,21 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         else:
             df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
 
-    # ✅ CSV가 있으면 우선 가능한 범위는 즉시 리턴 (빠른 응답)
+    # ✅ CSV가 있으면 우선 캐시에서 슬라이스 후 반환
     if not df_cache.empty:
         cache_min, cache_max = df_cache["time"].min(), df_cache["time"].max()
-        # 요청 구간과 캐시 구간이 겹치면 → 겹치는 부분은 바로 사용
         df_slice = df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)].copy()
-        need_api = (cache_min > start_cutoff) or (cache_max < end_dt)
-        if not need_api:
-            # 캐시만으로 충분히 커버 가능
+
+        if cache_min <= start_cutoff and cache_max >= end_dt:
             return df_slice.reset_index(drop=True)
-        # ⚡ 캐시에 없는 앞/뒤 부분만 API 보충 필요
+
+        if not df_slice.empty:
+            return df_slice.reset_index(drop=True)
+
+        need_api = True
     else:
         df_slice = pd.DataFrame(columns=["time","open","high","low","close","volume"])
         need_api = True
-
     # ⚡ CSV에 일부만 있는 경우 → 부족한 앞/뒤 구간만 API 보충
     all_data, to_time = [], None
     try:
@@ -342,6 +343,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         # ⚡ GitHub 커밋은 최종 저장 시 1회만 실행
         # (중간 보충/강제 갱신 단계에서는 커밋하지 않음)
     else:
+        # API에서 새로운 데이터가 없으면 캐시 데이터 그대로 사용
         df_all = df_cache
 
     # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행)
@@ -696,10 +698,48 @@ try:
     # 이 블록에서는 입력창을 렌더하지 않고 값만 참조합니다.
     buy_price = st.session_state.get("buy_price", 0)
 
+    # ===== 시뮬레이션 (중복 포함/제거) — 먼저 계산하여 res/plot_res 사용 보장 =====
+    res_all = simulate(
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+        bb_cond, "중복 포함 (연속 신호 모두)",
+        minutes_per_bar, market_code, bb_window, bb_dev,
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
+    )
+    res_dedup = simulate(
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+        bb_cond, "중복 제거 (연속 동일 결과 1개)",
+        minutes_per_bar, market_code, bb_window, bb_dev,
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
+    )
+    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+
     # -----------------------------
-    # 차트
+    # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (df_view/plot_res 안전 보장)
     # -----------------------------
-    df_plot = df.copy()
+    df_view = df.iloc[-2000:].reset_index(drop=True)
+    plot_res = pd.DataFrame()
+    if res is not None and not res.empty:
+        plot_res = (
+            res.sort_values("신호시간")
+               .drop_duplicates(subset=["anchor_i"], keep="first")
+               .reset_index(drop=True)
+        )
+        sel_anchor = st.selectbox(
+            "🔎 특정 신호 구간 보기 (anchor 인덱스)",
+            options=plot_res["anchor_i"].tolist(),
+            index=len(plot_res) - 1
+        )
+        if sel_anchor is not None:
+            start_idx = max(int(sel_anchor) - 1000, 0)
+            end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
+            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+
+    # -----------------------------
+    # 차트 (선택 구간만 표시)
+    # -----------------------------
+    df_plot = df_view.copy()
     if buy_price > 0:
         df_plot["수익률(%)"] = (df_plot["close"] / buy_price - 1) * 100
     else:
@@ -778,40 +818,11 @@ try:
         for L in manual_supply_levels:
             fig.add_hline(
                 y=float(L),
-                line=dict(color="#FFD700", width=2.0, dash="dot")  # ✅ 노랑색 점선, 굵게, 불투명
+                line=dict(color="#FFD700", width=2.0, dash="dot")
             )
 
-    # ===== 시뮬레이션 (중복 포함/제거) =====
-    res_all = simulate(
-        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-        bb_cond, "중복 포함 (연속 신호 모두)",
-        minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
-    )
-    res_dedup = simulate(
-        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-        bb_cond, "중복 제거 (연속 동일 결과 1개)",
-        minutes_per_bar, market_code, bb_window, bb_dev,
-        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
-    )
-    # ↑ 주의: miss_policy 문자열 오탈자 방지 위해 위 괄호 닫힘 확인 필요. 잘못되면 아래처럼 고정 사용:
-    # res_dedup = simulate(..., miss_policy="(고정) 성공·실패·중립", ...)
-
-    res = res_all if dup_mode.startswith("중복 포함") else res_dedup
-
-    # ===== 신호 마커/점선 =====
-    if res is not None and not res.empty:
-        # ✅ 표와 차트 완전 동기화: 같은 anchor_i(=신호 시작 캔들) 중복 제거
-        #    - 표는 정렬/형식화 과정에서 1행만 보이므로, 차트도 동일 anchor는 1개만 그리도록 보정
-        plot_res = (
-            res.sort_values("신호시간")          # 시간 기준 안정 정렬
-               .drop_duplicates(subset=["anchor_i"], keep="first")
-               .reset_index(drop=True)
-        )
-
-        # 1) anchor(신호 시작 캔들) 마커
+    # ===== anchor(신호 시작 캔들) 마커/점선 (신호가 있을 때만) =====
+    if not plot_res.empty:
         for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
             sub = plot_res[plot_res["결과"] == _label]
             if sub.empty:
@@ -822,6 +833,54 @@ try:
                 name=f"신호({_label})",
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
+
+        legend_emitted = {"성공": False, "실패": False, "중립": False}
+
+        # 2) 점선/종료 마커 (표와 1:1 동기화: anchor_i + end_i)
+        for _, row in plot_res.iterrows():
+            a_i = int(row["anchor_i"])
+            e_i = int(row["end_i"])
+            a_i = max(0, min(a_i, len(df) - 1))
+            e_i = max(0, min(e_i, len(df) - 1))
+
+            x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
+            y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
+
+            fig.add_trace(go.Scatter(
+                x=x_seg, y=y_seg, mode="lines",
+                line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
+                showlegend=False, hoverinfo="skip"
+            ))
+
+            showlegend = (row["결과"] == "성공") and (not legend_emitted["성공"])
+            if row["결과"] == "성공":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="도달⭐",
+                    marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+                legend_emitted["성공"] |= showlegend
+
+            showlegend = (row["결과"] == "실패") and (not legend_emitted["실패"])
+            if row["결과"] == "실패":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="실패❌",
+                    marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+                legend_emitted["실패"] |= showlegend
+
+            showlegend = (row["결과"] == "중립") and (not legend_emitted["중립"])
+            if row["결과"] == "중립":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="중립❌",
+                    marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+                legend_emitted["중립"] |= showlegend
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
@@ -903,7 +962,6 @@ try:
                     marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
-
             # 실패 시, 종료 지점 ❌ (파란색)
             showlegend = False
             if row["결과"] == "실패" and not legend_emitted["실패"]:
@@ -919,7 +977,6 @@ try:
                     marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
                     showlegend=showlegend
                 ))
-
             # 중립 시, 종료 지점 ❌ (주황색)
             showlegend = False
             if row["결과"] == "중립" and not legend_emitted["중립"]:
