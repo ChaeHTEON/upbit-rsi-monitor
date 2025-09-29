@@ -699,31 +699,9 @@ try:
     buy_price = st.session_state.get("buy_price", 0)
 
     # -----------------------------
-    # 차트 표시용 기본 구간 설정 (최근 2000봉)
+    # 차트
     # -----------------------------
-    df_view = df.iloc[-2000:].reset_index(drop=True)
-
-    # 신호 선택 → 해당 구간 ±2000봉으로 업데이트
-    if res is not None and not res.empty:
-        plot_res = (
-            res.sort_values("신호시간")
-               .drop_duplicates(subset=["anchor_i"], keep="first")
-               .reset_index(drop=True)
-        )
-        sel_anchor = st.selectbox(
-            "🔎 특정 신호 구간 보기 (anchor 인덱스)",
-            options=plot_res["anchor_i"].tolist(),
-            index=len(plot_res) - 1
-        )
-        if sel_anchor is not None:
-            start_idx = max(int(sel_anchor) - 1000, 0)
-            end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
-            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-
-    # -----------------------------
-    # 차트 (선택 구간만 표시)
-    # -----------------------------
-    df_plot = df_view.copy()
+    df_plot = df.copy()
     if buy_price > 0:
         df_plot["수익률(%)"] = (df_plot["close"] / buy_price - 1) * 100
     else:
@@ -825,33 +803,15 @@ try:
 
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
-    # -----------------------------
-    # 신호 선택 → 해당 구간 ±2000봉 차트 표시
-    # -----------------------------
+    # ===== 신호 마커/점선 =====
     if res is not None and not res.empty:
+        # ✅ 표와 차트 완전 동기화: 같은 anchor_i(=신호 시작 캔들) 중복 제거
+        #    - 표는 정렬/형식화 과정에서 1행만 보이므로, 차트도 동일 anchor는 1개만 그리도록 보정
         plot_res = (
-            res.sort_values("신호시간")
+            res.sort_values("신호시간")          # 시간 기준 안정 정렬
                .drop_duplicates(subset=["anchor_i"], keep="first")
                .reset_index(drop=True)
         )
-
-        # 신호 인덱스(anchor_i) 선택 UI
-        sel_anchor = st.selectbox(
-            "🔎 특정 신호 구간 보기 (anchor 인덱스)",
-            options=plot_res["anchor_i"].tolist(),
-            index=len(plot_res) - 1  # 기본은 가장 최근 신호
-        )
-
-        # 선택한 anchor 기준 ±2000봉 슬라이싱
-        if sel_anchor is not None:
-            start_idx = max(int(sel_anchor) - 1000, 0)
-            end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
-            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-        else:
-            # 선택 없으면 최근 2000봉 디폴트
-            df_view = df.iloc[-2000:].reset_index(drop=True)
-    else:
-        df_view = df.iloc[-2000:].reset_index(drop=True)
 
         # 1) anchor(신호 시작 캔들) 마커
         for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
