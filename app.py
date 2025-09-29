@@ -1163,25 +1163,27 @@ try:
             else:
                 df_sweep = pd.DataFrame(sweep_rows)
 
-                # ✅ 성공: 목표 수익률 달성 + 최종수익률 > 0
-                # ✅ 중립: 목표 미달성 + 최종수익률 > 0
-                # ❌ 실패: 최종수익률 ≤ 0 → 결과표 제외
+                # ✅ 결과표에는 성공·중립만 표시
                 if "결과" in df_sweep.columns:
                     df_sweep = df_sweep[df_sweep["결과"].isin(["성공","중립"])]
 
                 if df_sweep.empty:
                     st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
                 else:
-                    # 정렬
                     df_sweep = df_sweep.sort_values(
                         ["결과","승률(%)","신호수","합계수익률(%)"],
                         ascending=[True,False,False,False]
                     ).reset_index(drop=True)
 
-                    # ✅ 포맷팅: 소수점 1자리 + % 기호
+                    # ✅ 퍼센트 값 포맷팅
                     for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
                         if col in df_sweep:
                             df_sweep[col] = df_sweep[col].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                    if "BB_승수" in df_sweep:
+                        df_sweep["BB_승수"] = df_sweep["BB_승수"].map(lambda v: f"{v:.1f}" if pd.notna(v) else "")
+
+                    if "승률기준(%)" in df_sweep and df_sweep["승률기준(%)"].dtype != object:
+                        df_sweep["승률기준(%)"] = df_sweep["승률기준(%)"].map(lambda v: f"{int(v)}%" if pd.notna(v) else "")
 
                     # ✅ 색상 스타일 (성공=빨강, 중립=주황)
                     def style_result(val, result_type):
@@ -1201,9 +1203,35 @@ try:
                     )
                     st.dataframe(styled_tbl, use_container_width=True)
 
-                    # CSV 다운로드
+                    # ✅ CSV 다운로드
                     csv_bytes = df_sweep.to_csv(index=False).encode("utf-8-sig")
                     st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
+
+                    # ✅ 세부 신호 결과 확인 기능
+                    selected_idx = st.selectbox("세부 결과 확인할 조합 선택", df_sweep.index, format_func=lambda x: f"{x} - {df_sweep.loc[x,'결과']}")
+                    if selected_idx is not None:
+                        sel = df_sweep.loc[selected_idx]
+                        st.info(f"선택된 조건: {sel.to_dict()}")
+
+                        # simulate 재실행 (세부 신호)
+                        res_detail = simulate(
+                            df_s, sel["RSI"], rsi_low, rsi_high,
+                            sel["측정N(봉)"], target_thr,
+                            sel["BB"], "중복 제거 (연속 동일 결과 1개)",
+                            mpb_s, sweep_market, bb_window, bb_dev,
+                            sec_cond=sel["2차조건"], hit_basis="종가 기준",
+                            miss_policy="(고정) 성공·실패·중립",
+                            bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
+                        )
+
+                        if res_detail is not None and not res_detail.empty:
+                            st.subheader("세부 신호 결과 (최신 순)")
+                            # 기존 ④ 신호 결과 스타일과 동일하게 출력
+                            res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
+                            for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
+                                if col in res_detail:
+                                    res_detail[col] = res_detail[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
+                            st.dataframe(res_detail.head(50), use_container_width=True)
 
     # -----------------------------
     # ④ 신호 결과 (테이블)
