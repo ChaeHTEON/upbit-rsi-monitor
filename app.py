@@ -679,6 +679,151 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         df_res = pd.DataFrame(res).drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
         return df_res
     return pd.DataFrame()
+# -----------------------------
+# Long-run safe utilities (추가)
+# -----------------------------
+from datetime import timedelta
+import time
+
+def chunked_periods(start_dt, end_dt, days_per_chunk=7):
+    """긴 기간을 days_per_chunk 단위로 잘라 (start, end) 튜플을 순서대로 생성."""
+    cur = start_dt
+    delta = timedelta(days=days_per_chunk)
+    while cur < end_dt:
+        nxt = min(cur + delta, end_dt)
+        yield cur, nxt
+        cur = nxt
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def fetch_window_cached(symbol, interval_key, start_dt, end_dt, minutes_per_bar):
+    """
+    기존 fetch_upbit_paged를 캐시 래핑. 동일 구간 재요청시 API 호출/CSV I/O를 절감.
+    """
+    df = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=0)
+    return df
+
+def _safe_sleep(sec: float):
+    try:
+        time.sleep(sec)
+    except Exception:
+        pass
+
+def _load_ckpt(key: str):
+    return st.session_state.get(key)
+
+def _save_ckpt(key: str, value):
+    st.session_state[key] = value
+
+def run_combination_scan_chunked(
+    symbol: str,
+    interval_key: str,
+    minutes_per_bar: int,
+    start_dt,
+    end_dt,
+    days_per_chunk: int = 7,
+    checkpoint_key: str = "combo_scan_ckpt_v1",
+    max_minutes: float | None = None,
+    on_progress=None,
+    simulate_kwargs: dict | None = None,
+):
+    """
+    긴 기간을 청크로 나눠 안전하게 스캔 실행:
+      - 각 청크별로 fetch + simulate 실행 → parquet로 부분 저장
+      - 진행률 콜백(on_progress) 지원
+      - max_minutes 초과 시 중간 저장 후 그레이스풀 스톱(재개 가능)
+    반환: (merged_df, ckpt_dict)
+    """
+    simulate_kwargs = simulate_kwargs or {}
+    t0 = time.time()
+    chunks = list(chunked_periods(start_dt, end_dt, days_per_chunk))
+    total = len(chunks)
+
+    ckpt = _load_ckpt(checkpoint_key) or {"idx": 0, "parts": []}
+    part_dir = os.path.join(os.path.dirname(__file__), "data_cache", "scan_parts")
+    os.makedirs(part_dir, exist_ok=True)
+
+    for i, (s, e) in enumerate(chunks):
+        if i < ckpt["idx"]:
+            if on_progress: on_progress((i+1)/total)
+            continue
+
+        # 1) 데이터 수집(캐시)
+        df_chunk = fetch_window_cached(symbol, interval_key, s, e, minutes_per_bar)
+        if df_chunk is None or df_chunk.empty:
+            # 비어있어도 체크포인트는 갱신
+            ckpt["idx"] = i + 1
+            _save_ckpt(checkpoint_key, ckpt)
+            if on_progress: on_progress((i+1)/total)
+            continue
+
+        # 2) 지표 부착 (기존 add_indicators 활용)
+        df_chunk = add_indicators(df_chunk, bb_window, bb_dev, cci_window)
+
+        # 3) 조건 스캔 (기존 simulate 그대로 호출)
+        res_chunk = simulate(
+            df_chunk,
+            simulate_kwargs.get("rsi_mode", "없음"),
+            simulate_kwargs.get("rsi_low", 30),
+            simulate_kwargs.get("rsi_high", 70),
+            simulate_kwargs.get("lookahead", 10),
+            simulate_kwargs.get("threshold_pct", 1.0),
+            simulate_kwargs.get("bb_cond", "없음"),
+            simulate_kwargs.get("dup_mode", "중복 제거 (연속 동일 결과 1개)"),
+            minutes_per_bar,
+            symbol,
+            bb_window,
+            bb_dev,
+            sec_cond=simulate_kwargs.get("sec_cond", "없음"),
+            hit_basis="종가 기준",
+            miss_policy="(고정) 성공·실패·중립",
+            bottom_mode=simulate_kwargs.get("bottom_mode", False),
+            supply_levels=None,
+            manual_supply_levels=simulate_kwargs.get("manual_supply_levels", None),
+        )
+
+        # 4) 부분 저장
+        part_path = os.path.join(
+            part_dir,
+            f"{symbol}_{interval_key.replace('/','-')}_{s:%Y%m%d%H%M}_{e:%Y%m%d%H%M}.parquet"
+        )
+        (res_chunk if res_chunk is not None else pd.DataFrame()).to_parquet(part_path, index=False)
+        ckpt["parts"].append(part_path)
+
+        # 5) 체크포인트 갱신
+        ckpt["idx"] = i + 1
+        _save_ckpt(checkpoint_key, ckpt)
+
+        # 6) 진행률
+        if on_progress: on_progress((i+1)/total)
+
+        # 7) 레이트리밋/세션 유지
+        _safe_sleep(0.2)
+
+        # 8) 시간 제한
+        if max_minutes is not None and (time.time() - t0) / 60.0 > max_minutes:
+            break
+
+    # ---- 부분결과 병합 (중복 anchor_i 제거 규칙 준수) ----
+    parts = ckpt.get("parts", [])
+    if not parts:
+        return pd.DataFrame(), ckpt
+
+    dfs = []
+    for p in parts:
+        try:
+            dfp = pd.read_parquet(p)
+            if dfp is not None and not dfp.empty:
+                dfs.append(dfp)
+        except Exception:
+            pass
+    if not dfs:
+        return pd.DataFrame(), ckpt
+
+    merged = pd.concat(dfs, ignore_index=True)
+    if "anchor_i" in merged.columns:
+        merged = merged.drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
+
+    return merged, ckpt
 
 # -----------------------------
 # 실행
@@ -1096,6 +1241,65 @@ try:
 
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
         if run_sweep:
+        # -----------------------------
+        # (추가) 긴 기간 안전 스캔 래퍼
+        # - 기존 run_sweep 루프를 대체하지 않고, 먼저 '안정 실행'을 시도
+        # - 실패/빈결 시 기존 루프가 백업처럼 동작하게 순서를 유지
+        # -----------------------------
+        if run_sweep:
+            prog = st.progress(0)
+            def _on_progress(p): prog.progress(min(max(p, 0.0), 1.0))
+
+            # 기간 계산 (빠른 모드 ON → 최근 30일)
+            if fast_mode:
+                sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
+            else:
+                sdt = datetime.combine(sweep_start, datetime.min.time())
+            edt = datetime.combine(sweep_end, datetime.max.time())
+
+            try:
+                # 현재 화면의 주요 옵션을 simulate_kwargs로 전달
+                simulate_kwargs = dict(
+                    rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
+                    lookahead=lookahead, threshold_pct=threshold_pct,
+                    bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+                    sec_cond=sec_cond, bottom_mode=bottom_mode,
+                    manual_supply_levels=manual_supply_levels,
+                )
+
+                # 타임프레임은 사용자가 실제 선택한 것(= 메인 화면 기준)으로 1회 실행
+                merged_df, ckpt = run_combination_scan_chunked(
+                    symbol=sweep_market,
+                    interval_key=interval_key,                # 메인과 동일 interval_key 사용
+                    minutes_per_bar=minutes_per_bar,          # 메인과 동일 minutes_per_bar 사용
+                    start_dt=sdt,
+                    end_dt=edt,
+                    days_per_chunk=7,
+                    checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}",
+                    max_minutes=15,
+                    on_progress=_on_progress,
+                    simulate_kwargs=simulate_kwargs,
+                )
+
+                # 안전 스캔 결과가 있으면 그대로 세션에 저장하고, 기존 루프는 건너뜀
+                if merged_df is not None and not merged_df.empty:
+                    if "sweep_state" not in st.session_state:
+                        st.session_state["sweep_state"] = {}
+                    # 기존 표의 컬럼/디자인 규칙을 해치지 않도록 최소 컬럼만 저장
+                    st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
+                    st.session_state["sweep_state"]["params"] = {
+                        "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
+                        "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
+                        "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
+                        "target_thr": float(threshold_pct)
+                    }
+                    # 기존 루프를 타지 않도록 가벼운 힌트를 표시
+                    st.success("✅ 긴 기간 안전 스캔(조각처리/캐시/체크포인트) 결과가 적용되었습니다.")
+                    # 이후의 기존 run_sweep 루프는 실행되지 않도록 플래그 설정
+                    run_sweep = False
+            except Exception as _e:
+                # 문제가 있으면 조용히 패스 → 아래 기존 루프가 백업처럼 실행
+                st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
             st.session_state["sweep_expanded"] = True
 
         # ✅ 스캔에서도 라디오의 중복 모드를 그대로 사용
