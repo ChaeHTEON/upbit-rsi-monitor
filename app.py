@@ -1187,6 +1187,8 @@ try:
                                     "평균수익률(%)": round(avg_ret, 1),
                                     "합계수익률(%)": round(total_ret, 1),
                                     "결과": final_result,
+                                    # ✅ 최초 진입 anchor_idx 기준 날짜 기록
+                                    "날짜": pd.to_datetime(df.at[anchor_idx,"time"]).strftime("%Y-%m-%d"),
                                 })
 
             # 세션 저장 (초기화 방지)
