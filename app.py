@@ -470,11 +470,10 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         signal_time = df.at[i0, "time"]
         base_price = float(df.at[i0, "close"])
 
-    # 2차 조건 (신호 여부만 판단, anchor/end/bars 산출은 공통부에서 처리)
         # 2차 조건 공통 원칙:
         # - anchor_idx = 실제 진입(신호 확정) 봉
         # - base_price = close(anchor_idx)
-        # - 평가 시작(eval_start) = anchor_idx + 1  (공통 처리 아래)
+        # - 평가 시작(eval_start) = anchor_idx + 1
 
         if sec_cond == "양봉 2개 연속 상승":
             if i0 + 2 >= n:
@@ -483,8 +482,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             c2, o2 = float(df.at[i0 + 2, "close"]), float(df.at[i0 + 2, "open"])
             if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
                 return None, None
-
-            # ✅ 두 번째 양봉 봉을 anchor로 확정
             anchor_idx = i0 + 2
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
@@ -501,8 +498,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         break
             if T_idx is None:
                 return None, None
-
-            # ✅ 두 번째 양봉 봉을 anchor로 확정
             anchor_idx = T_idx
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
@@ -510,12 +505,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         elif sec_cond == "BB 기반 첫 양봉 50% 진입":
             if bb_cond == "없음":
                 return None, None
-
             B1_idx, B1_close = first_bull_50_over_bb(i0)
             if B1_idx is None:
                 return None, None
-
-            # ✅ 첫 번째 양봉을 anchor로 확정
             anchor_idx = B1_idx
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
@@ -524,7 +516,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             rebound_idx = None
             scan_end = min(i0 + lookahead, n - 1)
             for j in range(i0 + 1, scan_end + 1):
-                # 조건: 저가가 매물대 이하로 터치하고 → 종가가 매물대 위로 회복하면 반등 확정
                 if manual_supply_levels:
                     touched = False
                     low_j   = float(df.at[j, "low"])
@@ -538,8 +529,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         break
             if rebound_idx is None:
                 return None, None
-
-            # ✅ 반등 확정 봉을 anchor로 확정
             anchor_idx = rebound_idx
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "close"])
@@ -560,34 +549,32 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             c_ = float(df.at[j, "close"])
             h_ = float(df.at[j, "high"])
             price_for_hit = max(c_, h_) if hit_basis.startswith("종가 또는 고가") else (h_ if hit_basis.startswith("고가") else c_)
-            # ✅ float 오차 허용 (예: 0.9999배 기준으로 비교)
             if price_for_hit >= target * 0.9999:
                 hit_idx = j
                 break
 
         if hit_idx is not None:
-            # ✅ 성공 → 도달 시점 기준
             bars_after = hit_idx - anchor_idx
             reach_min = bars_after * minutes_per_bar
             end_time = df.at[hit_idx, "time"]
             end_close = target
             final_ret = thr
             result = "성공"
+            lock_end = hit_idx  # ✅ 중복 제거 모드에서 이 인덱스까지는 다음 신호 금지
         else:
-            # ✅ 실패/중립 → bars_after(lookahead) 기준으로 마지막 캔들 고정
             bars_after = lookahead
             end_idx = anchor_idx + bars_after
             if end_idx >= n:
                 end_idx = n - 1
-                bars_after = end_idx - anchor_idx  # 실제 남은 봉으로 보정
+                bars_after = end_idx - anchor_idx
             end_time = df.at[end_idx, "time"]
             end_close = float(df.at[end_idx, "close"])
             final_ret = (end_close / base_price - 1) * 100
             result = "실패" if final_ret <= 0 else "중립"
+            lock_end = end_idx  # ✅ 평가 구간 끝까지 다음 신호 금지
 
         reach_min = bars_after * minutes_per_bar
 
-        # BB 값
         bb_value = None
         if bb_cond == "상한선":
             bb_value = df.at[anchor_idx, "BB_up"]
@@ -596,7 +583,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         elif bb_cond == "하한선":
             bb_value = df.at[anchor_idx, "BB_low"]
 
-        # 최종 끝 인덱스(성공이면 hit_idx, 아니면 anchor+lookahead 보정)의 정수 저장
         end_idx_final = hit_idx if (locals().get("hit_idx") is not None) else end_idx
 
         row = {
@@ -609,16 +595,14 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             "성공기준(%)": round(thr, 1),
             "결과": result,
             "도달분": reach_min,
-            "도달캔들(bars)": int(bars_after),   # bars 기반(성공: hit, 중립/실패: lookahead)
+            "도달캔들(bars)": int(bars_after),
             "최종수익률(%)": round(final_ret, 2),
             "최저수익률(%)": round(min_ret, 2),
             "최고수익률(%)": round(max_ret, 2),
-
-            # ✅ 차트용 “정수 인덱스” 직접 저장 (표에는 안보임)
             "anchor_i": int(anchor_idx),
             "end_i": int(end_idx_final),
         }
-        return row, end_idx
+        return row, int(lock_end)
 
     # --- 4) 메인 루프 (중복 포함/제거 분기) ---
     if dedup_mode.startswith("중복 제거"):
@@ -630,8 +614,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
             row, lock_end = process_one(i)
             if row is not None:
                 res.append(row)
-                # ✅ 성공/실패/중립 구분 없이 항상 lookahead 윈도우 전체 점유
-                i = i + lookahead
+                # ✅ anchor 기준 평가구간(성공: hit_idx / 실패·중립: anchor+lookahead) 끝까지 건너뜀
+                i = int(lock_end) + 1
             else:
                 i += 1
     else:
