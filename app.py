@@ -556,12 +556,15 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
                         if low_j <= float(L):
                             touched = True
                             break
-                    # ② 직전 N봉 최저가 여부 확인
+                    # ② 직전 N봉 최저가 여부 확인 (허용 오차 포함)
                     is_nbar_low = False
                     lookback_n = st.session_state.get("maemul_n", 50)  # 기본값 50봉
-                    past_n = df.loc[:j-1].tail(lookback_n)  # ✅ 현재 봉 제외, 직전 N봉만 참조
-                    if not past_n.empty and low_j <= past_n["low"].min():
-                        is_nbar_low = True
+                    past_n = df.loc[:j-1].tail(lookback_n)  # 현재 봉 제외, 직전 N봉만 참조
+                    if not past_n.empty:
+                        min_price = past_n["low"].min()
+                        # ✅ 직전 N봉 최저가 갱신 or 최저가 수준(±0.1%) 터치 시 인정
+                        if low_j <= min_price * 1.001:
+                            is_nbar_low = True
                     # ③ 최종 조건: 매물대 터치 + N봉 최저가 + 매물대 위 종가 복귀
                     if touched and is_nbar_low and close_j > max(manual_supply_levels):
                         rebound_idx = j
