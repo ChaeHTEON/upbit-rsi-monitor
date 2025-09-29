@@ -318,7 +318,11 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         need_api = True
 
     # ⚡ CSV에 일부만 있는 경우 → 부족한 앞/뒤 구간만 API 보충
-    all_data, to_time = [], None
+    from pytz import timezone as _tz
+    _KST = _tz("Asia/Seoul"); _UTC = _tz("UTC")
+    # ✅ 첫 호출부터 end_dt(KST)를 UTC로 변환한 시각으로 페이징 시작
+    all_data = []
+    to_time = _KST.localize(end_dt).astimezone(_UTC).replace(tzinfo=None)
     try:
         while True:
             params = {"market": market_code, "count": 200}
