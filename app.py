@@ -820,14 +820,14 @@ try:
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels
     )
-    # ↑ 주의: miss_policy 문자열 오탈자 방지 위해 위 괄호 닫힘 확인 필요. 잘못되면 아래처럼 고정 사용:
-    # res_dedup = simulate(..., miss_policy="(고정) 성공·실패·중립", ...)
-
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # -----------------------------
-    # 신호 선택 → 해당 구간 ±2000봉 차트 표시
+    # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (plot_res 안전 보장)
     # -----------------------------
+    df_view = df.iloc[-2000:].reset_index(drop=True)
+    plot_res = pd.DataFrame()
+
     if res is not None and not res.empty:
         plot_res = (
             res.sort_values("신호시간")
@@ -847,13 +847,9 @@ try:
             start_idx = max(int(sel_anchor) - 1000, 0)
             end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
             df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-        else:
-            # 선택 없으면 최근 2000봉 디폴트
-            df_view = df.iloc[-2000:].reset_index(drop=True)
-    else:
-        df_view = df.iloc[-2000:].reset_index(drop=True)
 
-        # 1) anchor(신호 시작 캔들) 마커
+    # ===== anchor(신호 시작 캔들) 마커/점선 (신호가 있을 때만) =====
+    if not plot_res.empty:
         for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
             sub = plot_res[plot_res["결과"] == _label]
             if sub.empty:
@@ -864,6 +860,54 @@ try:
                 name=f"신호({_label})",
                 marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
             ))
+
+        legend_emitted = {"성공": False, "실패": False, "중립": False}
+
+        # 2) 점선/종료 마커 (표와 1:1 동기화: anchor_i + end_i)
+        for _, row in plot_res.iterrows():
+            a_i = int(row["anchor_i"])
+            e_i = int(row["end_i"])
+            a_i = max(0, min(a_i, len(df) - 1))
+            e_i = max(0, min(e_i, len(df) - 1))
+
+            x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
+            y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
+
+            fig.add_trace(go.Scatter(
+                x=x_seg, y=y_seg, mode="lines",
+                line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
+                showlegend=False, hoverinfo="skip"
+            ))
+
+            showlegend = (row["결과"] == "성공") and (not legend_emitted["성공"])
+            if row["결과"] == "성공":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="도달⭐",
+                    marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+                legend_emitted["성공"] |= showlegend
+
+            showlegend = (row["결과"] == "실패") and (not legend_emitted["실패"])
+            if row["결과"] == "실패":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="실패❌",
+                    marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+                legend_emitted["실패"] |= showlegend
+
+            showlegend = (row["결과"] == "중립") and (not legend_emitted["중립"])
+            if row["결과"] == "중립":
+                fig.add_trace(go.Scatter(
+                    x=[df.at[e_i, "time"]], y=[float(df.at[e_i, "close"])],
+                    mode="markers", name="중립❌",
+                    marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=showlegend
+                ))
+                legend_emitted["중립"] |= showlegend
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
 
