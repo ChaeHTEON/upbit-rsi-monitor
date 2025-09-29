@@ -437,14 +437,22 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
         def bb_ok(i):
             c = float(df.at[i, "close"])
+            h = float(df.at[i, "high"])
+            l = float(df.at[i, "low"])
             up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
+
             if bb_cond == "상한선":
                 return pd.notna(up) and (c > float(up))
+
             if bb_cond == "하한선":
-                return pd.notna(lo) and (c <= float(lo))
+                # ✅ 종가가 하단 이하이거나, 저가가 하단 밴드를 터치 후 종가가 위로 복귀한 경우도 포함
+                return pd.notna(lo) and ((c <= float(lo)) or (l <= float(lo) and c > float(lo)))
+
             if bb_cond == "중앙선":
-                if pd.isna(mid): return False
+                if pd.isna(mid):
+                    return False
                 return c >= float(mid)
+
             return False
 
         bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
