@@ -350,6 +350,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         # ⚡ GitHub 커밋은 최종 저장 시 1회만 실행
         # (중간 보충/강제 갱신 단계에서는 커밋하지 않음)
     else:
+        # API에서 새로운 데이터가 없으면 캐시 데이터 그대로 사용
         df_all = df_cache
 
     # ✅ 2차: 요청 구간 강제 갱신 (CSV 부족할 때만 실행)
