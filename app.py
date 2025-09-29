@@ -1145,13 +1145,14 @@ try:
                                 total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
                                 avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
 
-                                # ✅ 조합 판정 요약 (최종 규칙: 승률+수익률+적중 신호 모두 만족해야 성공)
+                                # ✅ 조합 판정 요약 (최종 규칙: 신호+승률+수익률 모두 충족 / EPS 보정)
                                 target_thr_val = float(target_thr)
                                 wr_val = float(winrate_thr)
+                                EPS = 1e-3  # 퍼센트 비교시 경계값 오차 보정(0.001%)
 
-                                if (succ > 0) and (win >= wr_val) and (total_ret >= target_thr_val):
+                                if (succ > 0) and (win + EPS >= wr_val) and (total_ret + EPS >= target_thr_val):
                                     final_result = "성공"
-                                elif total_ret >= 0:
+                                elif total_ret + EPS >= 0:
                                     final_result = "중립"
                                 else:
                                     final_result = "실패"
@@ -1297,22 +1298,9 @@ try:
                                 if val == "실패": return "color:#1E40AF; font-weight:600;"
                                 if val == "중립": return "color:#FF9800; font-weight:600;"
                                 return ""
-                            styled_detail = res_detail.style.applymap(style_result, subset=["결과"])
-                            st.dataframe(styled_detail.head(50), use_container_width=True)
-                            # 컬럼 순서 메인 ④ 신호 결과와 동일
-                            keep_cols = ["신호시간","기준시가","RSI(13)","성공기준(%)","결과",
-                                         "최종수익률(%)","최저수익률(%)","최고수익률(%)","도달캔들","도달시간"]
-                            keep_cols = [c for c in keep_cols if c in res_detail.columns]
-                            res_detail = res_detail[keep_cols]
-
-                            # 스타일 적용 (메인 표와 동일)
-                            def style_result(val):
-                                if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
-                                if val == "실패": return "color:#1E40AF; font-weight:600;"
-                                if val == "중립": return "color:#FF9800; font-weight:600;"
-                                return ""
-                            styled_detail = res_detail.style.applymap(style_result, subset=["결과"])
-                            st.dataframe(styled_detail.head(50), use_container_width=True)
+                            # ✅ DataFrame에서 head(50) 먼저 적용 → 그 다음 스타일
+                            styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
+                            st.dataframe(styled_detail, use_container_width=True)
     # -----------------------------
     # ④ 신호 결과 (테이블)
     # -----------------------------
