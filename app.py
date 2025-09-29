@@ -1197,7 +1197,7 @@ try:
                 st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
             else:
                 df_all = pd.DataFrame(sweep_rows)
-
+    
                 # ✅ 성공/중립만 남기되, 성공은 승률·합계수익률 재검증
                 wr_num = float(winrate_thr)
                 mask_success = (df_all["결과"] == "성공") & (df_all["승률(%)"] >= wr_num) & (df_all["합계수익률(%)"] > 0)
