@@ -1223,7 +1223,7 @@ try:
                 "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
                 "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
                 "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                "target_thr": float(target_thr)
+                "target_thr": float(threshold_pct)
             }
 
         # -----------------------------
@@ -1302,7 +1302,7 @@ try:
                         df_sel = add_indicators(df_raw_sel, bb_window, bb_dev, cci_window)
                         res_detail = simulate(
                             df_sel, sel["RSI"], rsi_low, rsi_high,
-                            int(sel["측정N(봉)"]), target_thr,
+                            int(sel["측정N(봉)"]), threshold_pct,
                             sel["BB"], dedup_label,
                             mpb_s, sweep_market, bb_window, bb_dev,
                             sec_cond=sel["2차조건"], hit_basis="종가 기준",
