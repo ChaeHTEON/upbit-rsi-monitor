@@ -1123,10 +1123,19 @@ try:
                                     bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels
                                 )
                                 win, total, succ, fail = _winrate(res_s)
+                                neu = (res_s["결과"] == "중립").sum() if "결과" in res_s else 0
 
-                                # ✅ 모든 조합을 결과표에 기록하고, 필터 충족 여부를 별도 컬럼으로 표기
                                 total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
                                 avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
+
+                                # ✅ 조합 판정 요약
+                                if succ > 0:
+                                    final_result = "성공"
+                                elif neu > 0:
+                                    final_result = "중립"
+                                else:
+                                    final_result = "실패"
+
                                 sweep_rows.append({
                                     "타임프레임": tf_lbl,
                                     "측정N(봉)": lookahead_s,
@@ -1141,11 +1150,12 @@ try:
                                     "승률기준(%)": int(winrate_thr),
                                     "신호수": int(total),
                                     "성공": int(succ),
+                                    "중립": int(neu),
                                     "실패": int(fail),
                                     "승률(%)": round(win, 1),
-                                    "평균수익률(%)": round(avg_ret, 2),
+                                    "평균수익률(%)": round(avg_ret, 1),
                                     "합계수익률(%)": round(total_ret, 1),
-                                    "필터통과": "Y" if (total > 0 and win >= winrate_thr) else "N",
+                                    "결과": final_result,
                                 })
 
             if not sweep_rows:
