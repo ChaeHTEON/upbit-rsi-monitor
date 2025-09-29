@@ -1194,11 +1194,14 @@ try:
     tf_key = (interval_key.split("/")[1] + "min") if "minutes/" in interval_key else "day"
     csv_path = os.path.join(os.path.dirname(__file__), "data_cache", f"{market_code}_{tf_key}.csv")
     if st.button("📤 CSV GitHub 업로드"):
-        ok, msg = github_commit_csv(csv_path)
-        if ok:
-            st.success("CSV가 GitHub에 저장/공유되었습니다!")
+        if os.path.exists(csv_path):
+            ok, msg = github_commit_csv(csv_path)
+            if ok:
+                st.success("CSV가 GitHub에 저장/공유되었습니다!")
+            else:
+                st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
         else:
-            st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+            st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
 
 except Exception as e:
     st.error(f"오류: {e}")
