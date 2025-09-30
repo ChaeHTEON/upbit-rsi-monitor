@@ -1168,15 +1168,31 @@ try:
             name=""
         ))
 
-        # ➕ 빈 영역 단독 수익률: 화면 전체 높이(y축 범위)에 투명 scatter 추가
+        # ➕ 빈 영역 단독 수익률: 차트 전체 영역에 투명 메쉬 포인트 생성
         y_min, y_max = df_plot["low"].min(), df_plot["high"].max()
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"].repeat(2),
-            y=[y_min, y_max] * len(df_plot),
-            mode="lines",
-            line=dict(width=0),
+        pad = (y_max - y_min) * 0.01
+        y_vals = np.linspace(y_min - pad, y_max + pad, 100)
+
+        # 성능 위해 X축은 최대 300포인트 샘플링
+        x_vals = df_plot["time"].to_numpy()
+        if len(x_vals) > 300:
+            step = int(np.ceil(len(x_vals) / 300))
+            x_vals = x_vals[::step]
+
+        # 메쉬 생성
+        x_mesh = np.repeat(x_vals, len(y_vals))
+        y_mesh = np.tile(y_vals, len(x_vals))
+
+        pnl_num_mesh = (y_mesh / float(buy_price) - 1) * 100.0
+        pnl_str_mesh = np.array([f"{'+' if v>=0 else ''}{v:.2f}%" for v in pnl_num_mesh])
+
+        fig.add_trace(go.Scattergl(
+            x=x_mesh,
+            y=y_mesh,
+            mode="markers",
+            marker=dict(size=2, color="rgba(0,0,0,0)"),
             showlegend=False,
-            customdata=np.tile(pnl_str, 2),
+            customdata=pnl_str_mesh,
             hovertemplate="가격: %{y:.2f}<br>수익률(%): %{customdata}<extra></extra>",
             name=""
         ))
