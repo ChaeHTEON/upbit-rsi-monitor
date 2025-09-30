@@ -1229,7 +1229,6 @@ try:
             use_container_width=True,
             config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset", "responsive": True},
         )
-        )
 
     # -----------------------------
     # ③ 요약 & 차트
