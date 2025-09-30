@@ -1143,24 +1143,15 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 빈 영역에서도 PnL 툴팁 표시(매수가≥1) =====
-    if buy_price > 0:
-        pnl_num = (df_plot["close"] / buy_price - 1) * 100
-        pnl_str = pnl_num.apply(lambda v: f"{'+' if v>=0 else ''}{v:.2f}%")
-
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"],
-            y=[buy_price] * len(df_plot),   # y값은 매수가 라인에 고정
-            mode="lines",
-            line=dict(width=0),             # 선 보이지 않음
-            showlegend=False,
-            customdata=pnl_str,
-            hovertemplate="수익률(%): %{customdata}<extra></extra>",
-            name=""
-        ))
-
-        # hover를 X좌표 기준 통합으로 표시 → 마우스 위치(X)에 따라 정확한 수익률 표시
-        fig.update_layout(hovermode="x unified")
+    # ===== 업비트 스타일 십자선/툴팁 모드 =====
+    # 매수가 입력 여부와 무관하게 캔들/보조지표 툴팁에 통합 표시
+    fig.update_layout(
+        hovermode="x",             # X좌표 기준 → 커서 위치 십자선 + trace별 툴팁
+        hoverdistance=1,
+        spikedistance=1
+    )
+    fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across")
+    fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across")
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
