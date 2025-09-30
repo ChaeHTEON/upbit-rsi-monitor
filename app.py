@@ -1157,6 +1157,7 @@ try:
         pnl_num = (df_plot["close"] / float(buy_price) - 1) * 100
         pnl_str = pnl_num.apply(lambda v: f"{'+' if v >= 0 else ''}{v:.2f}%")
 
+        # 눈에 보이지 않는 trace → crosshair hover 시 "가격+수익률" 표시
         fig.add_trace(go.Scatter(
             x=df_plot["time"],
             y=df_plot["close"],
@@ -1167,18 +1168,6 @@ try:
             hovertemplate="가격: %{y:.2f}<br>수익률(%): %{customdata}<extra></extra>",
             name=""
         ))
-        if np.any(neg_mask):
-            fig.add_trace(go.Scattergl(
-                x=x_mesh[neg_mask],
-                y=y_mesh[neg_mask],
-                mode="markers",
-                marker=dict(size=2, color="rgba(0,0,0,0)"),
-                showlegend=False,
-                name="",
-                customdata=pnl_str[neg_mask],
-                hovertemplate="가격: %{y:.2f}<br>수익률(%): %{customdata}<extra></extra>",
-                hoverlabel=dict(font=dict(color="blue"))
-            ))
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
