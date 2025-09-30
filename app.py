@@ -1143,48 +1143,30 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 업비트 스타일 십자선/툴팁 모드 + 빈 영역 가격/수익률 표시 =====
+    # ===== 업비트 스타일 십자선/툴팁 모드 (crosshair 기반, 확대 대응) =====
     fig.update_layout(
-        hovermode="x",
+        hovermode="x",             # X좌표 기준 십자선 + trace별 툴팁
         hoverdistance=1,
         spikedistance=1
     )
     fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across")
     fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across")
 
-    # 빈 영역에서도 가격/수익률 툴팁 표시
+    # 매수가 입력된 경우 → 매수가 대비 수익률을 툴팁에 함께 표시
     if buy_price and buy_price > 0 and len(df_plot) > 0:
-        x_vals_full = df_plot["time"].to_numpy()
-        # 성능 최적화: 최대 400개 지점만 샘플링
-        step = int(np.ceil(len(x_vals_full) / 400)) if len(x_vals_full) > 400 else 1
-        x_vals = x_vals_full[::step]
+        pnl_num = (df_plot["close"] / float(buy_price) - 1) * 100
+        pnl_str = pnl_num.apply(lambda v: f"{'+' if v >= 0 else ''}{v:.2f}%")
 
-        y_min = float(df_plot["low"].min()) if "low" in df_plot.columns else float(df_plot["close"].min())
-        y_max = float(df_plot["high"].max()) if "high" in df_plot.columns else float(df_plot["close"].max())
-        pad = (y_max - y_min) * 0.005
-        y_grid = np.linspace(y_min - pad, y_max + pad, 120)
-
-        x_mesh = np.repeat(x_vals, len(y_grid))
-        y_mesh = np.tile(y_grid, len(x_vals))
-
-        pnl_num = (y_mesh / float(buy_price) - 1) * 100.0
-        pnl_str = np.array([f"{'+' if v >= 0 else ''}{v:.2f}%" for v in pnl_num], dtype=object)
-
-        pos_mask = pnl_num >= 0
-        neg_mask = ~pos_mask
-
-        if np.any(pos_mask):
-            fig.add_trace(go.Scattergl(
-                x=x_mesh[pos_mask],
-                y=y_mesh[pos_mask],
-                mode="markers",
-                marker=dict(size=2, color="rgba(0,0,0,0)"),
-                showlegend=False,
-                name="",
-                customdata=pnl_str[pos_mask],
-                hovertemplate="가격: %{y:.2f}<br>수익률(%): %{customdata}<extra></extra>",
-                hoverlabel=dict(font=dict(color="red"))
-            ))
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"],
+            y=df_plot["close"],
+            mode="lines",
+            line=dict(width=0),        # 보이지 않음
+            showlegend=False,
+            customdata=pnl_str,
+            hovertemplate="가격: %{y:.2f}<br>수익률(%): %{customdata}<extra></extra>",
+            name=""
+        ))
         if np.any(neg_mask):
             fig.add_trace(go.Scattergl(
                 x=x_mesh[neg_mask],
