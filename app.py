@@ -492,19 +492,48 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
 
     def first_bull_50_over_bb(start_i):
+        """
+        i0 이후로 '밴드 아래에 머물다가' 처음으로 '진입'하는 '첫 양봉'만 인정.
+        - 양봉: close > open
+        - 진입: (open < ref or low <= ref) AND close >= ref
+        - '첫' 진입: start_i+1 ~ j-1 모든 종가가 해당 ref 아래여야 함 (close < ref)
+        """
         for j in range(start_i + 1, n):
             if not is_bull(j):
                 continue
+
+            # 참조선 선택
             if bb_cond == "하한선":
-                ref = df.at[j, "BB_low"]
+                ref_series = df["BB_low"]
             elif bb_cond == "중앙선":
-                ref = df.at[j, "BB_mid"]
+                ref_series = df["BB_mid"]
             else:
-                ref = df.at[j, "BB_up"]
+                ref_series = df["BB_up"]
+
+            ref = ref_series.iloc[j]
             if pd.isna(ref):
                 continue
-            if float(df.at[j, "close"]) >= float(ref):
-                return j, float(df.at[j, "close"])
+
+            o = float(df.at[j, "open"])
+            l = float(df.at[j, "low"])
+            c = float(df.at[j, "close"])
+            rv = float(ref)
+
+            # 동일 봉에서 '아래→안/위'로 진입 여부
+            entered_from_below = (o < rv) or (l <= rv)
+            closes_above       = c >= rv
+            if not (entered_from_below and closes_above):
+                continue
+
+            # start_i 이후 j 직전까지는 계속 '밴드 아래'였는지 확인(첫 진입 강제)
+            if j - (start_i + 1) > 0:
+                prev_close = df.loc[start_i + 1:j - 1, "close"]
+                prev_ref   = ref_series.loc[start_i + 1:j - 1]
+                if not (prev_close < prev_ref).all():
+                    continue
+
+            return j, c
+
         return None, None
 
     # --- 3) 하나의 신호 평가 ---
