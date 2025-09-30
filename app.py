@@ -1140,35 +1140,29 @@ try:
 
     # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) =====
     if buy_price > 0:
-        # 수익률 벡터/문자열 및 X축 시계열
         pnl_num = df_plot["수익률(%)"].astype(float).to_numpy()
         pnl_str = df_plot["_pnl_str"].to_numpy()
         x_vals  = df_plot["time"].to_numpy()
 
-        # 차트 전체 Y범위 (저가/고가 컬럼 우선, 없으면 종가 범위)
         y_min = float(df_plot["low"].min()) if "low" in df_plot.columns else float(df_plot["close"].min())
         y_max = float(df_plot["high"].max()) if "high" in df_plot.columns else float(df_plot["close"].max())
 
-        # customdata: [numeric_pnl, formatted_pnl]  길이 = len(x_vals)
+        # customdata: [numeric_pnl, formatted_pnl] (길이=len(x_vals))
         custom_all = np.c_[pnl_num, pnl_str]
 
-        # ✅ 완전 투명 폴리곤(채움만 hover 처리)
-        # - hoveron="fills": 면적에서만 hover 발생 → 라인/포인트에 간섭 최소화
-        # - name="" + <extra></extra>: "빈영역PnL" 같은 이름 버블 출력 방지
-        # - 매수가=0일 때는 이 trace 자체를 추가하지 않으므로 기존 툴팁만 동작
-        fig.add_trace(go.Scatter(
-            x=np.concatenate([x_vals, x_vals[::-1]]),
-            y=np.concatenate([np.full(len(x_vals), y_min), np.full(len(x_vals), y_max)]),
-            mode="lines",
-            line=dict(width=0),                  # 라인도 완전 비표시
-            fill="toself",
-            fillcolor="rgba(0,0,0,0)",           # 배경/디자인 영향 없음
-            hoveron="fills",                     # 면적에서만 hover
-            showlegend=False,
-            hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
-            customdata=np.concatenate([custom_all, custom_all[::-1]]),
-            name=""                              # trace명 숨김
-        ))
+        # ✅ 각 x 지점별로 직사각형 hover 구간 생성
+        # - 두 점(x, y_min), (x, y_max) 연결 → hovertemplate에서 customdata 표시
+        # - mode="lines" + 투명 → 시각 영향 없음, hover는 y 전체 범위에서 발생
+        for xv, cd in zip(x_vals, custom_all):
+            fig.add_trace(go.Scatter(
+                x=[xv, xv],
+                y=[y_min, y_max],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hovertemplate=f"수익률(%): {cd[1]}<extra></extra>",
+                name=""
+            ))
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
