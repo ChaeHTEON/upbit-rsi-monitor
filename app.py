@@ -1144,23 +1144,21 @@ try:
         pnl_str = df_plot["_pnl_str"].values
         x_vals  = df_plot["time"].values
 
-        # customdata: [수익률 숫자, 수익률 문자열]
+        # customdata: [수익률 숫자, 수익률 문자열] (길이 일치)
         custom_all = np.c_[pnl_num, pnl_str]
 
-        # 차트 전체 y범위 커버 (빈 영역 전역 hover 가능)
-        y_min, y_max = df_plot["close"].min(), df_plot["close"].max()
+        # 차트 전체 y범위에 걸친 투명 라인 (UI 변경 없음)
+        y_mid = (df_plot["close"].max() + df_plot["close"].min()) / 2
         fig.add_trace(go.Scatter(
-            x=np.concatenate([x_vals, x_vals[::-1]]),
-            y=np.concatenate([[y_min]*len(x_vals), [y_max]*len(x_vals)]),
+            x=x_vals,
+            y=[y_mid] * len(x_vals),  # hover 이벤트만 발생
             mode="lines",
             line=dict(color="rgba(0,0,0,0)"),
-            fill="toself",
-            fillcolor="rgba(0,0,0,0)",  # 완전 투명 (UI 영향 없음)
             showlegend=False,
             hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
-            customdata=np.concatenate([custom_all, custom_all[::-1]]),
+            customdata=custom_all,
             name="빈영역PnL",
-            hoverlabel=dict(font=dict(color="red"))  # 기본 빨강, 음수는 별도 trace에서 파랑 처리
+            hoverlabel=dict(font=dict(color="red"))
         ))
 
         # 음수 전용 trace (hoverlabel 파랑)
