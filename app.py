@@ -1143,28 +1143,40 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 업비트 스타일 십자선/툴팁 모드 (crosshair 기반, 확대 대응) =====
+    # ===== 업비트 스타일 십자선/툴팁 모드 (crosshair 기반 + 빈 영역 단독 수익률) =====
     fig.update_layout(
-        hovermode="x",             # X좌표 기준 십자선 + trace별 툴팁
+        hovermode="x",
         hoverdistance=1,
         spikedistance=1
     )
     fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across")
     fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across")
 
-    # 매수가 입력된 경우 → 매수가 대비 수익률을 툴팁에 함께 표시
     if buy_price and buy_price > 0 and len(df_plot) > 0:
+        # 기존 종가 trace → 가격+수익률 툴팁
         pnl_num = (df_plot["close"] / float(buy_price) - 1) * 100
         pnl_str = pnl_num.apply(lambda v: f"{'+' if v >= 0 else ''}{v:.2f}%")
 
-        # 눈에 보이지 않는 trace → crosshair hover 시 "가격+수익률" 표시
         fig.add_trace(go.Scatter(
             x=df_plot["time"],
             y=df_plot["close"],
             mode="lines",
-            line=dict(width=0),        # 보이지 않음
+            line=dict(width=0),
             showlegend=False,
             customdata=pnl_str,
+            hovertemplate="가격: %{y:.2f}<br>수익률(%): %{customdata}<extra></extra>",
+            name=""
+        ))
+
+        # ➕ 빈 영역 단독 수익률: 화면 전체 높이(y축 범위)에 투명 scatter 추가
+        y_min, y_max = df_plot["low"].min(), df_plot["high"].max()
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"].repeat(2),
+            y=[y_min, y_max] * len(df_plot),
+            mode="lines",
+            line=dict(width=0),
+            showlegend=False,
+            customdata=np.tile(pnl_str, 2),
             hovertemplate="가격: %{y:.2f}<br>수익률(%): %{customdata}<extra></extra>",
             name=""
         ))
