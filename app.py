@@ -1506,6 +1506,10 @@ try:
                             # 시간/퍼센트 포맷 적용
                             if "신호시간" in res_detail:
                                 res_detail["신호시간"] = pd.to_datetime(res_detail["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+                            if "RSI(13)" in res_detail:
+                                res_detail["RSI(13)"] = res_detail["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+                            if "성공기준(%)" in res_detail:
+                                res_detail["성공기준(%)"] = res_detail["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
                             for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
                                 if col in res_detail:
                                     res_detail[col] = res_detail[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
