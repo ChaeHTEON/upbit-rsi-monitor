@@ -1227,9 +1227,124 @@ try:
 
     with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=st.session_state["sweep_expanded"]):
         st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
-        ...
-        styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
-        st.dataframe(styled_detail, use_container_width=True)
+
+        main_idx_for_sweep = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == market_code), default_idx)
+        sweep_market_label, sweep_market = st.selectbox(
+            "종목 선택 (통계 전용)", MARKET_LIST, index=main_idx_for_sweep,
+            format_func=lambda x: x[0], key="sweep_market_sel", on_change=_keep_sweep_open
+        )
+        sweep_start = st.date_input("시작일 (통계 전용)", value=start_date,
+                                    key="sweep_start", on_change=_keep_sweep_open)
+        sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
+                                    key="sweep_end", on_change=_keep_sweep_open)
+
+        col_thr, col_win = st.columns(2)
+        with col_thr:
+            sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
+                                            key="sweep_threshold_pct", on_change=_keep_sweep_open)
+        with col_win:
+            sweep_winrate_thr   = st.slider("승률 기준(%) (통계 전용)", 10, 100, int(winrate_thr), step=1,
+                                            key="sweep_winrate_thr", on_change=_keep_sweep_open)
+
+        fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
+                                key="sweep_fast_mode", on_change=_keep_sweep_open)
+        run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
+
+        # (조합 스캔 실행 로직, merged_df 처리, st.session_state 저장 등)
+
+        sweep_rows_saved = st.session_state.get("sweep_state", {}).get("rows", [])
+        if not sweep_rows_saved:
+            st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
+        else:
+            df_all = pd.DataFrame(sweep_rows_saved)
+            # (성공/중립/실패 마스킹 → df_keep → df_show 생성)
+
+            styled_tbl = df_show.style.apply(
+                lambda col: [
+                    ("color:#E53935; font-weight:600;" if r=="성공"
+                     else "color:#FF9800; font-weight:600;" if r=="중립" else "")
+                    for r in df_show["결과"]
+                ],
+                subset=["평균수익률(%)","합계수익률(%)"]
+            )
+            st.dataframe(styled_tbl, use_container_width=True)
+
+            csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
+            st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
+
+            selected_idx = st.selectbox(
+                "세부 결과 확인할 조합 선택",
+                df_show.index,
+                key="sweep_select_idx",
+                format_func=lambda i: f"{i} - {df_show.loc[i,'결과']} · {df_show.loc[i,'타임프레임']} · N={df_show.loc[i,'측정N(봉)']}",
+                on_change=_keep_sweep_open
+            )
+            if selected_idx is not None:
+                sel = df_show.loc[selected_idx]
+                st.info(f"선택된 조건: {sel.to_dict()}")
+
+                P = st.session_state.get("sweep_state", {}).get("params", {})
+                tf_lbl = sel["타임프레임"]
+                interval_key_s, mpb_s = TF_MAP[tf_lbl]
+                sdt_sel = P.get("sdt", datetime.combine(sweep_start, datetime.min.time()))
+                edt_sel = P.get("edt", datetime.combine(sweep_end, datetime.max.time()))
+                df_raw_sel = fetch_upbit_paged(sweep_market, interval_key_s, sdt_sel, edt_sel, mpb_s, warmup_bars)
+                if df_raw_sel is not None and not df_raw_sel.empty:
+                    df_sel = add_indicators(df_raw_sel, bb_window, bb_dev, cci_window, cci_signal)
+                    res_detail = simulate(
+                        df_sel, sel["RSI"], rsi_low, rsi_high,
+                        int(sel["측정N(봉)"]), threshold_pct,
+                        sel["BB"], dedup_label,
+                        mpb_s, sweep_market, bb_window, bb_dev,
+                        sec_cond=sel["2차조건"], hit_basis="종가 기준",
+                        miss_policy="(고정) 성공·실패·중립",
+                        bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                    )
+                    if res_detail is not None and not res_detail.empty:
+                        st.subheader("세부 신호 결과 (최신 순)")
+                        res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
+
+                        if "신호시간" in res_detail:
+                            res_detail["신호시간"] = pd.to_datetime(res_detail["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+                        if "RSI(13)" in res_detail:
+                            res_detail["RSI(13)"] = res_detail["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+                        if "성공기준(%)" in res_detail:
+                            res_detail["성공기준(%)"] = res_detail["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                        for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
+                            if col in res_detail:
+                                res_detail[col] = res_detail[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
+
+                        if "도달캔들(bars)" in res_detail.columns:
+                            res_detail["도달캔들"] = res_detail["도달캔들(bars)"].astype(int)
+                            def _fmt_from_bars(b):
+                                total_min = int(b) * int(mpb_s)
+                                hh, mm = divmod(total_min, 60)
+                                return f"{hh:02d}:{mm:02d}"
+                            res_detail["도달시간"] = res_detail["도달캔들"].map(_fmt_from_bars)
+
+                        keep_cols = ["신호시간","기준시가","RSI(13)","성공기준(%)","결과",
+                                     "최종수익률(%)","최저수익률(%)","최고수익률(%)","도달캔들","도달시간"]
+                        keep_cols = [c for c in keep_cols if c in res_detail.columns]
+                        res_detail = res_detail[keep_cols]
+
+                        def style_result(val):
+                            if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
+                            if val == "실패": return "color:#1E40AF; font-weight:600;"
+                            if val == "중립": return "color:#FF9800; font-weight:600;"
+                            return ""
+                        styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
+                        st.dataframe(styled_detail, use_container_width=True)
+
+        # ---------------------------------------------------------
+        # 📈 일봉 종가 예측(실험) — 기존 블록 유지 + 하단 추가
+        # ---------------------------------------------------------
+        st.markdown("---")
+        st.subheader("📈 일봉 종가 예측(실험)")
+        if tf_label != "일봉":
+            st.caption("이 기능은 '봉 종류 = 일봉'에서만 동작합니다.")
+        else:
+            # (Naive, EWMA, OLS 예측 로직 전체 추가 — 앞서 제시한 코드 그대로)
 
         # ---------------------------------------------------------
         # 📈 일봉 종가 예측(실험) — ③/④ UI 불변, expander 내부만 사용
