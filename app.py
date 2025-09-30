@@ -1147,22 +1147,23 @@ try:
         y_min = float(df_plot["low"].min()) if "low" in df_plot.columns else float(df_plot["close"].min())
         y_max = float(df_plot["high"].max()) if "high" in df_plot.columns else float(df_plot["close"].max())
 
-        # customdata: [numeric_pnl, formatted_pnl] (길이=len(x_vals))
+        # customdata: 각 x 시점의 수익률 문자열
         custom_all = np.c_[pnl_num, pnl_str]
 
-        # ✅ 각 x 지점별로 직사각형 hover 구간 생성
-        # - 두 점(x, y_min), (x, y_max) 연결 → hovertemplate에서 customdata 표시
-        # - mode="lines" + 투명 → 시각 영향 없음, hover는 y 전체 범위에서 발생
-        for xv, cd in zip(x_vals, custom_all):
-            fig.add_trace(go.Scatter(
-                x=[xv, xv],
-                y=[y_min, y_max],
-                mode="lines",
-                line=dict(width=0),
-                showlegend=False,
-                hovertemplate=f"수익률(%): {cd[1]}<extra></extra>",
-                name=""
-            ))
+        # ✅ 차트 전체를 하나의 밴드(직사각형)로 덮기
+        fig.add_trace(go.Scatter(
+            x=np.concatenate([x_vals, x_vals[::-1]]),
+            y=np.concatenate([np.full(len(x_vals), y_min), np.full(len(x_vals), y_max)]),
+            mode="lines",
+            line=dict(width=0),
+            fill="toself",
+            fillcolor="rgba(0,0,0,0)",   # 완전 투명
+            showlegend=False,
+            customdata=np.concatenate([custom_all, custom_all[::-1]]),
+            hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
+            name="",
+            hoveron="fills"              # 면적 전체에서 hover 발생
+        ))
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
