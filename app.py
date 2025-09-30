@@ -1138,47 +1138,24 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) =====
+    # ===== 빈 영역에서도 PnL 툴팁 표시(매수가≥1) =====
     if buy_price > 0:
-        # 각 시점별 수익률(+/-) 문자열과 숫자
-        pnl_num = df_plot["수익률(%)"].astype(float).to_numpy()
-        pnl_str = df_plot["_pnl_str"].to_numpy()
-        x_vals  = df_plot["time"].to_numpy()
+        pnl_num = (df_plot["close"] / buy_price - 1) * 100
+        pnl_str = pnl_num.apply(lambda v: f"{'+' if v>=0 else ''}{v:.2f}%")
 
-        # 차트 Y 전체 범위 (저/고가가 있으면 우선 사용)
-        y_min = float(df_plot["low"].min()) if "low" in df_plot.columns else float(df_plot["close"].min())
-        y_max = float(df_plot["high"].max()) if "high" in df_plot.columns else float(df_plot["close"].max())
-        height = (y_max - y_min) if (y_max > y_min) else 1.0
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"],
+            y=[buy_price] * len(df_plot),   # y값은 매수가 라인에 고정
+            mode="lines",
+            line=dict(width=0),             # 선 보이지 않음
+            showlegend=False,
+            customdata=pnl_str,
+            hovertemplate="수익률(%): %{customdata}<extra></extra>",
+            name=""
+        ))
 
-        # 각 바의 가로폭(ms) 추정: 인접 시점 간 중앙값, 없으면 타임프레임으로 계산
-        if len(x_vals) >= 2:
-            try:
-                dx_med = pd.Series(x_vals).diff().median()
-                bar_w = float(dx_med / np.timedelta64(1, "ms"))
-            except Exception:
-                bar_w = float(minutes_per_bar) * 60 * 1000
-        else:
-            bar_w = float(minutes_per_bar) * 60 * 1000
-        bar_w = max(bar_w * 0.95, 1.0)
-
-        # 수익/손실 분리 → hoverlabel 색상(빨강/파랑) 일관 적용
-        pos_mask = pnl_num >= 0
-        neg_mask = ~pos_mask
-
-        # 수익(+) 바: 완전 투명, 차트 전체 높이를 덮는 직사각형 → 어디서든 hover 발생
-        if pos_mask.any():
-            fig.add_trace(go.Bar(
-                x=x_vals[pos_mask],
-                y=np.full(int(pos_mask.sum()), height),
-                base=y_min,
-                width=bar_w,
-                marker=dict(color="rgba(0,0,0,0)"),
-                showlegend=False,
-                name="",
-                customdata=pnl_str[pos_mask],
-                hovertemplate="수익률(%): %{customdata}<extra></extra>",
-                hoverlabel=dict(font=dict(color="red"))
-            ))
+        # hover를 X좌표 기준 통합으로 표시 → 마우스 위치(X)에 따라 정확한 수익률 표시
+        fig.update_layout(hovermode="x unified")
 
         # 손실(-) 바: 동일(파랑)
         if neg_mask.any():
