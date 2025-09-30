@@ -1138,30 +1138,27 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) — 양/음 분리로 색상 반영 =====
+    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) =====
     if buy_price > 0:
         pnl_num = df_plot["수익률(%)"].fillna(0).values
         pnl_str = df_plot["_pnl_str"].values
         x_vals  = df_plot["time"].values
-        y_vals  = df_plot["close"].values
 
-        # 양수/음수 마스크
-        pos_mask = pnl_num >= 0
-        neg_mask = pnl_num < 0
+        # customdata: [수익률 숫자, 수익률 문자열]
+        custom_all = np.c_[pnl_num, pnl_str]
 
-        # 양수(빨간 텍스트)
-        if pos_mask.any():
-            custom_pos = np.c_[pnl_num[pos_mask], pnl_str[pos_mask]]
-            fig.add_trace(go.Scatter(
-                x=x_vals[pos_mask], y=y_vals[pos_mask],
-                mode="lines",
-                line=dict(color="rgba(0,0,0,0)", width=1e-3),
-                showlegend=False,
-                hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
-                customdata=custom_pos,
-                name="PnL+",
-                hoverlabel=dict(font=dict(color="red"))
-            ))
+        # 빈 영역 전용 trace (시각화는 없음, hover만 처리)
+        fig.add_trace(go.Scatter(
+            x=x_vals,
+            y=[None] * len(x_vals),  # 시각화되지 않음
+            mode="lines",
+            line=dict(color="rgba(0,0,0,0)"),
+            showlegend=False,
+            hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
+            customdata=custom_all,
+            name="빈영역PnL",
+            hoverlabel=dict(font=dict(color="red"))  # hoverlabel 기본색 (빨강)
+        ))
         # 음수(파란 텍스트)
         if neg_mask.any():
             custom_neg = np.c_[pnl_num[neg_mask], pnl_str[neg_mask]]
