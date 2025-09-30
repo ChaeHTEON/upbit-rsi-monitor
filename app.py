@@ -1140,30 +1140,60 @@ try:
 
     # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) =====
     if buy_price > 0:
+        # 각 시점별 수익률(+/-) 문자열과 숫자
         pnl_num = df_plot["수익률(%)"].astype(float).to_numpy()
         pnl_str = df_plot["_pnl_str"].to_numpy()
         x_vals  = df_plot["time"].to_numpy()
 
+        # 차트 Y 전체 범위 (저/고가가 있으면 우선 사용)
         y_min = float(df_plot["low"].min()) if "low" in df_plot.columns else float(df_plot["close"].min())
         y_max = float(df_plot["high"].max()) if "high" in df_plot.columns else float(df_plot["close"].max())
+        height = (y_max - y_min) if (y_max > y_min) else 1.0
 
-        # customdata: 각 x 시점의 수익률 문자열
-        custom_all = np.c_[pnl_num, pnl_str]
+        # 각 바의 가로폭(ms) 추정: 인접 시점 간 중앙값, 없으면 타임프레임으로 계산
+        if len(x_vals) >= 2:
+            try:
+                dx_med = pd.Series(x_vals).diff().median()
+                bar_w = float(dx_med / np.timedelta64(1, "ms"))
+            except Exception:
+                bar_w = float(minutes_per_bar) * 60 * 1000
+        else:
+            bar_w = float(minutes_per_bar) * 60 * 1000
+        bar_w = max(bar_w * 0.95, 1.0)
 
-        # ✅ 차트 전체를 하나의 밴드(직사각형)로 덮기
-        fig.add_trace(go.Scatter(
-            x=np.concatenate([x_vals, x_vals[::-1]]),
-            y=np.concatenate([np.full(len(x_vals), y_min), np.full(len(x_vals), y_max)]),
-            mode="lines",
-            line=dict(width=0),
-            fill="toself",
-            fillcolor="rgba(0,0,0,0)",   # 완전 투명
-            showlegend=False,
-            customdata=np.concatenate([custom_all, custom_all[::-1]]),
-            hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
-            name="",
-            hoveron="fills"              # 면적 전체에서 hover 발생
-        ))
+        # 수익/손실 분리 → hoverlabel 색상(빨강/파랑) 일관 적용
+        pos_mask = pnl_num >= 0
+        neg_mask = ~pos_mask
+
+        # 수익(+) 바: 완전 투명, 차트 전체 높이를 덮는 직사각형 → 어디서든 hover 발생
+        if pos_mask.any():
+            fig.add_trace(go.Bar(
+                x=x_vals[pos_mask],
+                y=np.full(int(pos_mask.sum()), height),
+                base=y_min,
+                width=bar_w,
+                marker=dict(color="rgba(0,0,0,0)"),
+                showlegend=False,
+                name="",
+                customdata=pnl_str[pos_mask],
+                hovertemplate="수익률(%): %{customdata}<extra></extra>",
+                hoverlabel=dict(font=dict(color="red"))
+            ))
+
+        # 손실(-) 바: 동일(파랑)
+        if neg_mask.any():
+            fig.add_trace(go.Bar(
+                x=x_vals[neg_mask],
+                y=np.full(int(neg_mask.sum()), height),
+                base=y_min,
+                width=bar_w,
+                marker=dict(color="rgba(0,0,0,0)"),
+                showlegend=False,
+                name="",
+                customdata=pnl_str[neg_mask],
+                hovertemplate="수익률(%): %{customdata}<extra></extra>",
+                hoverlabel=dict(font=dict(color="blue"))
+            ))
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
