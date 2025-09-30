@@ -1159,19 +1159,6 @@ try:
             name="빈영역PnL",
             hoverlabel=dict(font=dict(color="red"))  # hoverlabel 기본색 (빨강)
         ))
-        # 음수(파란 텍스트)
-        if neg_mask.any():
-            custom_neg = np.c_[pnl_num[neg_mask], pnl_str[neg_mask]]
-            fig.add_trace(go.Scatter(
-                x=x_vals[neg_mask], y=y_vals[neg_mask],
-                mode="lines",
-                line=dict(color="rgba(0,0,0,0)", width=1e-3),
-                showlegend=False,
-                hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
-                customdata=custom_neg,
-                name="PnL-",
-                hoverlabel=dict(font=dict(color="blue"))
-            ))
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
