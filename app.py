@@ -1227,287 +1227,143 @@ try:
 
     with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=st.session_state["sweep_expanded"]):
         st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
+        ...
+        styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
+        st.dataframe(styled_detail, use_container_width=True)
 
-        main_idx_for_sweep = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == market_code), default_idx)
-        sweep_market_label, sweep_market = st.selectbox(
-            "종목 선택 (통계 전용)", MARKET_LIST, index=main_idx_for_sweep,
-            format_func=lambda x: x[0], key="sweep_market_sel", on_change=_keep_sweep_open
-        )
-        sweep_start = st.date_input("시작일 (통계 전용)", value=start_date,
-                                    key="sweep_start", on_change=_keep_sweep_open)
-        sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
-                                    key="sweep_end", on_change=_keep_sweep_open)
-
-        # ✅ 수정: 목표수익률 + 승률기준을 나란히 배치 (2칸)
-        col_thr, col_win = st.columns(2)
-        with col_thr:
-            sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
-                                            key="sweep_threshold_pct", on_change=_keep_sweep_open)
-        with col_win:
-            sweep_winrate_thr   = st.slider("승률 기준(%) (통계 전용)", 10, 100, int(winrate_thr), step=1,
-                                            key="sweep_winrate_thr", on_change=_keep_sweep_open)
-
-        fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
-                                key="sweep_fast_mode", on_change=_keep_sweep_open)
-        run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
-        if run_sweep and not st.session_state.get("use_sweep_wrapper"):
-            prog = st.progress(0)
-            def _on_progress(p): prog.progress(min(max(p, 0.0), 1.0))
-
-            if fast_mode:
-                sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
-            else:
-                sdt = datetime.combine(sweep_start, datetime.min.time())
-            edt = datetime.combine(sweep_end, datetime.max.time())
-
-            try:
-                simulate_kwargs = dict(
-                    rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
-                    lookahead=lookahead, threshold_pct=threshold_pct,
-                    bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
-                    sec_cond=sec_cond, bottom_mode=bottom_mode,
-                    manual_supply_levels=manual_supply_levels,
-                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
-                )
-
-                merged_df, ckpt = run_combination_scan_chunked(
-                    symbol=sweep_market,
-                    interval_key=interval_key,
-                    minutes_per_bar=minutes_per_bar,
-                    start_dt=sdt,
-                    end_dt=edt,
-                    days_per_chunk=7,
-                    checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}",
-                    max_minutes=15,
-                    on_progress=_on_progress,
-                    simulate_kwargs=simulate_kwargs,
-                )
-
-                if merged_df is not None and not merged_df.empty:
-                    if "sweep_state" not in st.session_state:
-                        st.session_state["sweep_state"] = {}
-                    st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
-                    st.session_state["sweep_state"]["params"] = {
-                        "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
-                        "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
-                        "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                        "target_thr": float(threshold_pct)
-                    }
-                    st.success("✅ 긴 기간 안전 스캔(조각처리/캐시/체크포인트) 결과가 적용되었습니다.")
-                    st.session_state["use_sweep_wrapper"] = True
-            except Exception as _e:
-                st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
-
-            st.session_state["sweep_expanded"] = True
-
-        dedup_label = "중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"
-
-        def _winrate(df_in: pd.DataFrame):
-            if df_in is None or df_in.empty:
-                return 0.0, 0, 0, 0, 0
-            total = len(df_in)
-            succ = (df_in["결과"] == "성공").sum()
-            fail = (df_in["결과"] == "실패").sum()
-            neu  = (df_in["결과"] == "중립").sum()
-            win  = (succ / total * 100.0) if total else 0.0
-            return win, total, succ, fail, neu
-
-        if run_sweep and not st.session_state.get("use_sweep_wrapper"):
-            if fast_mode:
-                sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
-            else:
-                sdt = datetime.combine(sweep_start, datetime.min.time())
-            edt = datetime.combine(sweep_end, datetime.max.time())
-
-            sweep_rows = []
-            tf_list = ["15분", "30분", "60분"]
-            rsi_list = ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"]
-            bb_list  = ["없음", "상한선", "중앙선", "하한선"]
-            sec_list = [
-                "없음",
-                "양봉 2개 (범위 내)",
-                "양봉 2개 연속 상승",
-                "BB 기반 첫 양봉 50% 진입",
-                "매물대 터치 후 반등(위→아래→반등)",
-            ]
-            lookahead_list = [5, 10, 15, 20, 30]
-
-            for tf_lbl in tf_list:
-                interval_key_s, mpb_s = TF_MAP[tf_lbl]
-                df_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
-                if df_s is None or df_s.empty:
-                    continue
-                df_s = add_indicators(df_s, bb_window, bb_dev, cci_window, cci_signal)
-
-                for lookahead_s in lookahead_list:
-                    for rsi_m in rsi_list:
-                        for bb_c in bb_list:
-                            for sec_c in sec_list:
-                                res_s = simulate(
-                                    df_s, rsi_m, rsi_low, rsi_high, lookahead_s, threshold_pct,
-                                    bb_c, dedup_label,
-                                    mpb_s, sweep_market, bb_window, bb_dev,
-                                    sec_cond=sec_c, hit_basis="종가 기준",
-                                    miss_policy="(고정) 성공·실패·중립",
-                                    bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-                                )
-                                win, total, succ, fail, neu = _winrate(res_s)
-                                total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
-                                avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
-
-                                target_thr_val = float(threshold_pct)
-                                wr_val = float(winrate_thr)
-                                EPS = 1e-3
-
-                                if (succ > 0) and (win + EPS >= wr_val) and (total_ret + EPS >= target_thr_val):
-                                    final_result = "성공"
-                                elif (succ > 0) and (win + EPS >= wr_val) and (total_ret + EPS >= 0) and (total_ret + EPS < target_thr_val):
-                                    final_result = "중립"
-                                else:
-                                    final_result = "실패"
-
-                                sweep_rows.append({
-                                    "타임프레임": tf_lbl,
-                                    "측정N(봉)": lookahead_s,
-                                    "RSI": rsi_m,
-                                    "RSI_low": int(rsi_low),
-                                    "RSI_high": int(rsi_high),
-                                    "BB": bb_c,
-                                    "BB_기간": int(bb_window),
-                                    "BB_승수": round(float(bb_dev), 1),
-                                    "2차조건": sec_c,
-                                    "목표수익률(%)": float(threshold_pct),
-                                    "승률기준(%)": f"{int(winrate_thr)}%",
-                                    "신호수": int(total),
-                                    "성공": int(succ),
-                                    "중립": int(neu),
-                                    "실패": int(fail),
-                                    "승률(%)": round(win, 1),
-                                    "평균수익률(%)": round(avg_ret, 1),
-                                    "합계수익률(%)": round(total_ret, 1),
-                                    "결과": final_result,
-                                    "날짜": (pd.to_datetime(res_s["신호시간"].min()).strftime("%Y-%m-%d")
-                                            if ("신호시간" in res_s and not res_s.empty) else ""),
-                                })
-
-            if "sweep_state" not in st.session_state:
-                st.session_state["sweep_state"] = {}
-            st.session_state["sweep_state"]["rows"] = sweep_rows
-            st.session_state["sweep_state"]["params"] = {
-                "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
-                "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
-                "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                "target_thr": float(threshold_pct)
-            }
-
-        sweep_rows_saved = st.session_state.get("sweep_state", {}).get("rows", [])
-        if not sweep_rows_saved:
-            st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
+        # ---------------------------------------------------------
+        # 📈 일봉 종가 예측(실험) — ③/④ UI 불변, expander 내부만 사용
+        # ---------------------------------------------------------
+        st.markdown("---")
+        st.subheader("📈 일봉 종가 예측(실험)")
+        if tf_label != "일봉":
+            st.caption("이 기능은 '봉 종류 = 일봉'에서만 동작합니다.")
         else:
-            df_all = pd.DataFrame(sweep_rows_saved)
+            colA, colB, colC = st.columns([1,1,1])
+            with colA:
+                min_train = st.number_input("최소 학습일수", min_value=60, max_value=1000, value=180, step=10, key="pred_min_train")
+            with colB:
+                use_ols   = st.checkbox("OLS(선형회귀) 사용", value=True, key="pred_use_ols")
+            with colC:
+                run_pred  = st.button("▶ 예측 수행", use_container_width=True, key="btn_run_daily_pred")
 
-            wr_num = float(winrate_thr)
-            mask_success = (df_all["결과"] == "성공") & (df_all["승률(%)"] >= wr_num) & (df_all["합계수익률(%)"] > 0)
-            mask_neutral = (df_all["결과"] == "중립") & (df_all["합계수익률(%)"] > 0)
-            df_keep = df_all[mask_success | mask_neutral].copy()
+            if run_pred:
+                df_day = df.copy()
+                if df_day is None or df_day.empty or len(df_day) < (min_train + 5):
+                    st.info("데이터가 부족합니다. 기간을 늘려주세요.")
+                else:
+                    # --- 특성 준비
+                    X = pd.DataFrame({
+                        "lag1": df_day["close"].shift(1),
+                        "ret1": df_day["close"].pct_change(1),
+                        "ret2": df_day["close"].pct_change(2),
+                        "ret3": df_day["close"].pct_change(3),
+                        "RSI13": df_day["RSI13"],
+                        "BB_mid": df_day["BB_mid"],
+                        "CCI": df_day["CCI"],
+                    })
+                    y = df_day["close"].copy()
+                    feat = pd.concat([df_day[["time"]], X, y.rename("y")], axis=1).dropna().reset_index(drop=True)
 
-            if df_keep.empty:
-                st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
-            else:
-                df_show = df_keep.sort_values(
-                    ["결과","승률(%)","신호수","합계수익률(%)"],
-                    ascending=[True,False,False,False]
-                ).reset_index(drop=True)
-
-                if "날짜" not in df_show:
-                    if "신호시간" in df_show:
-                        df_show["날짜"] = pd.to_datetime(df_show["신호시간"]).dt.strftime("%Y-%m-%d")
+                    if len(feat) < (min_train + 5):
+                        st.info("학습 가능한 구간이 부족합니다. 날짜 범위를 넓혀주세요.")
                     else:
-                        df_show["날짜"] = ""
+                        # --- Walk-forward 예측
+                        preds = []
+                        import numpy as _np
 
-                for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
-                    if col in df_show:
-                        df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-                if "BB_승수" in df_show:
-                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
+                        def _ewma_pred(y_train: _np.ndarray):
+                            best_alpha, best_rmse = 0.2, float("inf")
+                            for a in _np.arange(0.05, 0.55, 0.05):
+                                ew = y_train[0]
+                                errs = []
+                                for v in y_train[1:]:
+                                    ew = a * v + (1 - a) * ew
+                                    errs.append(v - ew)
+                                rmse = (_np.mean(_np.square(errs)) ** 0.5) if errs else 1e9
+                                if rmse < best_rmse:
+                                    best_rmse, best_alpha = rmse, a
+                            ew = y_train[0]
+                            for v in y_train[1:]:
+                                ew = best_alpha * v + (1 - best_alpha) * ew
+                            return float(ew), best_alpha
 
-                styled_tbl = df_show.style.apply(
-                    lambda col: [
-                        ("color:#E53935; font-weight:600;" if r=="성공"
-                         else "color:#FF9800; font-weight:600;" if r=="중립" else "")
-                        for r in df_show["결과"]
-                    ],
-                    subset=["평균수익률(%)","합계수익률(%)"]
-                )
-                st.dataframe(styled_tbl, use_container_width=True)
+                        for i in range(min_train, len(feat)):
+                            train = feat.iloc[:i]
+                            test  = feat.iloc[i:i+1]
 
-                csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
-                st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
+                            y_tr = train["y"].to_numpy(dtype=float)
+                            x_tr = train[["lag1","ret1","ret2","ret3","RSI13","BB_mid","CCI"]].to_numpy(dtype=float)
+                            x_te = test[["lag1","ret1","ret2","ret3","RSI13","BB_mid","CCI"]].to_numpy(dtype=float)[0]
 
-                selected_idx = st.selectbox(
-                    "세부 결과 확인할 조합 선택",
-                    df_show.index,
-                    key="sweep_select_idx",
-                    format_func=lambda i: f"{i} - {df_show.loc[i,'결과']} · {df_show.loc[i,'타임프레임']} · N={df_show.loc[i,'측정N(봉)']}",
-                    on_change=_keep_sweep_open
-                )
-                if selected_idx is not None:
-                    sel = df_show.loc[selected_idx]
-                    st.info(f"선택된 조건: {sel.to_dict()}")
+                            # Naive
+                            naive = float(train["y"].iloc[-1])
 
-                    P = st.session_state.get("sweep_state", {}).get("params", {})
-                    tf_lbl = sel["타임프레임"]
-                    interval_key_s, mpb_s = TF_MAP[tf_lbl]
-                    sdt_sel = P.get("sdt", datetime.combine(sweep_start, datetime.min.time()))
-                    edt_sel = P.get("edt", datetime.combine(sweep_end, datetime.max.time()))
-                    df_raw_sel = fetch_upbit_paged(sweep_market, interval_key_s, sdt_sel, edt_sel, mpb_s, warmup_bars)
-                    if df_raw_sel is not None and not df_raw_sel.empty:
-                        df_sel = add_indicators(df_raw_sel, bb_window, bb_dev, cci_window, cci_signal)
-                        res_detail = simulate(
-                            df_sel, sel["RSI"], rsi_low, rsi_high,
-                            int(sel["측정N(봉)"]), threshold_pct,
-                            sel["BB"], dedup_label,
-                            mpb_s, sweep_market, bb_window, bb_dev,
-                            sec_cond=sel["2차조건"], hit_basis="종가 기준",
-                            miss_policy="(고정) 성공·실패·중립",
-                            bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                            cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-                        )
-                        if res_detail is not None and not res_detail.empty:
-                            st.subheader("세부 신호 결과 (최신 순)")
-                            res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
+                            # EWMA
+                            ewma_val, alpha = _ewma_pred(y_tr)
 
-                            if "신호시간" in res_detail:
-                                res_detail["신호시간"] = pd.to_datetime(res_detail["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-                            if "RSI(13)" in res_detail:
-                                res_detail["RSI(13)"] = res_detail["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
-                            if "성공기준(%)" in res_detail:
-                                res_detail["성공기준(%)"] = res_detail["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
-                            for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)"]:
-                                if col in res_detail:
-                                    res_detail[col] = res_detail[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
+                            # OLS
+                            ols_val = None
+                            if use_ols:
+                                Xb = _np.c_[_np.ones(len(x_tr)), x_tr]
+                                try:
+                                    beta, *_ = _np.linalg.lstsq(Xb, y_tr, rcond=None)
+                                    ols_val = float(_np.dot(_np.r_[1.0, x_te], beta))
+                                except Exception:
+                                    ols_val = None
 
-                            if "도달캔들(bars)" in res_detail.columns:
-                                res_detail["도달캔들"] = res_detail["도달캔들(bars)"].astype(int)
-                                def _fmt_from_bars(b):
-                                    total_min = int(b) * int(mpb_s)
-                                    hh, mm = divmod(total_min, 60)
-                                    return f"{hh:02d}:{mm:02d}"
-                                res_detail["도달시간"] = res_detail["도달캔들"].map(_fmt_from_bars)
+                            y_true = float(test["y"].iloc[0])
+                            base   = float(train["y"].iloc[-1])
 
-                            keep_cols = ["신호시간","기준시가","RSI(13)","성공기준(%)","결과",
-                                         "최종수익률(%)","최저수익률(%)","최고수익률(%)","도달캔들","도달시간"]
-                            keep_cols = [c for c in keep_cols if c in res_detail.columns]
-                            res_detail = res_detail[keep_cols]
+                            rows = {
+                                "날짜": pd.to_datetime(test["time"].iloc[0]).strftime("%Y-%m-%d"),
+                                "실제종가": int(round(y_true)),
+                                "예측_Naive": int(round(naive)),
+                                "예측_EWMA": int(round(ewma_val)),
+                                "오차_Naive(%)": (naive / base - 1) * 100 if base else 0.0,
+                                "오차_EWMA(%)": (ewma_val / base - 1) * 100 if base else 0.0,
+                                "방향일치_Naive": int(_np.sign(naive - base) == _np.sign(y_true - base)),
+                                "방향일치_EWMA": int(_np.sign(ewma_val - base) == _np.sign(y_true - base)),
+                            }
+                            if ols_val is not None:
+                                rows["예측_OLS"] = int(round(ols_val))
+                                rows["오차_OLS(%)"] = (ols_val / base - 1) * 100 if base else 0.0
+                                rows["방향일치_OLS"] = int(_np.sign(ols_val - base) == _np.sign(y_true - base))
+                            preds.append(rows)
 
-                            def style_result(val):
-                                if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
-                                if val == "실패": return "color:#1E40AF; font-weight:600;"
-                                if val == "중립": return "color:#FF9800; font-weight:600;"
-                                return ""
-                            styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
-                            st.dataframe(styled_detail, use_container_width=True)
+                        out = pd.DataFrame(preds)
+                        # 요약 지표
+                        def _metric_hit(col_flag):
+                            return out[col_flag].mean() * 100 if col_flag in out else _np.nan
+                        def _rmse(pred_col):
+                            return float(_np.sqrt(_np.mean((_np.array(out[pred_col], dtype=float) - _np.array(out["실제종가"], dtype=float))**2))) if pred_col in out else _np.nan
+                        def _mape(pred_col):
+                            yt = _np.array(out["실제종가"], dtype=float)
+                            yp = _np.array(out[pred_col], dtype=float) if pred_col in out else None
+                            if yp is None: return _np.nan
+                            mask = yt != 0
+                            if not mask.any(): return _np.nan
+                            return float(_np.mean(_np.abs((yt[mask] - yp[mask]) / yt[mask])) * 100)
+
+                        cols_pred = [("Naive","예측_Naive"), ("EWMA","예측_EWMA")] + ([("OLS","예측_OLS")] if "예측_OLS" in out else [])
+                        summary = []
+                        for name, col in cols_pred:
+                            summary.append({
+                                "모델": name,
+                                "RMSE": round(_rmse(col), 2),
+                                "MAPE(%)": round(_mape(col), 2),
+                                "방향적중률(%)": round(_metric_hit(f"방향일치_{name}"), 1) if f"방향일치_{name}" in out else None
+                            })
+                        st.write("**요약 지표**")
+                        st.dataframe(pd.DataFrame(summary), use_container_width=True)
+
+                        show_cols = ["날짜","실제종가","예측_Naive","예측_EWMA","예측_OLS",
+                                     "오차_Naive(%)","오차_EWMA(%)","오차_OLS(%)",
+                                     "방향일치_Naive","방향일치_EWMA","방향일치_OLS"]
+                        show_cols = [c for c in show_cols if c in out.columns]
+                        st.dataframe(out[show_cols].tail(120), use_container_width=True)
+                        csv_pred = out.to_csv(index=False).encode("utf-8-sig")
+                        st.download_button("⬇ 예측 결과 CSV 다운로드", data=csv_pred, file_name="daily_close_prediction.csv", mime="text/csv", use_container_width=True)
 
     # -----------------------------
     # ④ 신호 결과 (테이블)
