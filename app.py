@@ -939,33 +939,50 @@ try:
     df_plot = df_view.copy()
     if buy_price > 0:
         df_plot["수익률(%)"] = (df_plot["close"] / buy_price - 1) * 100
+        df_plot["_pnl_str"] = df_plot["수익률(%)"].apply(lambda v: f"{'+' if v>=0 else ''}{v:.2f}%")
     else:
         df_plot["수익률(%)"] = np.nan
+        df_plot["_pnl_str"] = ""
 
     fig = make_subplots(rows=1, cols=1)
 
-    # ===== Candlestick (hovertext + hoverinfo="text") =====
-    if buy_price > 0:
-        hovertext = [
-            "시간: " + t + "<br>"
-            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c) + "<br>"
-            "매수가 대비 수익률: " + f"{float(p):.2f}%"
-            for t, o, h, l, c, p in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"],
-                df_plot["수익률(%)"].fillna(0)
+    # ===== 툴팁 통합 유틸 =====
+    def _fmt_ohlc_tooltip(t, o, h, l, c, pnl_str=None):
+        if pnl_str is None or pnl_str == "":
+            return (
+                "시간: " + t + "<br>"
+                "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c)
             )
-        ]
-    else:
-        hovertext = [
-            "시간: " + t + "<br>"
-            "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c)
-            for t, o, h, l, c in zip(
-                df_plot["time"].dt.strftime("%Y-%m-%d %H:%M"),
-                df_plot["open"], df_plot["high"], df_plot["low"], df_plot["close"]
+        else:
+            # 색상은 hoverlabel 단위 제어만 가능(데이터포인트별 폰트 색상 지정 미지원) → 통일된 문자열만 제공
+            return (
+                "시간: " + t + "<br>"
+                "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c) + "<br>"
+                "수익률(%): " + pnl_str
             )
-        ]
 
+    def _make_candle_hovertexts(dfp, has_buy):
+        if has_buy:
+            return [
+                _fmt_ohlc_tooltip(
+                    t, o, h, l, c, pnl_str=s
+                )
+                for t, o, h, l, c, s in zip(
+                    dfp["time"].dt.strftime("%Y-%m-%d %H:%M"),
+                    dfp["open"], dfp["high"], dfp["low"], dfp["close"], dfp["_pnl_str"]
+                )
+            ]
+        else:
+            return [
+                _fmt_ohlc_tooltip(t, o, h, l, c, pnl_str=None)
+                for t, o, h, l, c in zip(
+                    dfp["time"].dt.strftime("%Y-%m-%d %H:%M"),
+                    dfp["open"], dfp["high"], dfp["low"], dfp["close"]
+                )
+            ]
+
+    # ===== Candlestick (통합 툴팁) =====
+    candle_hovertext = _make_candle_hovertexts(df_plot, buy_price > 0)
     fig.add_trace(go.Candlestick(
         x=df_plot["time"],
         open=df_plot["open"],
@@ -975,24 +992,29 @@ try:
         name="가격",
         increasing=dict(line=dict(color="red", width=1.1)),
         decreasing=dict(line=dict(color="blue", width=1.1)),
-        hovertext=hovertext,
+        hovertext=candle_hovertext,
         hoverinfo="text"
     ))
 
-    # ===== BB 라인 + hover =====
-    def _pnl_arr(y_series):
+    # ===== BB 라인 + 통합 툴팁 =====
+    def _pnl_arr2(y_series):
+        """customdata: [pnl_numeric, pnl_str] 형태로 전달"""
         if buy_price <= 0:
             return None
-        return np.expand_dims((y_series.astype(float) / buy_price - 1) * 100, axis=-1)
+        pnl_num = (y_series.astype(float) / buy_price - 1) * 100
+        pnl_str = pnl_num.apply(lambda v: f"{'+' if v>=0 else ''}{v:.2f}%")
+        # shape (N,2)
+        return np.c_[pnl_num.values, pnl_str.values]
 
-    bb_up_cd  = _pnl_arr(df["BB_up"])
-    bb_low_cd = _pnl_arr(df["BB_low"])
-    bb_mid_cd = _pnl_arr(df["BB_mid"])
+    bb_up_cd  = _pnl_arr2(df["BB_up"])
+    bb_low_cd = _pnl_arr2(df["BB_low"])
+    bb_mid_cd = _pnl_arr2(df["BB_mid"])
 
     def _ht_line(name):
+        # customdata[:,1] = 문자열(+/-n.nn%)
         if buy_price <= 0:
             return name + ": %{y:.2f}<extra></extra>"
-        return name + ": %{y:.2f}<br>매수가 대비 수익률: %{customdata[0]:.2f}<extra></extra>"
+        return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
 
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["BB_up"], mode="lines",
@@ -1083,6 +1105,7 @@ try:
                     showlegend=not legend_emitted["중립"]
                 ))
                 legend_emitted["중립"] = True
+
     # ===== 매수가 수평선 =====
     if buy_price and buy_price > 0:
         fig.add_shape(
@@ -1092,6 +1115,7 @@ try:
             line=dict(color="green", width=1.5, dash="dash"),
             name="매수가"
         )
+
     # ===== RSI 라인 및 기준선(y2) =====
     fig.add_trace(go.Scatter(
         x=df["time"], y=df["RSI13"], mode="lines",
@@ -1114,17 +1138,43 @@ try:
             line=dict(color=col, width=width, dash=dash)
         )
 
-    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) =====
+    # ===== 빈 영역에서도 PnL 단독 표시(매수가≥1) — 양/음 분리로 색상 반영 =====
     if buy_price > 0:
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["close"],
-            mode="lines",
-            line=dict(color="rgba(0,0,0,0)", width=1e-3),
-            showlegend=False,
-            hovertemplate="매수가 대비 수익률: %{customdata[0]:.2f}%<extra></extra>",
-            customdata=np.expand_dims(df_plot["수익률(%)"].fillna(0).values, axis=-1),
-            name="PnL Hover"
-        ))
+        pnl_num = df_plot["수익률(%)"].fillna(0).values
+        pnl_str = df_plot["_pnl_str"].values
+        x_vals  = df_plot["time"].values
+        y_vals  = df_plot["close"].values
+
+        # 양수/음수 마스크
+        pos_mask = pnl_num >= 0
+        neg_mask = pnl_num < 0
+
+        # 양수(빨간 텍스트)
+        if pos_mask.any():
+            custom_pos = np.c_[pnl_num[pos_mask], pnl_str[pos_mask]]
+            fig.add_trace(go.Scatter(
+                x=x_vals[pos_mask], y=y_vals[pos_mask],
+                mode="lines",
+                line=dict(color="rgba(0,0,0,0)", width=1e-3),
+                showlegend=False,
+                hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
+                customdata=custom_pos,
+                name="PnL+",
+                hoverlabel=dict(font=dict(color="red"))
+            ))
+        # 음수(파란 텍스트)
+        if neg_mask.any():
+            custom_neg = np.c_[pnl_num[neg_mask], pnl_str[neg_mask]]
+            fig.add_trace(go.Scatter(
+                x=x_vals[neg_mask], y=y_vals[neg_mask],
+                mode="lines",
+                line=dict(color="rgba(0,0,0,0)", width=1e-3),
+                showlegend=False,
+                hovertemplate="수익률(%): %{customdata[1]}<extra></extra>",
+                customdata=custom_neg,
+                name="PnL-",
+                hoverlabel=dict(font=dict(color="blue"))
+            ))
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
@@ -1178,6 +1228,7 @@ try:
             fig,
             use_container_width=True,
             config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "reset", "responsive": True},
+        )
         )
 
     # -----------------------------
