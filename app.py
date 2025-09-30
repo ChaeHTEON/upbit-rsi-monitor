@@ -1162,21 +1162,6 @@ try:
         # hover를 X좌표 기준 통합으로 표시 → 마우스 위치(X)에 따라 정확한 수익률 표시
         fig.update_layout(hovermode="x unified")
 
-        # 손실(-) 바: 동일(파랑)
-        if neg_mask.any():
-            fig.add_trace(go.Bar(
-                x=x_vals[neg_mask],
-                y=np.full(int(neg_mask.sum()), height),
-                base=y_min,
-                width=bar_w,
-                marker=dict(color="rgba(0,0,0,0)"),
-                showlegend=False,
-                name="",
-                customdata=pnl_str[neg_mask],
-                hovertemplate="수익률(%): %{customdata}<extra></extra>",
-                hoverlabel=dict(font=dict(color="blue"))
-            ))
-
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
         window_n = max(int(len(df) * 0.15), 200)
