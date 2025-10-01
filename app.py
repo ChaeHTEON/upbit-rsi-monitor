@@ -522,7 +522,7 @@ def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
     out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
     return out
 
-def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup_mode,
+def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dedup_mode,
              minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
              hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
              supply_levels: Optional[Set[float]] = None,
@@ -531,7 +531,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
     """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 + CCI 1차 조건."""
     res = []
     n = len(df)
-    thr = float(threshold_pct if isinstance(threshold_pct := thr_pct, (int, float)) else thr_pct)
+    thr = float(threshold_pct)
 
     # --- 1) 1차 조건 인덱스 (RSI/BB/CCI/바닥탐지) ---
     if bottom_mode:
