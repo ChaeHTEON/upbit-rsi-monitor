@@ -1053,7 +1053,8 @@ try:
         if sel_anchor is not None:
             start_idx = max(int(sel_anchor) - 1000, 0)
             end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
-            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+            # ✅ index reset 하지 않고 원본 df 인덱스 보존
+            df_view   = df.iloc[start_idx:end_idx+1]
 
     # -----------------------------
     # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
@@ -1629,8 +1630,17 @@ try:
                     if col in df_show:
                         df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
+                if "RSI(13)" in df_show:
+                    df_show["RSI(13)"] = df_show["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+                if "성공기준(%)" in df_show:
+                    df_show["성공기준(%)"] = df_show["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)","평균수익률(%)","합계수익률(%)"]:
+                    if col in df_show:
+                        df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
                 if "승률(%)" in df_show:
                     df_show["승률(%)"] = df_show["승률(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                if "BB_승수" in df_show:
+                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
 
                 if "BB_승수" in df_show:
                     df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
