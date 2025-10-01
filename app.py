@@ -1121,13 +1121,20 @@ try:
 
     # ===== 최적화뷰: x축 범위 적용 =====
     if st.session_state.get("opt_view") and len(df) > 0:
-        window_n = max(int(len(df) * 0.15), 200)
-        start_idx = max(len(df) - window_n, 0)
         try:
+            # 최근 70봉만 화면에 보이도록 초기화 (분봉 종류 무관)
+            window_n = 70
+            start_idx = max(len(df) - window_n, 0)
             x_start = df.iloc[start_idx]["time"]
             x_end   = df.iloc[-1]["time"]
+
+            # x축을 70봉 기준으로 고정
             fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
             fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
+
+            # y축은 항상 AutoScale
+            fig.update_yaxes(autorange=True, row=1, col=1)
+            fig.update_yaxes(autorange=True, row=2, col=1)
         except Exception:
             pass
 
