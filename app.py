@@ -1617,7 +1617,7 @@ try:
                     if col in df_show:
                         df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
-                # 승률(%)는 내부 로직에서 float 유지, 화면 표시는 별도 컬럼 추가
+                # 승률(%)는 float 값 유지, 화면 표시는 별도 컬럼 추가
                 if "승률(%)" in df_show:
                     df_show["승률(%)_표시"] = df_show["승률(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
 
