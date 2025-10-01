@@ -1405,7 +1405,7 @@ try:
             unsafe_allow_html=True
         )
 
-       st.markdown("---")
+    st.markdown("---")
 
     # -----------------------------
     # ④ 신호 결과 (최신 순)
