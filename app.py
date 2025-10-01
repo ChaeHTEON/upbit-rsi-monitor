@@ -1163,12 +1163,18 @@ try:
             sub = plot_res[plot_res["결과"] == _label]
             if sub.empty:
                 continue
-            fig.add_trace(go.Scatter(
-                x=pd.to_datetime(sub["신호시간"]),
-                y=sub["기준시가"], mode="markers",
-                name=f"신호({_label})",
-                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-            ), row=1, col=1)
+            xs, ys = [], []
+            for _, r in sub.iterrows():
+                t0 = pd.to_datetime(r["신호시간"])
+                if t0 in df_plot["time"].values:
+                    xs.append(t0)
+                    ys.append(float(df_plot.loc[df_plot["time"] == t0, "open"].iloc[0]))
+            if xs:
+                fig.add_trace(go.Scatter(
+                    x=xs, y=ys, mode="markers",
+                    name=f"신호({_label})",
+                    marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
+                ), row=1, col=1)
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
         for _, row_ in plot_res.iterrows():
