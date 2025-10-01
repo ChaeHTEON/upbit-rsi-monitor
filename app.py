@@ -1635,22 +1635,39 @@ try:
                         return format(v, fmt)
                     return str(v)
 
-                # 포맷팅 복구: 예전 기준 (에러 방지)
+                # 안전 포맷 유틸: 숫자일 때만 포맷, 문자열/NaN은 그대로
+                def _fmt_percent(v, digits=":.2f"):
+                    if pd.isna(v):
+                        return ""
+                    try:
+                        return f"{float(v):{digits}}%"
+                    except Exception:
+                        return str(v)
+
+                def _fmt_number(v, digits=":.2f"):
+                    if pd.isna(v):
+                        return ""
+                    try:
+                        return f"{float(v):{digits}}"
+                    except Exception:
+                        return str(v)
+
+                # 표 형식 복구(예전 규칙) — 안전 포맷 1회만 적용
                 if "RSI(13)" in df_show:
-                    df_show["RSI(13)"] = df_show["RSI(13)"].map(lambda v: _fmt_num_no_suffix(v, ":.2f"))
+                    df_show["RSI(13)"] = df_show["RSI(13)"].map(lambda v: _fmt_number(v, ":.2f"))
 
                 if "성공기준(%)" in df_show:
-                    df_show["성공기준(%)"] = df_show["성공기준(%)"].map(lambda v: _fmt_num(v, ":.1f"))
+                    df_show["성공기준(%)"] = df_show["성공기준(%)"].map(lambda v: _fmt_percent(v, ":.1f"))
 
                 for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)","평균수익률(%)","합계수익률(%)"]:
                     if col in df_show:
-                        df_show[col] = df_show[col].map(lambda v: _fmt_num(v, ":.2f"))
+                        df_show[col] = df_show[col].map(lambda v: _fmt_percent(v, ":.2f"))
 
                 if "승률(%)" in df_show:
-                    df_show["승률(%)"] = df_show["승률(%)"].map(lambda v: _fmt_num(v, ":.1f"))
+                    df_show["승률(%)"] = df_show["승률(%)"].map(lambda v: _fmt_percent(v, ":.1f"))
 
                 if "BB_승수" in df_show:
-                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: _fmt_num_no_suffix(v, ":.1f"))
+                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: _fmt_number(v, ":.1f"))
                 styled_tbl = df_show.style.apply(
                     lambda col: [
                         ("color:#E53935; font-weight:600;" if r=="성공"
