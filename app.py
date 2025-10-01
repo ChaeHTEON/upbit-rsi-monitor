@@ -1119,21 +1119,27 @@ try:
             name=""
         ), row=1, col=1)
 
-    # ===== 최적화뷰: x축 범위 적용 =====
+    # ===== 최적화뷰: 최근 70봉 비율 + AutoScale =====
     if st.session_state.get("opt_view") and len(df) > 0:
         try:
-            # 최근 70봉만 화면에 보이도록 초기화 (분봉 종류 무관)
+            # 최근 70봉 기준으로 화면 초기화
             window_n = 70
             start_idx = max(len(df) - window_n, 0)
-            x_start = df.iloc[start_idx]["time"]
-            x_end   = df.iloc[-1]["time"]
+            end_idx   = len(df) - 1
 
-            # x축을 70봉 기준으로 고정
+            x_start = df.iloc[start_idx]["time"]
+            x_end   = df.iloc[end_idx]["time"]
+
+            # X축: 최근 70봉 범위로 맞춤
             fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
             fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
 
-            # y축은 항상 AutoScale
-            fig.update_yaxes(autorange=True, row=1, col=1)
+            # Y축: 최근 70봉 데이터에 맞춰 AutoScale
+            y_min = df.iloc[start_idx:end_idx+1]["low"].min()
+            y_max = df.iloc[start_idx:end_idx+1]["high"].max()
+            pad = (y_max - y_min) * 0.05
+
+            fig.update_yaxes(range=[y_min - pad, y_max + pad], autorange=True, row=1, col=1)
             fig.update_yaxes(autorange=True, row=2, col=1)
         except Exception:
             pass
