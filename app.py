@@ -41,31 +41,95 @@ st.title("📊 코인 시뮬레이션")
 st.markdown("<div style='margin-bottom:10px; color:gray;'>※ 차트 점선: 신호~판정 구간, 성공 시 도달 지점에 ⭐ 마커</div>", unsafe_allow_html=True)
 
 # -----------------------------
-# 업비트 마켓 로드
+# 업비트 마켓 로드 (메인5 우선 + 거래대금 순 정렬)
 # -----------------------------
 @st.cache_data(ttl=3600)
 def get_upbit_krw_markets():
-    url = "https://api.upbit.com/v1/market/all"
+    """
+    - 메인 5개: KRW-BTC, KRW-XRP, KRW-ETH, KRW-SOL, KRW-DOGE
+      → 24h 거래대금(acc_trade_price_24h) 기준으로 상단 정렬
+    - 그 외 모든 KRW-마켓 → 동일 지표로 내림차순 정렬
+    - 실패 시 기존 BTC 우선 + 코드순으로 폴백
+    """
     try:
-        r = requests.get(url, params={"isDetails": "false"}, timeout=8)
+        # 1) 전체 마켓 목록
+        r = requests.get("https://api.upbit.com/v1/market/all",
+                         params={"isDetails": "false"}, timeout=8)
         r.raise_for_status()
         items = r.json()
-        rows = []
+
+        # 코드 → 한글명 매핑
+        code2name = {}
+        krw_codes = []
         for it in items:
             mk = it.get("market", "")
             if mk.startswith("KRW-"):
-                sym = mk[4:]
-                label = f'{it.get("korean_name","")} ({sym}) — {mk}'
-                rows.append((label, mk))
-        rows.sort(key=lambda x: (x[1] != "KRW-BTC", x[1]))
+                krw_codes.append(mk)
+                code2name[mk] = it.get("korean_name", "")
+
+        if not krw_codes:
+            raise RuntimeError("no_krw_markets")
+
+        # 2) 티커로 24h 거래대금 조회 (청크 요청)
+        def _fetch_tickers(codes, chunk=50):
+            out = {}
+            for i in range(0, len(codes), chunk):
+                subset = codes[i:i+chunk]
+                rr = requests.get(
+                    "https://api.upbit.com/v1/ticker",
+                    params={"markets": ",".join(subset)},
+                    timeout=8
+                )
+                rr.raise_for_status()
+                for t in rr.json():
+                    mk = t.get("market")
+                    # 거래대금(원화 기준) 사용
+                    out[mk] = float(t.get("acc_trade_price_24h", 0.0))
+            return out
+
+        vol_krw = _fetch_tickers(krw_codes)
+
+        # 3) 정렬: 거래대금 내림차순
+        sorted_all = sorted(
+            krw_codes,
+            key=lambda c: (-vol_krw.get(c, 0.0), c)
+        )
+
+        # 4) 메인 5개를 상단에, 그 외 나머지
+        MAIN5 = ["KRW-BTC", "KRW-XRP", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]
+        main_sorted   = [c for c in sorted_all if c in MAIN5]
+        others_sorted = [c for c in sorted_all if c not in MAIN5]
+
+        ordered = main_sorted + others_sorted
+
+        # 5) 라벨 구성
+        rows = []
+        for mk in ordered:
+            sym = mk[4:]
+            knm = code2name.get(mk, sym)
+            label = f"{knm} ({sym}) — {mk}"
+            rows.append((label, mk))
+
         if rows:
             return rows
+
     except Exception:
         pass
-    return [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
+
+    # 폴백: BTC 우선 + 코드순
+    rows = []
+    for it in items if 'items' in locals() else []:
+        mk = it.get("market", "")
+        if mk.startswith("KRW-"):
+            sym = mk[4:]
+            label = f'{it.get("korean_name","")} ({sym}) — {mk}'
+            rows.append((label, mk))
+    rows.sort(key=lambda x: (x[1] != "KRW-BTC", x[1]))
+    return rows if rows else [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
 
 MARKET_LIST = get_upbit_krw_markets()
-default_idx = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == "KRW-BTC"), 0)
+# 기본 선택: 거래대금 최상위(목록 첫 항목)
+default_idx = 0
 
 # -----------------------------
 # 타임프레임
