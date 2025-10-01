@@ -220,7 +220,19 @@ with c12:
 
 c13, c14, c15 = st.columns(3)
 with c13:
-    cci_mode = st.selectbox("CCI 조건", ["없음", "과매수(≥100)", "과매도(≤-100)"], index=0)
+    cci_mode_label = st.selectbox(
+        "CCI 조건",
+        ["없음",
+         f"과매수(≥{cci_over})",
+         f"과매도(≤{cci_under})"],
+        index=0
+    )
+    if "과매수" in cci_mode_label:
+        cci_mode = "과매수"
+    elif "과매도" in cci_mode_label:
+        cci_mode = "과매도"
+    else:
+        cci_mode = "없음"
 with c14:
     cci_over = st.number_input("CCI 과매수 기준", min_value=0, max_value=300, value=100, step=5)
 with c15:
@@ -575,9 +587,9 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         # CCI (사용자 지정 임계값 반영)
         if cci_mode == "없음":
             cci_idx = []
-        elif cci_mode.startswith("과매수"):
+        elif cci_mode == "과매수":
             cci_idx = df.index[df["CCI"] >= float(cci_over)].tolist()
-        elif cci_mode.startswith("과매도"):
+        elif cci_mode == "과매도":
             cci_idx = df.index[df["CCI"] <= float(cci_under)].tolist()
         else:
             cci_idx = []
@@ -1393,10 +1405,22 @@ try:
             unsafe_allow_html=True
         )
 
+       st.markdown("---")
+
+    # -----------------------------
+    # ④ 신호 결과 (최신 순)
+    # -----------------------------
+    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+    if res is None or res.empty:
+        st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
+    else:
+        ...
+        st.dataframe(styled_tbl, width="stretch")
+
     st.markdown("---")
 
     # -----------------------------
-    # 🔎 통계/조합 탐색 (사용자 지정)
+    # 🔎 통계/조합 탐색 (사용자 지정) — 📒 공유 메모 위로 이동
     # -----------------------------
     if "sweep_expanded" not in st.session_state:
         st.session_state["sweep_expanded"] = False
@@ -1416,7 +1440,6 @@ try:
         sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
                                     key="sweep_end", on_change=_keep_sweep_open)
 
-        # ✅ 수정: 목표수익률 + 승률기준을 나란히 배치 (2칸)
         col_thr, col_win = st.columns(2)
         with col_thr:
             sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
