@@ -1833,4 +1833,4 @@ try:
                 st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
 
 except Exception as e:
-    st.error(f"오류 발생: {e}")
+    st.error(f"오류 발생: {str(e)}")
