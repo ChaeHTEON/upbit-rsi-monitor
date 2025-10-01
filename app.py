@@ -1446,11 +1446,16 @@ try:
                     else:
                         df_show["날짜"] = ""
 
-                for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
+                # 숫자 비교에 쓰이는 컬럼은 float 유지 → 출력할 때만 포맷 적용
+                for col in ["목표수익률(%)","평균수익률(%)","합계수익률(%)"]:
                     if col in df_show:
                         df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-                if "BB_승수" in df_show:
-                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
+        
+                # 승률(%)는 내부 로직에서 float 유지, 화면 표시는 별도 컬럼 추가
+                if "승률(%)" in df_show:
+                    df_show["승률(%)_표시"] = df_show["승률(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                        if "BB_승수" in df_show:
+                            df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
 
                 styled_tbl = df_show.style.apply(
                     lambda col: [
