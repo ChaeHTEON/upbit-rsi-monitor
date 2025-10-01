@@ -1449,6 +1449,17 @@ try:
                         st.info(f"조합 결과 {sel_idx_combo}번 구간 차트 (기준~+70봉)")
                         st.plotly_chart(fig, use_container_width=True)
 
+                if not df_show.empty and "신호시간" in df_show.columns:
+                    sel_idx_combo = st.selectbox("🔎 조합 인덱스 선택", df_show.index.tolist(), key="sel_idx_combo")
+                    if sel_idx_combo is not None:
+                        sig_time = pd.to_datetime(df_show.loc[sel_idx_combo, "신호시간"])
+                        anchor_idx = (df["time"] - sig_time).abs().idxmin()
+                        start_idx = anchor_idx
+                        end_idx   = min(start_idx + 70, len(df) - 1)
+                        df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+                        st.info(f"조합 결과 {sel_idx_combo}번 · 기준 {sig_time} 차트 (기준~+70봉)")
+                        st.plotly_chart(fig, use_container_width=True)
+
                 st.dataframe(styled_tbl, use_container_width=True)
 
                 csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
@@ -1525,6 +1536,17 @@ try:
                                     st.info(f"세부 신호 {sel_idx_detail}번 구간 차트 (기준~+70봉)")
                                     st.plotly_chart(fig, use_container_width=True)
 
+                            if not res_detail.empty and "신호시간" in res_detail.columns:
+                                sel_idx_detail = st.selectbox("🔎 세부 신호 인덱스 선택", res_detail.index.tolist(), key="sel_idx_detail")
+                                if sel_idx_detail is not None:
+                                    sig_time = pd.to_datetime(res_detail.loc[sel_idx_detail, "신호시간"])
+                                    anchor_idx = (df["time"] - sig_time).abs().idxmin()
+                                    start_idx = anchor_idx
+                                    end_idx   = min(start_idx + 70, len(df) - 1)
+                                    df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+                                    st.info(f"세부 신호 {sel_idx_detail}번 · 기준 {sig_time} 차트 (기준~+70봉)")
+                                    st.plotly_chart(fig, use_container_width=True)
+
                             st.dataframe(styled_detail, use_container_width=True)
 
     # -----------------------------
@@ -1572,6 +1594,17 @@ try:
             return ""
 
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
+        if not tbl.empty and "신호시간" in tbl.columns:
+            sel_idx_tbl = st.selectbox("🔎 신호 결과 인덱스 선택", tbl.index.tolist(), key="sel_idx_tbl")
+            if sel_idx_tbl is not None:
+                sig_time = pd.to_datetime(tbl.loc[sel_idx_tbl, "신호시간"])
+                anchor_idx = (df["time"] - sig_time).abs().idxmin()
+                start_idx = anchor_idx
+                end_idx   = min(start_idx + 70, len(df) - 1)
+                df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+                st.info(f"신호 결과 {sel_idx_tbl}번 · 기준 {sig_time} 차트 (기준~+70봉)")
+                st.plotly_chart(fig, use_container_width=True)
+
         st.dataframe(styled_tbl, width="stretch")
 
     # -----------------------------
