@@ -894,6 +894,11 @@ try:
         st.session_state.buy_price_text = "0"
     buy_price = st.session_state.get("buy_price", 0)
 
+    # ✅ 최적화뷰 즉시 토글 콜백 (1클릭 반영 + 즉시 재실행)
+    def _toggle_opt_view():
+        st.session_state.opt_view = not st.session_state.get("opt_view", False)
+        st.rerun()
+
     # ===== 시뮬레이션 (중복 포함/제거) =====
     res_all = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
@@ -1010,9 +1015,9 @@ try:
         pnl_str = pnl_num.apply(lambda v: f"{'+' if v>=0 else ''}{v:.2f}%")
         return np.c_[pnl_num.values, pnl_str.values]
 
-    bb_up_cd  = _pnl_arr2(df["BB_up"])
-    bb_low_cd = _pnl_arr2(df["BB_low"])
-    bb_mid_cd = _pnl_arr2(df["BB_mid"])
+    bb_up_cd  = _pnl_arr2(df_plot["BB_up"])
+    bb_low_cd = _pnl_arr2(df_plot["BB_low"])
+    bb_mid_cd = _pnl_arr2(df_plot["BB_mid"])
 
     def _ht_line(name):
         if buy_price <= 0:
@@ -1020,127 +1025,41 @@ try:
         return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
 
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["BB_up"], mode="lines",
+        x=df_plot["time"], y=df_plot["BB_up"], mode="lines",
         line=dict(color="#FFB703", width=1.4), name="BB 상단",
         customdata=bb_up_cd, hovertemplate=_ht_line("BB 상단")
     ), row=1, col=1)
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["BB_low"], mode="lines",
+        x=df_plot["time"], y=df_plot["BB_low"], mode="lines",
         line=dict(color="#219EBC", width=1.4), name="BB 하단",
         customdata=bb_low_cd, hovertemplate=_ht_line("BB 하단")
     ), row=1, col=1)
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["BB_mid"], mode="lines",
+        x=df_plot["time"], y=df_plot["BB_mid"], mode="lines",
         line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙",
         customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
     ), row=1, col=1)
 
-    # ===== 매물대 가격 라인 (row1) =====
-    if manual_supply_levels:
-        for L in manual_supply_levels:
-            fig.add_hline(y=float(L), line=dict(color="#FFD700", width=2.0, dash="dot"), row=1, col=1)
-
-    # ===== anchor 마커/점선 (row1) =====
-    if not plot_res.empty:
-        for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
-            sub = plot_res[plot_res["결과"] == _label]
-            if sub.empty:
-                continue
-            fig.add_trace(go.Scatter(
-                x=pd.to_datetime(sub["신호시간"]),
-                y=sub["기준시가"], mode="markers",
-                name=f"신호({_label})",
-                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-            ), row=1, col=1)
-
-        legend_emitted = {"성공": False, "실패": False, "중립": False}
-        for _, row_ in plot_res.iterrows():
-            a_i = int(row_["anchor_i"])
-            e_i = int(row_["end_i"])
-            a_i = max(0, min(a_i, len(df) - 1))
-            e_i = max(0, min(e_i, len(df) - 1))
-
-            x_seg = [df.at[a_i, "time"], df.at[e_i, "time"]]
-            y_seg = [float(df.at[a_i, "close"]), float(df.at[e_i, "close"])]
-
-            fig.add_trace(go.Scatter(
-                x=x_seg, y=y_seg, mode="lines",
-                line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
-                showlegend=False, hoverinfo="skip"
-            ), row=1, col=1)
-
-            if row_["결과"] == "성공":
-                fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="도달⭐",
-                    marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
-                    showlegend=not legend_emitted["성공"]
-                ), row=1, col=1)
-                legend_emitted["성공"] = True
-            elif row_["결과"] == "실패":
-                fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="실패❌",
-                    marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
-                    showlegend=not legend_emitted["실패"]
-                ), row=1, col=1)
-                legend_emitted["실패"] = True
-            elif row_["결과"] == "중립":
-                fig.add_trace(go.Scatter(
-                    x=[df.at[e_i, "time"]],
-                    y=[float(df.at[e_i, "close"])],
-                    mode="markers",
-                    name="중립❌",
-                    marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
-                    showlegend=not legend_emitted["중립"]
-                ), row=1, col=1)
-                legend_emitted["중립"] = True
-
-    # ===== 매수가 수평선 (row1) =====
-    if buy_price and buy_price > 0:
-        fig.add_shape(
-            type="line",
-            xref="x1", yref="y1",
-            x0=df_plot["time"].min(), x1=df_plot["time"].max(),
-            y0=buy_price, y1=buy_price,
-            line=dict(color="green", width=1.5, dash="dash"),
-            name="매수가"
-        )
-
     # ===== RSI 라인 (row1, y2) =====
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["RSI13"], mode="lines",
+        x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
         line=dict(color="rgba(42,157,143,0.30)", width=6),
         name="", showlegend=False
     ), row=1, col=1, secondary_y=True)
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["RSI13"], mode="lines",
+        x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
         line=dict(color="#2A9D8F", width=2.4, dash="dot"),
         name="RSI(13)"
     ), row=1, col=1, secondary_y=True)
-    for y_val, dash, col, width in [
-        (rsi_high, "dash", "#E63946", 1.1),
-        (rsi_low, "dash", "#457B9D", 1.1),
-    ]:
-        fig.add_shape(
-            type="line",
-            xref="paper", x0=0, x1=1,
-            yref="y2", y0=y_val, y1=y_val,
-            line=dict(color=col, width=width, dash=dash)
-        )
 
     # ===== CCI 하단 차트 (row2) =====
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["CCI"], mode="lines",
+        x=df_plot["time"], y=df_plot["CCI"], mode="lines",
         line=dict(width=1.6),
         name="CCI"
     ), row=2, col=1)
     fig.add_trace(go.Scatter(
-        x=df["time"], y=df["CCI_sig"], mode="lines",
+        x=df_plot["time"], y=df_plot["CCI_sig"], mode="lines",
         line=dict(width=1.2, dash="dot"),
         name=f"CCI 신호({int(cci_signal)})"
     ), row=2, col=1)
@@ -1205,19 +1124,34 @@ try:
             name=""
         ), row=1, col=1)
 
-    # ===== 최적화뷰: x축 범위 적용 =====
-    if st.session_state.get("opt_view") and len(df) > 0:
-        window_n = max(int(len(df) * 0.15), 200)
-        start_idx = max(len(df) - window_n, 0)
+    # ===== 최적화뷰: 최근 70봉 '꽉 찬' 화면 + AutoScale (df_plot 기준) =====
+    if st.session_state.get("opt_view") and len(df_plot) > 0:
         try:
-            x_start = df.iloc[start_idx]["time"]
-            x_end   = df.iloc[-1]["time"]
+            window_n = 70
+            if len(df_plot) <= window_n:
+                start_idx = 0
+                end_idx   = len(df_plot) - 1
+            else:
+                end_idx   = len(df_plot) - 1
+                start_idx = end_idx - window_n + 1
+
+            x_start = df_plot.iloc[start_idx]["time"]
+            x_end   = df_plot.iloc[end_idx]["time"]
+
+            # X축: 보이는 데이터(df_plot)에서 최근 70봉만 딱 보이도록 지정
             fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
             fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
+
+            # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
+            fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
+            fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
         except Exception:
             pass
 
     # ===== 레이아웃 (AutoScale 기본값 명시) =====
+    # ✅ uirevision: 매번 새로운 키값으로 강제 리셋 (토글+랜덤)
+    import numpy as _np
+    _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{_np.random.randint(1e9)}"
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
@@ -1226,13 +1160,12 @@ try:
         legend_orientation="h",
         legend_y=1.02,
         margin=dict(l=30, r=30, t=60, b=40),
-        yaxis=dict(title="가격", autorange=True),
-        yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=True),
-        yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True),
-        uirevision="chart-static",
+        yaxis=dict(title="가격", autorange=True,  fixedrange=False),
+        yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
+        yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
+        uirevision=_uirev,
         hovermode="closest"
     )
-
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
     with chart_box:
         top_l, top_r = st.columns([4, 1])
@@ -1252,8 +1185,8 @@ try:
 
         with top_r:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-            if st.button(label, key="btn_opt_view_top"):
-                st.session_state.opt_view = not st.session_state.opt_view
+            # ✅ 콜백 적용 → 1클릭 즉시 반영
+            st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
 
         st.plotly_chart(
             fig,
@@ -1325,9 +1258,17 @@ try:
         sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
                                     key="sweep_end", on_change=_keep_sweep_open)
 
+        # ✅ 수정: 목표수익률 + 승률기준을 나란히 배치 (2칸)
+        col_thr, col_win = st.columns(2)
+        with col_thr:
+            sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
+                                            key="sweep_threshold_pct", on_change=_keep_sweep_open)
+        with col_win:
+            sweep_winrate_thr   = st.slider("승률 기준(%) (통계 전용)", 10, 100, int(winrate_thr), step=1,
+                                            key="sweep_winrate_thr", on_change=_keep_sweep_open)
+
         fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
                                 key="sweep_fast_mode", on_change=_keep_sweep_open)
-
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
         if run_sweep and not st.session_state.get("use_sweep_wrapper"):
             prog = st.progress(0)
