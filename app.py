@@ -1172,23 +1172,23 @@ try:
 
         legend_emitted = {"성공": False, "실패": False, "중립": False}
         for _, row_ in plot_res.iterrows():
-            a_i = int(row_["anchor_i"]); e_i = int(row_["end_i"])
-            a_i = max(0, min(a_i, len(df_plot) - 1))
-            e_i = max(0, min(e_i, len(df_plot) - 1))
+            t0 = pd.to_datetime(row_["신호시간"])
+            t1 = pd.to_datetime(row_["종료시간"])
+            if (t0 not in df_plot["time"].values) or (t1 not in df_plot["time"].values):
+                continue
 
-            x_seg = [df_plot.at[a_i, "time"], df_plot.at[e_i, "time"]]
-            y_seg = [float(df_plot.at[a_i, "close"]), float(df_plot.at[e_i, "close"])]
+            y0 = float(df_plot.loc[df_plot["time"] == t0, "close"].iloc[0])
+            y1 = float(df_plot.loc[df_plot["time"] == t1, "close"].iloc[0])
 
             fig.add_trace(go.Scatter(
-                x=x_seg, y=y_seg, mode="lines",
+                x=[t0, t1], y=[y0, y1], mode="lines",
                 line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
                 showlegend=False, hoverinfo="skip"
             ), row=1, col=1)
 
             if row_["결과"] == "성공":
                 fig.add_trace(go.Scatter(
-                    x=[df_plot.at[e_i, "time"]],
-                    y=[float(df_plot.at[e_i, "close"])],
+                    x=[t1], y=[y1],
                     mode="markers", name="도달⭐",
                     marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
                     showlegend=not legend_emitted["성공"]
@@ -1196,8 +1196,7 @@ try:
                 legend_emitted["성공"] = True
             elif row_["결과"] == "실패":
                 fig.add_trace(go.Scatter(
-                    x=[df_plot.at[e_i, "time"]],
-                    y=[float(df_plot.at[e_i, "close"])],
+                    x=[t1], y=[y1],
                     mode="markers", name="실패❌",
                     marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
                     showlegend=not legend_emitted["실패"]
@@ -1205,8 +1204,7 @@ try:
                 legend_emitted["실패"] = True
             elif row_["결과"] == "중립":
                 fig.add_trace(go.Scatter(
-                    x=[df_plot.at[e_i, "time"]],
-                    y=[float(df_plot.at[e_i, "close"])],
+                    x=[t1], y=[y1],
                     mode="markers", name="중립❌",
                     marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
                     showlegend=not legend_emitted["중립"]
