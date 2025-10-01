@@ -1124,34 +1124,29 @@ try:
             name=""
         ), row=1, col=1)
 
-    # ===== 최적화뷰: 최근 70봉 '꽉 찬' 화면 + AutoScale (df_plot 기준) =====
+    # ===== 최적화뷰: 최근 70봉 '꽉 찬' 화면 + AutoScale 보장 =====
     if st.session_state.get("opt_view") and len(df_plot) > 0:
         try:
             window_n = 70
-            if len(df_plot) <= window_n:
-                start_idx = 0
-                end_idx   = len(df_plot) - 1
-            else:
-                end_idx   = len(df_plot) - 1
-                start_idx = end_idx - window_n + 1
+            end_idx   = len(df_plot) - 1
+            start_idx = max(end_idx - window_n + 1, 0)
 
             x_start = df_plot.iloc[start_idx]["time"]
             x_end   = df_plot.iloc[end_idx]["time"]
 
-            # X축: 보이는 데이터(df_plot)에서 최근 70봉만 딱 보이도록 지정
-            fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
-            fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
+            # X축: 최근 70봉 범위 강제 적용 (autorange=False로 줘야 Plotly가 무시 안함)
+            fig.update_xaxes(range=[x_start, x_end], autorange=False, row=1, col=1)
+            fig.update_xaxes(range=[x_start, x_end], autorange=False, row=2, col=1)
 
-            # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
+            # Y축: 보이는 70봉에 대해 AutoScale 강제 적용 (수동 range 제거)
             fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
-            fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
+            fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축
         except Exception:
             pass
 
     # ===== 레이아웃 (AutoScale 기본값 명시) =====
-    # ✅ uirevision: 매번 새로운 키값으로 강제 리셋 (토글+랜덤)
-    import numpy as _np
-    _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{_np.random.randint(1e9)}"
+    # ✅ uirevision: 토글 상태+데이터 길이에 따라 변경 (강제 리셋 확실히 적용)
+    _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{len(df_plot)}"
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
@@ -1160,9 +1155,9 @@ try:
         legend_orientation="h",
         legend_y=1.02,
         margin=dict(l=30, r=30, t=60, b=40),
-        yaxis=dict(title="가격", autorange=True,  fixedrange=False),
+        yaxis=dict(title="가격", autorange=True, fixedrange=False),
         yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
-        yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
+        yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True, fixedrange=False),
         uirevision=_uirev,
         hovermode="closest"
     )
