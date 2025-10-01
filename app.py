@@ -1507,6 +1507,15 @@ try:
                                 if val == "중립": return "color:#FF9800; font-weight:600;"
                                 return ""
                             styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
+                            if not res_detail.empty:
+                                sel_idx_detail = st.selectbox("🔎 세부 신호 인덱스 선택", res_detail.index.tolist(), key="sel_idx_detail")
+                                if sel_idx_detail is not None and "anchor_i" in res_detail.columns:
+                                    start_idx = int(res_detail.loc[sel_idx_detail, "anchor_i"])
+                                    end_idx   = min(start_idx + 70, len(df) - 1)
+                                    df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+                                    st.info(f"세부 신호 {sel_idx_detail}번 구간 차트 (기준~+70봉)")
+                                    st.plotly_chart(fig, use_container_width=True)
+
                             st.dataframe(styled_detail, use_container_width=True)
 
     # -----------------------------
