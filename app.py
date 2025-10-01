@@ -1149,8 +1149,9 @@ try:
             pass
 
     # ===== 레이아웃 (AutoScale 기본값 명시) =====
-    # ✅ 최적화뷰 시 강제로 새 뷰를 적용하기 위해 uirevision 전환
-    _uirev = "opt-70" if st.session_state.get("opt_view") else "chart-static"
+    # ✅ uirevision: 매번 새로운 키값으로 강제 리셋 (토글+랜덤)
+    import numpy as _np
+    _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{_np.random.randint(1e9)}"
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
@@ -1184,8 +1185,8 @@ try:
 
         with top_r:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-            if st.button(label, key="btn_opt_view_top"):
-                st.session_state.opt_view = not st.session_state.opt_view
+            # ✅ 콜백 적용 → 1클릭 즉시 반영
+            st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
 
         st.plotly_chart(
             fig,
