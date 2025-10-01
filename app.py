@@ -1787,7 +1787,7 @@ try:
                     st.warning(f"GitHub 업로드 중 오류: {_e}")
 
         # CSV 업로드 버튼 (기존 로직 유지)
-        tf_key = (interval.split("min")[0] + "min") if "min" in interval else "day"
+        tf_key = (interval_key.split("min")[0] + "min") if "min" in interval_key else "day"
         data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
         csv_path = os.path.join(data_dir, f"{symbol}_{tf_key}.csv")
         root_csv = os.path.join(os.path.dirname(__file__), f"{symbol}_{tf_key}.csv")
