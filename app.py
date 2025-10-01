@@ -1029,9 +1029,14 @@ try:
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # -----------------------------
-    # 신호 선택 → 해당 구간 ±2000봉 차트 표시
     # -----------------------------
-    df_view = df.iloc[-2000:].reset_index(drop=True)
+    # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (긴 구간 대응)
+    # -----------------------------
+    max_bars = 5000  # 긴 기간일 경우 최대 5000봉까지만 표시
+    df_view = df.copy()
+    if len(df_view) > max_bars:
+        df_view = df_view.iloc[-max_bars:].reset_index(drop=True)
+
     plot_res = pd.DataFrame()
     if res is not None and not res.empty:
         plot_res = (
