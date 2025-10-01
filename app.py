@@ -1740,6 +1740,51 @@ try:
         st.dataframe(styled_tbl, width="stretch")
 
     # -----------------------------
+    # 📒 공유 메모 (Markdown · GitHub 연동 — 매물대와 독립)
+    # -----------------------------
+    SHARED_NOTES_FILE = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+    try:
+        if not os.path.exists(SHARED_NOTES_FILE):
+            with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                f.write(
+                    "# 📒 공유 메모\n\n"
+                    "- 여기에 팀 공통 메모를 작성하세요.\n"
+                    "- 💾 메모 저장(로컬): 파일만 로컬에 저장합니다.\n"
+                    "- 📤 메모 GitHub 업로드: 원할 때 수동으로 업로드합니다.\n"
+                )
+        with open(SHARED_NOTES_FILE, "r", encoding="utf-8") as f:
+            _notes_text = f.read()
+    except Exception:
+        _notes_text = ""
+
+    with st.expander("📒 공유 메모 (GitHub 연동, 전체 공통)", expanded=False):
+        notes_text = st.text_area("내용", value=_notes_text, height=220, key="shared_notes_text")
+
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            if st.button("💾 메모 저장(로컬)"):
+                try:
+                    with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                        f.write(notes_text)
+                    st.success("메모가 로컬에 저장되었습니다.")
+                except Exception as _e:
+                    st.warning(f"메모 저장 실패: {_e}")
+
+        with col_n2:
+            if st.button("📤 메모 GitHub 업로드"):
+                try:
+                    # 업로드는 사용자가 원할 때만 수동으로
+                    with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                        f.write(notes_text)
+                    ok, msg = github_commit_csv(SHARED_NOTES_FILE)
+                    if ok:
+                        st.success("메모가 GitHub에 저장/공유되었습니다!")
+                    else:
+                        st.warning(f"메모는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+                except Exception as _e:
+                    st.warning(f"GitHub 업로드 중 오류: {_e}")
+
+    # -----------------------------
     # CSV GitHub 업로드 버튼
     # -----------------------------
     tf_key = (interval_key.split("/")[1] + "min") if "minutes/" in interval_key else "day"
