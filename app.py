@@ -1330,38 +1330,6 @@ try:
                 if df_day is None or df_day.empty or len(df_day) < (min_train + 5):
                     st.info("데이터가 부족합니다. 기간을 늘려주세요.")
                 else:
-                    # --- (Naive, EWMA, OLS 예측 로직 전체: 이미 코드에 포함된 최신본 그대로 유지) ---
-        # ---------------------------------------------------------
-        # 📈 일봉 종가 예측(실험) — 기존 블록 유지 + 하단 추가
-        # ---------------------------------------------------------
-        st.markdown("---")
-        st.subheader("📈 일봉 종가 예측(실험)")
-        if tf_label != "일봉":
-            st.caption("이 기능은 '봉 종류 = 일봉'에서만 동작합니다.")
-        else:
-            # (Naive, EWMA, OLS 예측 로직 전체 추가 — 앞서 제시한 코드 그대로)
-
-        # ---------------------------------------------------------
-        # 📈 일봉 종가 예측(실험) — ③/④ UI 불변, expander 내부만 사용
-        # ---------------------------------------------------------
-        st.markdown("---")
-        st.subheader("📈 일봉 종가 예측(실험)")
-        if tf_label != "일봉":
-            st.caption("이 기능은 '봉 종류 = 일봉'에서만 동작합니다.")
-        else:
-            colA, colB, colC = st.columns([1,1,1])
-            with colA:
-                min_train = st.number_input("최소 학습일수", min_value=60, max_value=1000, value=180, step=10, key="pred_min_train")
-            with colB:
-                use_ols   = st.checkbox("OLS(선형회귀) 사용", value=True, key="pred_use_ols")
-            with colC:
-                run_pred  = st.button("▶ 예측 수행", use_container_width=True, key="btn_run_daily_pred")
-
-            if run_pred:
-                df_day = df.copy()
-                if df_day is None or df_day.empty or len(df_day) < (min_train + 5):
-                    st.info("데이터가 부족합니다. 기간을 늘려주세요.")
-                else:
                     # --- 특성 준비
                     X = pd.DataFrame({
                         "lag1": df_day["close"].shift(1),
