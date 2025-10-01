@@ -1440,6 +1440,15 @@ try:
                     ],
                     subset=["평균수익률(%)","합계수익률(%)"]
                 )
+                if not df_show.empty:
+                    sel_idx_combo = st.selectbox("🔎 조합 인덱스 선택", df_show.index.tolist(), key="sel_idx_combo")
+                    if sel_idx_combo is not None and "anchor_i" in df_show.columns:
+                        start_idx = int(df_show.loc[sel_idx_combo, "anchor_i"])
+                        end_idx   = min(start_idx + 70, len(df) - 1)
+                        df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+                        st.info(f"조합 결과 {sel_idx_combo}번 구간 차트 (기준~+70봉)")
+                        st.plotly_chart(fig, use_container_width=True)
+
                 st.dataframe(styled_tbl, use_container_width=True)
 
                 csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
