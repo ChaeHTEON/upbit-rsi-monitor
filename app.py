@@ -290,7 +290,7 @@ def github_commit_csv(local_file=CSV_FILE):
 
     # 현재 SHA 조회
     sha = None
-    r_get = requests.get(url, headers=headers)
+    r_get = requests.get(url, headers=headers, timeout=8)
     if r_get.status_code == 200:
         sha = r_get.json().get("sha")
 
@@ -302,13 +302,32 @@ def github_commit_csv(local_file=CSV_FILE):
     if sha:
         data["sha"] = sha
 
-    r_put = requests.put(url, headers=headers, json=data)
+    r_put = requests.put(url, headers=headers, json=data, timeout=8)
     return r_put.status_code in (200, 201), r_put.text
+
+# ✅ 원격에 파일 존재 여부만 확인
+def github_file_exists(basename: str):
+    token  = _get_secret("GITHUB_TOKEN")
+    repo   = _get_secret("GITHUB_REPO")
+    branch = _get_secret("GITHUB_BRANCH", "main")
+    if not (token and repo):
+        return False, "no_token"
+    url = f"https://api.github.com/repos/{repo}/contents/{basename}"
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    try:
+        r = requests.get(url, headers=headers, params={"ref": branch}, timeout=8)
+        if r.status_code == 200:
+            return True, None
+        if r.status_code == 404:
+            return False, None
+        return False, f"status_{r.status_code}"
+    except Exception as e:
+        return False, f"error:{e}"
 
 manual_supply_levels = []
 if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
     current_levels = load_supply_levels(market_code)
-    st.markdown("**매물대 가격대 입력 (GitHub에 저장/공유됨)**")
+    st.markdown("**매물대 가격대 입력 (GitHub 최초 1회 업로드, 이후 로컬 저장만)**")
     supply_df = st.data_editor(
         pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
         num_rows="dynamic",
@@ -317,12 +336,23 @@ if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
     )
     manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
     if st.button("💾 매물대 저장"):
-        save_supply_levels(market_code, manual_supply_levels)
-        ok, msg = github_commit_csv(CSV_FILE)
-        if ok:
-            st.success("매물대가 GitHub에 저장/공유되었습니다!")
-        else:
-            st.warning(f"로컬에는 저장됐지만 GitHub 저장 실패: {msg}")
+        # 1) 로컬 저장
+        try:
+            save_supply_levels(market_code, manual_supply_levels)
+            # 2) GitHub에는 '최초 1회'만 업로드
+            exists, err = github_file_exists(os.path.basename(CSV_FILE))
+            if err == "no_token":
+                st.info("메모는 로컬에 저장되었습니다. (GitHub 토큰/레포 설정이 없어 업로드 생략)")
+            elif exists:
+                st.success("로컬 저장 완료. (GitHub에는 이미 파일이 있어 이번에는 업로드하지 않습니다.)")
+            else:
+                ok, msg = github_commit_csv(CSV_FILE)
+                if ok:
+                    st.success("로컬 저장 완료 + GitHub 최초 업로드 완료!")
+                else:
+                    st.warning(f"로컬 저장은 되었지만 GitHub 최초 업로드 실패: {msg}")
+        except Exception as _e:
+            st.warning(f"매물대 저장 실패: {_e}")
 
 st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
