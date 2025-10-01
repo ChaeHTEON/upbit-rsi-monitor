@@ -929,16 +929,10 @@ try:
             options=plot_res["anchor_i"].tolist(),
             index=len(plot_res) - 1
         )
-        sel_xrange = None
         if sel_anchor is not None:
-            start_idx = int(sel_anchor)
-            end_idx   = min(start_idx + 70, len(df) - 1)
-            x_start   = df.iloc[start_idx]["time"]
-            x_end     = df.iloc[end_idx]["time"]
-
-            # 데이터는 전체 유지
-            df_view   = df.reset_index(drop=True)
-            sel_xrange = (x_start, x_end)
+            start_idx = max(int(sel_anchor) - 1000, 0)
+            end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
+            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
 
     # -----------------------------
     # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
@@ -1421,14 +1415,9 @@ try:
             if df_keep.empty:
                 st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
             else:
-                if "승률(%)" in df_keep and pd.api.types.is_numeric_dtype(df_keep["승률(%)"]):
-                    sort_cols = ["결과","승률(%)","신호수","합계수익률(%)"]
-                else:
-                    sort_cols = ["결과","신호수","합계수익률(%)"]
-
                 df_show = df_keep.sort_values(
-                    sort_cols,
-                    ascending=[True,False,False,False][:len(sort_cols)]
+                    ["결과","승률(%)","신호수","합계수익률(%)"],
+                    ascending=[True,False,False,False]
                 ).reset_index(drop=True)
 
                 if "날짜" not in df_show:
@@ -1437,9 +1426,8 @@ try:
                     else:
                         df_show["날짜"] = ""
 
-                # 정렬 후 퍼센트 문자열 변환
                 for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
-                    if col in df_show and pd.api.types.is_numeric_dtype(df_show[col]):
+                    if col in df_show:
                         df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
                 if "BB_승수" in df_show:
                     df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
@@ -1452,26 +1440,6 @@ try:
                     ],
                     subset=["평균수익률(%)","합계수익률(%)"]
                 )
-                if not df_show.empty:
-                    sel_idx_combo = st.selectbox("🔎 조합 인덱스 선택", df_show.index.tolist(), key="sel_idx_combo_fixed")
-                    if sel_idx_combo is not None and "anchor_i" in df_show.columns:
-                        start_idx = int(df_show.loc[sel_idx_combo, "anchor_i"])
-                        end_idx   = min(start_idx + 70, len(df) - 1)
-                        df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-                        st.info(f"조합 결과 {sel_idx_combo}번 구간 차트 (기준~+70봉)")
-                        st.plotly_chart(fig, use_container_width=True)
-
-                if not df_show.empty and "신호시간" in df_show.columns:
-                    sel_idx_combo = st.selectbox("🔎 조합 인덱스 선택", df_show.index.tolist(), key="sel_idx_combo")
-                    if sel_idx_combo is not None:
-                        sig_time = pd.to_datetime(df_show.loc[sel_idx_combo, "신호시간"])
-                        anchor_idx = (df["time"] - sig_time).abs().idxmin()
-                        start_idx = anchor_idx
-                        end_idx   = min(start_idx + 70, len(df) - 1)
-                        df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-                        st.info(f"조합 결과 {sel_idx_combo}번 · 기준 {sig_time} 차트 (기준~+70봉)")
-                        st.plotly_chart(fig, use_container_width=True)
-
                 st.dataframe(styled_tbl, use_container_width=True)
 
                 csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
@@ -1539,29 +1507,6 @@ try:
                                 if val == "중립": return "color:#FF9800; font-weight:600;"
                                 return ""
                             styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
-                            if not res_detail.empty:
-                                sel_idx_detail = st.selectbox("🔎 세부 신호 인덱스 선택", res_detail.index.tolist(), key="sel_idx_detail_fixed")
-                                if sel_idx_detail is not None and "anchor_i" in res_detail.columns:
-                                    sig_time = pd.to_datetime(res_detail.loc[sel_idx_detail, "신호시간"])
-                                    anchor_idx = (df["time"] - sig_time).abs().idxmin()
-                                    start_idx = anchor_idx
-                                    end_idx   = min(start_idx + 70, len(df) - 1)
-                                    df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-                                    st.info(f"세부 신호 {sel_idx_detail}번 · 기준 {sig_time} 차트 (기준~+70봉)")
-                                    st.plotly_chart(fig, use_container_width=True)
-                                    st.plotly_chart(fig, use_container_width=True)
-
-                            if not res_detail.empty and "신호시간" in res_detail.columns:
-                                sel_idx_tbl = st.selectbox("🔎 신호 결과 인덱스 선택", tbl.index.tolist(), key="sel_idx_tbl_fixed")
-                                if sel_idx_detail is not None:
-                                    sig_time = pd.to_datetime(res_detail.loc[sel_idx_detail, "신호시간"])
-                                    anchor_idx = (df["time"] - sig_time).abs().idxmin()
-                                    start_idx = anchor_idx
-                                    end_idx   = min(start_idx + 70, len(df) - 1)
-                                    df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-                                    st.info(f"세부 신호 {sel_idx_detail}번 · 기준 {sig_time} 차트 (기준~+70봉)")
-                                    st.plotly_chart(fig, use_container_width=True)
-
                             st.dataframe(styled_detail, use_container_width=True)
 
     # -----------------------------
@@ -1609,17 +1554,6 @@ try:
             return ""
 
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
-        if not tbl.empty and "신호시간" in tbl.columns:
-            sel_idx_tbl = st.selectbox("🔎 신호 결과 인덱스 선택", tbl.index.tolist(), key="sel_idx_tbl")
-            if sel_idx_tbl is not None:
-                sig_time = pd.to_datetime(tbl.loc[sel_idx_tbl, "신호시간"])
-                anchor_idx = (df["time"] - sig_time).abs().idxmin()
-                start_idx = anchor_idx
-                end_idx   = min(start_idx + 70, len(df) - 1)
-                df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
-                st.info(f"신호 결과 {sel_idx_tbl}번 · 기준 {sig_time} 차트 (기준~+70봉)")
-                st.plotly_chart(fig, use_container_width=True)
-
         st.dataframe(styled_tbl, width="stretch")
 
     # -----------------------------
