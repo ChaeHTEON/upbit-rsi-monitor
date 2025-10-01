@@ -894,6 +894,11 @@ try:
         st.session_state.buy_price_text = "0"
     buy_price = st.session_state.get("buy_price", 0)
 
+    # ✅ 최적화뷰 즉시 토글 콜백 (1클릭 반영 + 즉시 재실행)
+    def _toggle_opt_view():
+        st.session_state.opt_view = not st.session_state.get("opt_view", False)
+        st.rerun()
+
     # ===== 시뮬레이션 (중복 포함/제거) =====
     res_all = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
@@ -1119,30 +1124,33 @@ try:
             name=""
         ), row=1, col=1)
 
-    # ===== 최적화뷰: 최근 70봉 꽉찬 화면 + AutoScale =====
-    if st.session_state.get("opt_view") and len(df) > 0:
+    # ===== 최적화뷰: 최근 70봉 '꽉 찬' 화면 + AutoScale (df_plot 기준) =====
+    if st.session_state.get("opt_view") and len(df_plot) > 0:
         try:
-            # 최근 70봉만 선택
             window_n = 70
-            start_idx = max(len(df) - window_n, 0)
-            end_idx   = start_idx + window_n - 1
-            if end_idx >= len(df):
-                end_idx = len(df) - 1
+            if len(df_plot) <= window_n:
+                start_idx = 0
+                end_idx   = len(df_plot) - 1
+            else:
+                end_idx   = len(df_plot) - 1
+                start_idx = end_idx - window_n + 1
 
-            x_start = df.iloc[start_idx]["time"]
-            x_end   = df.iloc[end_idx]["time"]
+            x_start = df_plot.iloc[start_idx]["time"]
+            x_end   = df_plot.iloc[end_idx]["time"]
 
-            # X축: 최근 70봉만 딱 보이도록 설정
+            # X축: 보이는 데이터(df_plot)에서 최근 70봉만 딱 보이도록 지정
             fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
             fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
 
-            # Y축: Plotly 기본 AutoScale 적용
-            fig.update_yaxes(autorange=True, row=1, col=1)
-            fig.update_yaxes(autorange=True, row=2, col=1)
+            # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
+            fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
+            fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
         except Exception:
             pass
 
     # ===== 레이아웃 (AutoScale 기본값 명시) =====
+    # ✅ 최적화뷰 시 강제로 새 뷰를 적용하기 위해 uirevision 전환
+    _uirev = "opt-70" if st.session_state.get("opt_view") else "chart-static"
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
@@ -1154,7 +1162,7 @@ try:
         yaxis=dict(title="가격", autorange=True,  fixedrange=False),
         yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
         yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
-        uirevision="chart-static",
+        uirevision=_uirev,
         hovermode="closest"
     )
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
