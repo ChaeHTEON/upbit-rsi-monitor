@@ -1002,38 +1002,6 @@ try:
         hoverinfo="text"
     ), row=1, col=1)
 
-    # ===== 신호 마커 + 세로 점선 =====
-    if res is not None and not res.empty:
-        for label, color, symbol in [("성공", "red", "triangle-up"),
-                                     ("실패", "blue", "triangle-down"),
-                                     ("중립", "orange", "circle")]:
-            sub = res[res["결과"] == label]
-            if not sub.empty:
-                # 마커
-                fig.add_trace(go.Scatter(
-                    x=sub["신호시간"], y=sub["기준시가"], mode="markers",
-                    name=f"신호 ({label})",
-                    marker=dict(size=9, color=color, symbol=symbol,
-                                line=dict(width=1, color="black")),
-                    hovertemplate="신호시간=%{x}<br>기준시가=%{y:,}<extra></extra>"
-                ), row=1, col=1)
-                # 세로 점선 (신호 시작~종료 구간)
-                for _, row_sig in sub.iterrows():
-                    try:
-                        anchor_time = row_sig["신호시간"]
-                        end_idx = df.index[df["time"] >= anchor_time][0] + lookahead
-                        if end_idx < len(df):
-                            end_time = df.iloc[end_idx]["time"]
-                            fig.add_shape(
-                                type="line",
-                                x0=anchor_time, x1=end_time,
-                                y0=df["low"].min(), y1=df["high"].max(),
-                                line=dict(color=color, width=1, dash="dot"),
-                                xref="x", yref="y"
-                            )
-                    except Exception:
-                        continue
-
     # ===== BB 라인 (row1) =====
     def _pnl_arr2(y_series):
         if buy_price <= 0:
@@ -1270,9 +1238,17 @@ try:
         sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
                                     key="sweep_end", on_change=_keep_sweep_open)
 
+        # ✅ 수정: 목표수익률 + 승률기준을 나란히 배치 (2칸)
+        col_thr, col_win = st.columns(2)
+        with col_thr:
+            sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
+                                            key="sweep_threshold_pct", on_change=_keep_sweep_open)
+        with col_win:
+            sweep_winrate_thr   = st.slider("승률 기준(%) (통계 전용)", 10, 100, int(winrate_thr), step=1,
+                                            key="sweep_winrate_thr", on_change=_keep_sweep_open)
+
         fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
                                 key="sweep_fast_mode", on_change=_keep_sweep_open)
-
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
         if run_sweep and not st.session_state.get("use_sweep_wrapper"):
             prog = st.progress(0)
