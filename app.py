@@ -1739,65 +1739,68 @@ try:
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
         st.dataframe(styled_tbl, width="stretch")
 
-# -----------------------------
-# 📒 공유 메모 (GitHub 연동, 전체 공통)
-# -----------------------------
-SHARED_NOTES_FILE = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+    # -----------------------------
+    # 📒 공유 메모 (GitHub 연동, 전체 공통)
+    # -----------------------------
+    SHARED_NOTES_FILE = os.path.join(os.path.dirname(__file__), "shared_notes.md")
 
-_notes_text = ""
-try:
-    if not os.path.exists(SHARED_NOTES_FILE):
-        with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
-            f.write("# 📒 공유 메모\n\n- 팀 공통 메모를 작성하세요.\n")
-    with open(SHARED_NOTES_FILE, "r", encoding="utf-8") as f:
-        _notes_text = f.read()
-except Exception:
     _notes_text = ""
+    try:
+        if not os.path.exists(SHARED_NOTES_FILE):
+            with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                f.write("# 📒 공유 메모\n\n- 팀 공통 메모를 작성하세요.\n")
+        with open(SHARED_NOTES_FILE, "r", encoding="utf-8") as f:
+            _notes_text = f.read()
+    except Exception:
+        _notes_text = ""
 
-with st.expander("📒 공유 메모 (GitHub 연동, 전체 공통)", expanded=False):
-    notes_text = st.text_area("내용 (Markdown 지원)", value=_notes_text, height=220, key="shared_notes_text")
+    with st.expander("📒 공유 메모 (GitHub 연동, 전체 공통)", expanded=False):
+        notes_text = st.text_area("내용 (Markdown 지원)", value=_notes_text, height=220, key="shared_notes_text")
 
-    # 입력 즉시 랜더링
-    if notes_text.strip():
-        st.markdown(notes_text, unsafe_allow_html=True)
-    else:
-        st.caption("아직 메모가 없습니다. 위 입력창에 Markdown으로 작성하면 아래에 렌더링됩니다.")
-
-    col_n1, col_n2 = st.columns(2)
-    with col_n1:
-        if st.button("💾 메모 저장(로컬)"):
-            try:
-                with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
-                    f.write(notes_text)
-                st.success("메모가 로컬에 저장되었습니다.")
-            except Exception as _e:
-                st.warning(f"메모 저장 실패: {_e}")
-
-    with col_n2:
-        if st.button("📤 메모 GitHub 업로드"):
-            try:
-                with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
-                    f.write(notes_text)
-                ok, msg = github_commit_csv(SHARED_NOTES_FILE)
-                if ok:
-                    st.success("메모가 GitHub에 저장/공유되었습니다!")
-                else:
-                    st.warning(f"메모는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
-            except Exception as _e:
-                st.warning(f"GitHub 업로드 중 오류: {_e}")
-
-    # CSV 업로드 버튼 (기존 로직 유지) ← 들여쓰기 한 칸 줄여 col_n2 밖으로
-    tf_key = (interval_key.split("/")[1] + "min") if "minutes/" in interval_key else "day"
-    data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
-    csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
-    root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
-    if st.button("📤 CSV GitHub 업로드"):
-        target_file = csv_path if os.path.exists(csv_path) else root_csv
-        if os.path.exists(target_file):
-            ok, msg = github_commit_csv(target_file)
-            if ok:
-                st.success("CSV가 GitHub에 저장/공유되었습니다!")
-            else:
-                st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+        # 입력 즉시 랜더링
+        if notes_text.strip():
+            st.markdown(notes_text, unsafe_allow_html=True)
         else:
-            st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
+            st.caption("아직 메모가 없습니다. 위 입력창에 Markdown으로 작성하면 아래에 렌더링됩니다.")
+
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            if st.button("💾 메모 저장(로컬)"):
+                try:
+                    with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                        f.write(notes_text)
+                    st.success("메모가 로컬에 저장되었습니다.")
+                except Exception as _e:
+                    st.warning(f"메모 저장 실패: {_e}")
+
+        with col_n2:
+            if st.button("📤 메모 GitHub 업로드"):
+                try:
+                    with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                        f.write(notes_text)
+                    ok, msg = github_commit_csv(SHARED_NOTES_FILE)
+                    if ok:
+                        st.success("메모가 GitHub에 저장/공유되었습니다!")
+                    else:
+                        st.warning(f"메모는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+                except Exception as _e:
+                    st.warning(f"GitHub 업로드 중 오류: {_e}")
+
+        # CSV 업로드 버튼 (기존 로직 유지)
+        tf_key = (interval.split("min")[0] + "min") if "min" in interval else "day"
+        data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
+        csv_path = os.path.join(data_dir, f"{symbol}_{tf_key}.csv")
+        root_csv = os.path.join(os.path.dirname(__file__), f"{symbol}_{tf_key}.csv")
+        if st.button("📤 CSV GitHub 업로드"):
+            target_file = csv_path if os.path.exists(csv_path) else root_csv
+            if os.path.exists(target_file):
+                ok, msg = github_commit_csv(target_file)
+                if ok:
+                    st.success("CSV가 GitHub에 저장/공유되었습니다!")
+                else:
+                    st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+            else:
+                st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
+
+except Exception as e:
+    st.error(f"오류 발생: {e}")
