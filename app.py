@@ -1410,8 +1410,14 @@ try:
     if res is None or res.empty:
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
+        # 결과 테이블 스타일 정의
+        styled_tbl = res.style.apply(
+            lambda row: ["color:#E53935; font-weight:600;" if row["결과"] == "성공"
+                         else "color:#1E40AF; font-weight:600;" if row["결과"] == "실패"
+                         else "color:#FF9800; font-weight:600;" for _ in row],
+            axis=1
+        )
         st.dataframe(styled_tbl, width="stretch")
-
     st.markdown("---")
 
     # -----------------------------
