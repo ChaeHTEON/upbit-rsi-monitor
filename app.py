@@ -1753,15 +1753,24 @@ try:
         st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
     else:
         tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+        # ✅ 안전 포맷 유틸 (숫자만 포맷, 문자열/NaN 그대로 유지)
+        def _safe_fmt(v, fmt=":.2f", suffix=""):
+            if pd.isna(v):
+                return ""
+            try:
+                return format(float(v), fmt) + suffix
+            except Exception:
+                return str(v)
+
         tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-        tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(v):,}")
+        tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(float(v)):,}" if pd.notna(v) else "")
         if "RSI(13)" in tbl:
-            tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+            tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: _safe_fmt(v, ":.2f"))
         if "성공기준(%)" in tbl:
-            tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+            tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: _safe_fmt(v, ":.1f", "%"))
         for col in ["최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
             if col in tbl:
-                tbl[col] = tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
+                tbl[col] = tbl[col].map(lambda v: _safe_fmt(v, ":.2f", "%"))
 
         if "도달캔들(bars)" in tbl.columns:
             tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
