@@ -1248,8 +1248,7 @@ try:
 
         fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
                                 key="sweep_fast_mode", on_change=_keep_sweep_open)
-           run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
-
+        run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
         df_show = None
         if run_sweep:
             # 스캔 기간(빠른 테스트 모드 시 최근 30일)
