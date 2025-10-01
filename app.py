@@ -572,13 +572,15 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
 
         bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
 
-        # CCI
+        # CCI (사용자 지정 임계값 반영)
         if cci_mode == "없음":
             cci_idx = []
         elif cci_mode.startswith("과매수"):
             cci_idx = df.index[df["CCI"] >= float(cci_over)].tolist()
-        else:
+        elif cci_mode.startswith("과매도"):
             cci_idx = df.index[df["CCI"] <= float(cci_under)].tolist()
+        else:
+            cci_idx = []
 
         # 조합
         idx_sets = []
