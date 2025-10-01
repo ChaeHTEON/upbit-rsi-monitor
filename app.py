@@ -1786,21 +1786,18 @@ with st.expander("📒 공유 메모 (GitHub 연동, 전체 공통)", expanded=F
             except Exception as _e:
                 st.warning(f"GitHub 업로드 중 오류: {_e}")
 
-        # CSV 업로드 버튼 (기존 로직 유지)
-        tf_key = (interval_key.split("/")[1] + "min") if "minutes/" in interval_key else "day"
-        data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
-        csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
-        root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
-        if st.button("📤 CSV GitHub 업로드"):
-            target_file = csv_path if os.path.exists(csv_path) else root_csv
-            if os.path.exists(target_file):
-                ok, msg = github_commit_csv(target_file)
-                if ok:
-                    st.success("CSV가 GitHub에 저장/공유되었습니다!")
-                else:
-                    st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+    # CSV 업로드 버튼 (기존 로직 유지) ← 들여쓰기 한 칸 줄여 col_n2 밖으로
+    tf_key = (interval_key.split("/")[1] + "min") if "minutes/" in interval_key else "day"
+    data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
+    csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+    root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
+    if st.button("📤 CSV GitHub 업로드"):
+        target_file = csv_path if os.path.exists(csv_path) else root_csv
+        if os.path.exists(target_file):
+            ok, msg = github_commit_csv(target_file)
+            if ok:
+                st.success("CSV가 GitHub에 저장/공유되었습니다!")
             else:
-                st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
-
-except Exception as e:
-    st.error(f"오류: {e}")
+                st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+        else:
+            st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
