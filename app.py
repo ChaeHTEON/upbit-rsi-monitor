@@ -1620,31 +1620,37 @@ try:
                         df_show["날짜"] = ""
 
                 # 포맷팅 복구: 예전 기준
+                                # 안전한 포맷팅 유틸 함수 정의
+                def _fmt_num(v, fmt=":.2f", suffix="%"):
+                    if pd.isna(v):
+                        return ""
+                    if isinstance(v, (int, float, np.number)):
+                        return format(v, fmt) + suffix
+                    return str(v)
+
+                def _fmt_num_no_suffix(v, fmt=":.2f"):
+                    if pd.isna(v):
+                        return ""
+                    if isinstance(v, (int, float, np.number)):
+                        return format(v, fmt)
+                    return str(v)
+
+                # 포맷팅 복구: 예전 기준 (에러 방지)
                 if "RSI(13)" in df_show:
-                    df_show["RSI(13)"] = df_show["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+                    df_show["RSI(13)"] = df_show["RSI(13)"].map(lambda v: _fmt_num_no_suffix(v, ":.2f"))
 
                 if "성공기준(%)" in df_show:
-                    df_show["성공기준(%)"] = df_show["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                    df_show["성공기준(%)"] = df_show["성공기준(%)"].map(lambda v: _fmt_num(v, ":.1f"))
 
                 for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)","평균수익률(%)","합계수익률(%)"]:
                     if col in df_show:
-                        df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
+                        df_show[col] = df_show[col].map(lambda v: _fmt_num(v, ":.2f"))
 
-                if "RSI(13)" in df_show:
-                    df_show["RSI(13)"] = df_show["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
-                if "성공기준(%)" in df_show:
-                    df_show["성공기준(%)"] = df_show["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
-                for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)","평균수익률(%)","합계수익률(%)"]:
-                    if col in df_show:
-                        df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
                 if "승률(%)" in df_show:
-                    df_show["승률(%)"] = df_show["승률(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
-                if "BB_승수" in df_show:
-                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
+                    df_show["승률(%)"] = df_show["승률(%)"].map(lambda v: _fmt_num(v, ":.1f"))
 
                 if "BB_승수" in df_show:
-                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
-
+                    df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: _fmt_num_no_suffix(v, ":.1f"))
                 styled_tbl = df_show.style.apply(
                     lambda col: [
                         ("color:#E53935; font-weight:600;" if r=="성공"
