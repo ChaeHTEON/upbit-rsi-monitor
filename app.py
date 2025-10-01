@@ -1124,7 +1124,7 @@ try:
             name=""
         ), row=1, col=1)
 
-    # ===== 최적화뷰: 최근 70봉 '꽉 찬' 화면 + AutoScale 보장 =====
+    # ===== 최적화뷰: 최근 70봉 꽉찬 비율 + AutoScale 확실히 보장 =====
     if st.session_state.get("opt_view") and len(df_plot) > 0:
         try:
             window_n = 70
@@ -1134,19 +1134,50 @@ try:
             x_start = df_plot.iloc[start_idx]["time"]
             x_end   = df_plot.iloc[end_idx]["time"]
 
-            # X축: 최근 70봉 범위 강제 적용 (autorange=False로 줘야 Plotly가 무시 안함)
+            # X축: 최근 70봉 범위 강제 적용
             fig.update_xaxes(range=[x_start, x_end], autorange=False, row=1, col=1)
             fig.update_xaxes(range=[x_start, x_end], autorange=False, row=2, col=1)
 
-            # Y축: 보이는 70봉에 대해 AutoScale 강제 적용 (수동 range 제거)
-            fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
-            fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축
+            # Y축: 기존 range 해제 후 AutoScale 적용 (항상 꽉 차게)
+            fig.update_yaxes(range=None, autorange=True, row=1, col=1)
+            fig.update_yaxes(range=None, autorange=True, row=2, col=1)
         except Exception:
             pass
 
+    # ===== 신호 마커 & 점선 (성공/실패/중립) =====
+    if res is not None and not res.empty:
+        for label, color, symbol in [("성공", "red", "triangle-up"),
+                                     ("실패", "blue", "triangle-down"),
+                                     ("중립", "green", "circle")]:
+            sub = res[res["결과"] == label]
+            if not sub.empty:
+                # 마커
+                fig.add_trace(go.Scatter(
+                    x=sub["신호시간"], y=sub["기준시가"],
+                    mode="markers", name=f"신호 ({label})",
+                    marker=dict(size=9, color=color, symbol=symbol,
+                                line=dict(width=1, color="black")),
+                    hovertemplate="신호=%{x}<br>기준시가=%{y:,}<extra></extra>"
+                ), row=1, col=1)
+                # 점선 (anchor~종료 구간)
+                for _, row_sig in sub.iterrows():
+                    try:
+                        anchor_time = row_sig["신호시간"]
+                        end_time = row_sig["종료시간"]
+                        base_y   = row_sig["기준시가"]
+                        fig.add_shape(
+                            type="line",
+                            x0=anchor_time, x1=end_time,
+                            y0=base_y, y1=base_y,
+                            line=dict(color=color, width=1, dash="dot"),
+                            xref="x", yref="y"
+                        )
+                    except Exception:
+                        continue
+
     # ===== 레이아웃 (AutoScale 기본값 명시) =====
-    # ✅ uirevision: 토글 상태+데이터 길이에 따라 변경 (강제 리셋 확실히 적용)
-    _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{len(df_plot)}"
+    import numpy as _np
+    _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{len(df_plot)}-{_np.random.randint(1e6)}"
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
