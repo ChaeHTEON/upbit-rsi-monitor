@@ -1250,10 +1250,83 @@ try:
                                 key="sweep_fast_mode", on_change=_keep_sweep_open)
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
 
-        # (조합 스캔 실행 로직, df_all 처리 등 원본 그대로 유지)
+        # === 조합 스캔 실행 로직 (복구) ===
+        df_show = None
+        if run_sweep:
+            # 스캔 기간(빠른 테스트 모드 시 최근 30일)
+            sdt = datetime.combine(max(sweep_start, sweep_end - timedelta(days=30)) if fast_mode else sweep_start,
+                                   datetime.min.time())
+            edt = datetime.combine(sweep_end, datetime.max.time())
 
+            # 현재 UI 조건을 기준으로 '타임프레임' 조합을 스캔 (조합 스캔의 최소 복구)
+            tf_list = list(TF_MAP.keys())
+            rows = []
+
+            # 스캔 시 중복 처리 라벨(상세 보기 재계산에서도 동일 라벨 사용)
+            dedup_label = "중복 제거 (연속 동일 결과 1개)"  # 상세보기에서 사용
+            st.session_state["sweep_dedup_label"] = dedup_label
+
+            for tf_lbl in tf_list:
+                interval_key_s, mpb_s = TF_MAP[tf_lbl]
+                # 데이터 수집 + 지표
+                df_raw_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
+                if df_raw_s is None or df_raw_s.empty:
+                    continue
+                df_s = add_indicators(df_raw_s, bb_window, bb_dev, cci_window, cci_signal)
+
+                # 시뮬레이션(중복 제거 기준)
+                res_s = simulate(
+                    df_s, rsi_mode, rsi_low, rsi_high,
+                    lookahead, float(sweep_threshold_pct),
+                    bb_cond, dedup_label,
+                    mpb_s, sweep_market, bb_window, bb_dev,
+                    sec_cond=sec_cond, hit_basis="종가 기준",
+                    miss_policy="(고정) 성공·실패·중립",
+                    bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                )
+
+                # 요약 행
+                if res_s is not None and not res_s.empty:
+                    tot = len(res_s)
+                    succ = (res_s["결과"] == "성공").sum()
+                    fail = (res_s["결과"] == "실패").sum()
+                    neu  = (res_s["결과"] == "중립").sum()
+                    win  = (succ / tot * 100.0) if tot else 0.0
+                    avg_final = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s else 0.0
+                else:
+                    tot = succ = fail = neu = 0
+                    win = avg_final = 0.0
+
+                rows.append({
+                    "타임프레임": tf_lbl,
+                    "측정N(봉)": int(lookahead),
+                    "RSI": rsi_mode,
+                    "BB": bb_cond,
+                    "2차조건": sec_cond,
+                    "신호수": tot,
+                    "성공": succ,
+                    "실패": fail,
+                    "중립": neu,
+                    "승률(%)": round(win, 1),
+                    "최종수익률 평균(%)": round(avg_final, 2),
+                })
+
+            df_show = pd.DataFrame(rows)
+            st.session_state["df_show"] = df_show
+            st.session_state["sweep_state"] = {
+                "params": {"sdt": sdt, "edt": edt, "market": sweep_market}
+            }
+
+            if df_show is None or df_show.empty:
+                st.info("조건을 만족하는 결과가 없습니다. 기간/조건을 조정해 보세요.")
+            else:
+                st.dataframe(df_show, use_container_width=True)
+
+        # === 조합 선택 & 상세보기 ===
         selected_idx = None
-        if "df_show" in locals() and df_show is not None and not df_show.empty:
+        if "df_show" in st.session_state and st.session_state["df_show"] is not None and not st.session_state["df_show"].empty:
+            df_show = st.session_state["df_show"]
             selected_idx = st.selectbox("🔎 조합 선택", df_show.index.tolist())
 
         if selected_idx is not None:
@@ -1265,12 +1338,16 @@ try:
             interval_key_s, mpb_s = TF_MAP[tf_lbl]
             sdt_sel = P.get("sdt", datetime.combine(sweep_start, datetime.min.time()))
             edt_sel = P.get("edt", datetime.combine(sweep_end, datetime.max.time()))
+
             df_raw_sel = fetch_upbit_paged(sweep_market, interval_key_s, sdt_sel, edt_sel, mpb_s, warmup_bars)
             if df_raw_sel is not None and not df_raw_sel.empty:
                 df_sel = add_indicators(df_raw_sel, bb_window, bb_dev, cci_window, cci_signal)
+
+                # 상세보기에서도 스캔 때 쓴 중복 라벨 사용
+                dedup_label = st.session_state.get("sweep_dedup_label", "중복 제거 (연속 동일 결과 1개)")
                 res_detail = simulate(
                     df_sel, sel["RSI"], rsi_low, rsi_high,
-                    int(sel["측정N(봉)"]), threshold_pct,
+                    int(sel["측정N(봉)"]), float(sweep_threshold_pct),
                     sel["BB"], dedup_label,
                     mpb_s, sweep_market, bb_window, bb_dev,
                     sec_cond=sel["2차조건"], hit_basis="종가 기준",
@@ -1312,140 +1389,143 @@ try:
                         return ""
                     styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
                     st.dataframe(styled_detail, use_container_width=True)
-
         # ---------------------------------------------------------
-        # 📈 일봉 종가 예측(실험) — ③/④ UI 불변, expander 내부만 사용
+        # 📈 일봉 종가 예측(실험) — 항상 '일봉' 데이터로 평가 (기간 짧아도 warmup 확보)
         # ---------------------------------------------------------
         st.markdown("---")
         st.subheader("📈 일봉 종가 예측(실험)")
-        if tf_label != "일봉":
-            st.caption("이 기능은 '봉 종류 = 일봉'에서만 동작합니다.")
-        else:
-            colA, colB, colC = st.columns([1,1,1])
-            with colA:
-                min_train = st.number_input("최소 학습일수", min_value=60, max_value=1000, value=180, step=10, key="pred_min_train")
-            with colB:
-                use_ols   = st.checkbox("OLS(선형회귀) 사용", value=True, key="pred_use_ols")
-            with colC:
-                run_pred  = st.button("▶ 예측 수행", use_container_width=True, key="btn_run_daily_pred")
+        colA, colB, colC = st.columns([1,1,1])
+        with colA:
+            min_train = st.number_input("최소 학습일수", min_value=60, max_value=1000, value=180, step=10, key="pred_min_train")
+        with colB:
+            use_ols   = st.checkbox("OLS(선형회귀) 사용", value=True, key="pred_use_ols")
+        with colC:
+            run_pred  = st.button("▶ 예측 수행", use_container_width=True, key="btn_run_daily_pred")
 
-            if run_pred:
-                df_day = df.copy()
-                if df_day is None or df_day.empty or len(df_day) < (min_train + 5):
-                    st.info("데이터가 부족합니다. 기간을 늘려주세요.")
+        if run_pred:
+            # 항상 일봉 데이터로 수집 + 학습 최소일수만큼 warmup 확보
+            minutes_per_bar_day = 24 * 60
+            df_day_raw = fetch_upbit_paged(
+                market_code, "days", start_dt, end_dt,
+                minutes_per_bar_day, warmup_bars=int(min_train) + 50
+            )
+            if df_day_raw is None or df_day_raw.empty:
+                st.info("일봉 데이터가 부족합니다. 날짜 범위를 넓혀주세요.")
+            else:
+                df_day = add_indicators(df_day_raw, bb_window, bb_dev, cci_window, cci_signal)
+
+                # --- 특성 준비
+                X = pd.DataFrame({
+                    "lag1": df_day["close"].shift(1),
+                    "ret1": df_day["close"].pct_change(1),
+                    "ret2": df_day["close"].pct_change(2),
+                    "ret3": df_day["close"].pct_change(3),
+                    "RSI13": df_day["RSI13"],
+                    "BB_mid": df_day["BB_mid"],
+                    "CCI": df_day["CCI"],
+                })
+                y = df_day["close"].copy()
+                feat = pd.concat([df_day[["time"]], X, y.rename("y")], axis=1).dropna().reset_index(drop=True)
+
+                if len(feat) < (int(min_train) + 5):
+                    st.info("학습 가능한 구간이 부족합니다. 날짜 범위를 넓혀주세요.")
                 else:
-                    # --- 특성 준비
-                    X = pd.DataFrame({
-                        "lag1": df_day["close"].shift(1),
-                        "ret1": df_day["close"].pct_change(1),
-                        "ret2": df_day["close"].pct_change(2),
-                        "ret3": df_day["close"].pct_change(3),
-                        "RSI13": df_day["RSI13"],
-                        "BB_mid": df_day["BB_mid"],
-                        "CCI": df_day["CCI"],
-                    })
-                    y = df_day["close"].copy()
-                    feat = pd.concat([df_day[["time"]], X, y.rename("y")], axis=1).dropna().reset_index(drop=True)
+                    # --- Walk-forward 예측
+                    preds = []
+                    import numpy as _np
 
-                    if len(feat) < (min_train + 5):
-                        st.info("학습 가능한 구간이 부족합니다. 날짜 범위를 넓혀주세요.")
-                    else:
-                        # --- Walk-forward 예측
-                        preds = []
-                        import numpy as _np
-
-                        def _ewma_pred(y_train: _np.ndarray):
-                            best_alpha, best_rmse = 0.2, float("inf")
-                            for a in _np.arange(0.05, 0.55, 0.05):
-                                ew = y_train[0]
-                                errs = []
-                                for v in y_train[1:]:
-                                    ew = a * v + (1 - a) * ew
-                                    errs.append(v - ew)
-                                rmse = (_np.mean(_np.square(errs)) ** 0.5) if errs else 1e9
-                                if rmse < best_rmse:
-                                    best_rmse, best_alpha = rmse, a
+                    def _ewma_pred(y_train: _np.ndarray):
+                        best_alpha, best_rmse = 0.2, float("inf")
+                        for a in _np.arange(0.05, 0.55, 0.05):
                             ew = y_train[0]
+                            errs = []
                             for v in y_train[1:]:
-                                ew = best_alpha * v + (1 - best_alpha) * ew
-                            return float(ew), best_alpha
+                                ew = a * v + (1 - a) * ew
+                                errs.append(v - ew)
+                            rmse = (_np.mean(_np.square(errs)) ** 0.5) if errs else 1e9
+                            if rmse < best_rmse:
+                                best_rmse, best_alpha = rmse, a
+                        ew = y_train[0]
+                        for v in y_train[1:]:
+                            ew = best_alpha * v + (1 - best_alpha) * ew
+                        return float(ew), best_alpha
 
-                        for i in range(min_train, len(feat)):
-                            train = feat.iloc[:i]
-                            test  = feat.iloc[i:i+1]
+                    for i in range(int(min_train), len(feat)):
+                        train = feat.iloc[:i]
+                        test  = feat.iloc[i:i+1]
 
-                            y_tr = train["y"].to_numpy(dtype=float)
-                            x_tr = train[["lag1","ret1","ret2","ret3","RSI13","BB_mid","CCI"]].to_numpy(dtype=float)
-                            x_te = test[["lag1","ret1","ret2","ret3","RSI13","BB_mid","CCI"]].to_numpy(dtype=float)[0]
+                        y_tr = train["y"].to_numpy(dtype=float)
+                        x_tr = train[["lag1","ret1","ret2","ret3","RSI13","BB_mid","CCI"]].to_numpy(dtype=float)
+                        x_te = test[["lag1","ret1","ret2","ret3","RSI13","BB_mid","CCI"]].to_numpy(dtype=float)[0]
 
-                            # Naive
-                            naive = float(train["y"].iloc[-1])
+                        # Naive
+                        naive = float(train["y"].iloc[-1])
 
-                            # EWMA
-                            ewma_val, alpha = _ewma_pred(y_tr)
+                        # EWMA
+                        ewma_val, alpha = _ewma_pred(y_tr)
 
-                            # OLS
-                            ols_val = None
-                            if use_ols:
-                                Xb = _np.c_[_np.ones(len(x_tr)), x_tr]
-                                try:
-                                    beta, *_ = _np.linalg.lstsq(Xb, y_tr, rcond=None)
-                                    ols_val = float(_np.dot(_np.r_[1.0, x_te], beta))
-                                except Exception:
-                                    ols_val = None
+                        # OLS
+                        ols_val = None
+                        if use_ols:
+                            Xb = _np.c_[_np.ones(len(x_tr)), x_tr]
+                            try:
+                                beta, *_ = _np.linalg.lstsq(Xb, y_tr, rcond=None)
+                                ols_val = float(_np.dot(_np.r_[1.0, x_te], beta))
+                            except Exception:
+                                ols_val = None
 
-                            y_true = float(test["y"].iloc[0])
-                            base   = float(train["y"].iloc[-1])
+                        y_true = float(test["y"].iloc[0])
+                        base   = float(train["y"].iloc[-1])
 
-                            rows = {
-                                "날짜": pd.to_datetime(test["time"].iloc[0]).strftime("%Y-%m-%d"),
-                                "실제종가": int(round(y_true)),
-                                "예측_Naive": int(round(naive)),
-                                "예측_EWMA": int(round(ewma_val)),
-                                "오차_Naive(%)": (naive / base - 1) * 100 if base else 0.0,
-                                "오차_EWMA(%)": (ewma_val / base - 1) * 100 if base else 0.0,
-                                "방향일치_Naive": int(_np.sign(naive - base) == _np.sign(y_true - base)),
-                                "방향일치_EWMA": int(_np.sign(ewma_val - base) == _np.sign(y_true - base)),
-                            }
-                            if ols_val is not None:
-                                rows["예측_OLS"] = int(round(ols_val))
-                                rows["오차_OLS(%)"] = (ols_val / base - 1) * 100 if base else 0.0
-                                rows["방향일치_OLS"] = int(_np.sign(ols_val - base) == _np.sign(y_true - base))
-                            preds.append(rows)
+                        rows = {
+                            "날짜": pd.to_datetime(test["time"].iloc[0]).strftime("%Y-%m-%d"),
+                            "실제종가": int(round(y_true)),
+                            "예측_Naive": int(round(naive)),
+                            "예측_EWMA": int(round(ewma_val)),
+                            "오차_Naive(%)": (naive / base - 1) * 100 if base else 0.0,
+                            "오차_EWMA(%)": (ewma_val / base - 1) * 100 if base else 0.0,
+                            "방향일치_Naive": int(_np.sign(naive - base) == _np.sign(y_true - base)),
+                            "방향일치_EWMA": int(_np.sign(ewma_val - base) == _np.sign(y_true - base)),
+                        }
+                        if ols_val is not None:
+                            rows["예측_OLS"] = int(round(ols_val))
+                            rows["오차_OLS(%)"] = (ols_val / base - 1) * 100 if base else 0.0
+                            rows["방향일치_OLS"] = int(_np.sign(ols_val - base) == _np.sign(y_true - base))
+                        preds.append(rows)
 
-                        out = pd.DataFrame(preds)
-                        # 요약 지표
-                        def _metric_hit(col_flag):
-                            return out[col_flag].mean() * 100 if col_flag in out else _np.nan
-                        def _rmse(pred_col):
-                            return float(_np.sqrt(_np.mean((_np.array(out[pred_col], dtype=float) - _np.array(out["실제종가"], dtype=float))**2))) if pred_col in out else _np.nan
-                        def _mape(pred_col):
-                            yt = _np.array(out["실제종가"], dtype=float)
-                            yp = _np.array(out[pred_col], dtype=float) if pred_col in out else None
-                            if yp is None: return _np.nan
-                            mask = yt != 0
-                            if not mask.any(): return _np.nan
-                            return float(_np.mean(_np.abs((yt[mask] - yp[mask]) / yt[mask])) * 100)
+                    out = pd.DataFrame(preds)
+                    # 요약 지표
+                    def _metric_hit(col_flag):
+                        return out[col_flag].mean() * 100 if col_flag in out else _np.nan
+                    def _rmse(pred_col):
+                        return float(_np.sqrt(_np.mean((_np.array(out[pred_col], dtype=float) - _np.array(out["실제종가"], dtype=float))**2))) if pred_col in out else _np.nan
+                    def _mape(pred_col):
+                        yt = _np.array(out["실제종가"], dtype=float)
+                        yp = _np.array(out[pred_col], dtype=float) if pred_col in out else None
+                        if yp is None: return _np.nan
+                        mask = yt != 0
+                        if not mask.any(): return _np.nan
+                        return float(_np.mean(_np.abs((yt[mask] - yp[mask]) / yt[mask])) * 100)
 
-                        cols_pred = [("Naive","예측_Naive"), ("EWMA","예측_EWMA")] + ([("OLS","예측_OLS")] if "예측_OLS" in out else [])
-                        summary = []
-                        for name, col in cols_pred:
-                            summary.append({
-                                "모델": name,
-                                "RMSE": round(_rmse(col), 2),
-                                "MAPE(%)": round(_mape(col), 2),
-                                "방향적중률(%)": round(_metric_hit(f"방향일치_{name}"), 1) if f"방향일치_{name}" in out else None
-                            })
-                        st.write("**요약 지표**")
-                        st.dataframe(pd.DataFrame(summary), use_container_width=True)
+                    cols_pred = [("Naive","예측_Naive"), ("EWMA","예측_EWMA")] + ([("OLS","예측_OLS")] if "예측_OLS" in out else [])
+                    summary = []
+                    for name, col in cols_pred:
+                        summary.append({
+                            "모델": name,
+                            "RMSE": round(_rmse(col), 2),
+                            "MAPE(%)": round(_mape(col), 2),
+                            "방향적중률(%)": round(_metric_hit(f"방향일치_{name}"), 1) if f"방향일치_{name}" in out else None
+                        })
+                    st.write("**요약 지표**")
+                    st.dataframe(pd.DataFrame(summary), use_container_width=True)
 
-                        show_cols = ["날짜","실제종가","예측_Naive","예측_EWMA","예측_OLS",
-                                     "오차_Naive(%)","오차_EWMA(%)","오차_OLS(%)",
-                                     "방향일치_Naive","방향일치_EWMA","방향일치_OLS"]
-                        show_cols = [c for c in show_cols if c in out.columns]
-                        st.dataframe(out[show_cols].tail(120), use_container_width=True)
-                        csv_pred = out.to_csv(index=False).encode("utf-8-sig")
-                        st.download_button("⬇ 예측 결과 CSV 다운로드", data=csv_pred, file_name="daily_close_prediction.csv", mime="text/csv", use_container_width=True)
+                    show_cols = ["날짜","실제종가","예측_Naive","예측_EWMA","예측_OLS",
+                                 "오차_Naive(%)","오차_EWMA(%)","오차_OLS(%)",
+                                 "방향일치_Naive","방향일치_EWMA","방향일치_OLS"]
+                    show_cols = [c for c in show_cols if c in out.columns]
+                    st.dataframe(out[show_cols].tail(120), use_container_width=True)
+                    csv_pred = out.to_csv(index=False).encode("utf-8-sig")
+                    st.download_button("⬇ 예측 결과 CSV 다운로드", data=csv_pred, file_name="daily_close_prediction.csv", mime="text/csv", use_container_width=True)
 
     # -----------------------------
     # ④ 신호 결과 (테이블)
