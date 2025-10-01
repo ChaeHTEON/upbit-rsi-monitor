@@ -1248,9 +1248,8 @@ try:
 
         fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
                                 key="sweep_fast_mode", on_change=_keep_sweep_open)
-        run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
+           run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
 
-        # === 조합 스캔 실행 로직 (복구) ===
         df_show = None
         if run_sweep:
             # 스캔 기간(빠른 테스트 모드 시 최근 30일)
@@ -1258,23 +1257,21 @@ try:
                                    datetime.min.time())
             edt = datetime.combine(sweep_end, datetime.max.time())
 
-            # 현재 UI 조건을 기준으로 '타임프레임' 조합을 스캔 (조합 스캔의 최소 복구)
             tf_list = list(TF_MAP.keys())
             rows = []
 
-            # 스캔 시 중복 처리 라벨(상세 보기 재계산에서도 동일 라벨 사용)
-            dedup_label = "중복 제거 (연속 동일 결과 1개)"  # 상세보기에서 사용
+            # 항상 "중복 제거" 기준으로 스캔
+            dedup_label = "중복 제거 (연속 동일 결과 1개)"
             st.session_state["sweep_dedup_label"] = dedup_label
 
             for tf_lbl in tf_list:
                 interval_key_s, mpb_s = TF_MAP[tf_lbl]
-                # 데이터 수집 + 지표
                 df_raw_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
                 if df_raw_s is None or df_raw_s.empty:
                     continue
                 df_s = add_indicators(df_raw_s, bb_window, bb_dev, cci_window, cci_signal)
 
-                # 시뮬레이션(중복 제거 기준)
+                # === 시뮬레이션 실행 ===
                 res_s = simulate(
                     df_s, rsi_mode, rsi_low, rsi_high,
                     lookahead, float(sweep_threshold_pct),
@@ -1285,6 +1282,41 @@ try:
                     bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                     cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
                 )
+
+                # === 결과 요약 행 ===
+                if res_s is not None and not res_s.empty:
+                    tot = len(res_s)
+                    succ = (res_s["결과"] == "성공").sum()
+                    fail = (res_s["결과"] == "실패").sum()
+                    neu  = (res_s["결과"] == "중립").sum()
+                    win  = (succ / tot * 100.0) if tot else 0.0
+                    avg_final = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s else 0.0
+                else:
+                    tot = succ = fail = neu = 0
+                    win = avg_final = 0.0
+
+                rows.append({
+                    "타임프레임": tf_lbl,
+                    "측정N(봉)": int(lookahead),
+                    "RSI": rsi_mode,
+                    "BB": bb_cond,
+                    "2차조건": sec_cond,
+                    "신호수": tot,
+                    "성공": succ,
+                    "실패": fail,
+                    "중립": neu,
+                    "승률(%)": round(win, 1),
+                    "최종수익률 평균(%)": round(avg_final, 2),
+                })
+
+            df_show = pd.DataFrame(rows)
+            st.session_state["df_show"] = df_show
+            st.session_state["sweep_state"] = {"params": {"sdt": sdt, "edt": edt, "market": sweep_market}}
+
+            if df_show.empty:
+                st.info("조건을 만족하는 결과가 없습니다. 기간/조건을 조정해 보세요.")
+            else:
+                st.dataframe(df_show, use_container_width=True)
 
                 # 요약 행
                 if res_s is not None and not res_s.empty:
