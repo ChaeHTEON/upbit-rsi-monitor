@@ -1238,17 +1238,9 @@ try:
         sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
                                     key="sweep_end", on_change=_keep_sweep_open)
 
-        # ✅ 수정: 목표수익률 + 승률기준을 나란히 배치 (2칸)
-        col_thr, col_win = st.columns(2)
-        with col_thr:
-            sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
-                                            key="sweep_threshold_pct", on_change=_keep_sweep_open)
-        with col_win:
-            sweep_winrate_thr   = st.slider("승률 기준(%) (통계 전용)", 10, 100, int(winrate_thr), step=1,
-                                            key="sweep_winrate_thr", on_change=_keep_sweep_open)
-
         fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
                                 key="sweep_fast_mode", on_change=_keep_sweep_open)
+
         run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
         if run_sweep and not st.session_state.get("use_sweep_wrapper"):
             prog = st.progress(0)
