@@ -224,19 +224,16 @@ with c14:
 with c15:
     cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
 with c13:
-    cci_mode_label = st.selectbox(
+    cci_mode = st.selectbox(
         "CCI 조건",
-        ["없음",
-         f"과매수(≥{cci_over})",
-         f"과매도(≤{cci_under})"],
+        options=["없음", "과매수", "과매도"],
+        format_func=lambda x: (
+            "없음" if x == "없음" else
+            f"과매수(≥{cci_over})" if x == "과매수" else
+            f"과매도(≤{cci_under})"
+        ),
         index=0
     )
-    if "과매수" in cci_mode_label:
-        cci_mode = "과매수"
-    elif "과매도" in cci_mode_label:
-        cci_mode = "과매도"
-    else:
-        cci_mode = "없음"
 st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
 sec_cond = st.selectbox(
     "2차 조건 선택",
@@ -1405,18 +1402,7 @@ try:
         )
 
     st.markdown("---")
-
-    # -----------------------------
-    # ④ 신호 결과 (최신 순)
-    # -----------------------------
-    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    if res is None or res.empty:
-        st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
-    else:
-        ...
-        st.dataframe(styled_tbl, width="stretch")
-
-    st.markdown("---")
+    # 📒 공유 메모 바로 위에서는 ④ 신호 결과 블록 제거
 
     # -----------------------------
     # 🔎 통계/조합 탐색 (사용자 지정) — 📒 공유 메모 위로 이동
