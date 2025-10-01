@@ -894,11 +894,6 @@ try:
         st.session_state.buy_price_text = "0"
     buy_price = st.session_state.get("buy_price", 0)
 
-    # ✅ 최적화뷰 즉시 토글 콜백 (1클릭 반영 + 즉시 재실행)
-    def _toggle_opt_view():
-        st.session_state.opt_view = not st.session_state.get("opt_view", False)
-        st.rerun()
-
     # ===== 시뮬레이션 (중복 포함/제거) =====
     res_all = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
@@ -1124,60 +1119,19 @@ try:
             name=""
         ), row=1, col=1)
 
-    # ===== 최적화뷰: 최근 70봉 꽉찬 비율 + AutoScale 확실히 보장 =====
-    if st.session_state.get("opt_view") and len(df_plot) > 0:
+    # ===== 최적화뷰: x축 범위 적용 =====
+    if st.session_state.get("opt_view") and len(df) > 0:
+        window_n = max(int(len(df) * 0.15), 200)
+        start_idx = max(len(df) - window_n, 0)
         try:
-            window_n = 70
-            end_idx   = len(df_plot) - 1
-            start_idx = max(end_idx - window_n + 1, 0)
-
-            x_start = df_plot.iloc[start_idx]["time"]
-            x_end   = df_plot.iloc[end_idx]["time"]
-
-            # X축: 최근 70봉 범위 강제 적용
-            fig.update_xaxes(range=[x_start, x_end], autorange=False, row=1, col=1)
-            fig.update_xaxes(range=[x_start, x_end], autorange=False, row=2, col=1)
-
-            # Y축: 기존 range 해제 후 AutoScale 적용 (항상 꽉 차게)
-            fig.update_yaxes(range=None, autorange=True, row=1, col=1)
-            fig.update_yaxes(range=None, autorange=True, row=2, col=1)
+            x_start = df.iloc[start_idx]["time"]
+            x_end   = df.iloc[-1]["time"]
+            fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
+            fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
         except Exception:
             pass
 
-    # ===== 신호 마커 & 점선 (성공/실패/중립) =====
-    if res is not None and not res.empty:
-        for label, color, symbol in [("성공", "red", "triangle-up"),
-                                     ("실패", "blue", "triangle-down"),
-                                     ("중립", "green", "circle")]:
-            sub = res[res["결과"] == label]
-            if not sub.empty:
-                # 마커
-                fig.add_trace(go.Scatter(
-                    x=sub["신호시간"], y=sub["기준시가"],
-                    mode="markers", name=f"신호 ({label})",
-                    marker=dict(size=9, color=color, symbol=symbol,
-                                line=dict(width=1, color="black")),
-                    hovertemplate="신호=%{x}<br>기준시가=%{y:,}<extra></extra>"
-                ), row=1, col=1)
-                # 점선 (anchor~종료 구간)
-                for _, row_sig in sub.iterrows():
-                    try:
-                        anchor_time = row_sig["신호시간"]
-                        end_time = row_sig["종료시간"]
-                        base_y   = row_sig["기준시가"]
-                        fig.add_shape(
-                            type="line",
-                            x0=anchor_time, x1=end_time,
-                            y0=base_y, y1=base_y,
-                            line=dict(color=color, width=1, dash="dot"),
-                            xref="x", yref="y"
-                        )
-                    except Exception:
-                        continue
-
     # ===== 레이아웃 (AutoScale 기본값 명시) =====
-    import numpy as _np
-    _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{len(df_plot)}-{_np.random.randint(1e6)}"
     fig.update_layout(
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan",
@@ -1186,10 +1140,10 @@ try:
         legend_orientation="h",
         legend_y=1.02,
         margin=dict(l=30, r=30, t=60, b=40),
-        yaxis=dict(title="가격", autorange=True, fixedrange=False),
+        yaxis=dict(title="가격", autorange=True,  fixedrange=False),
         yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
-        yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True, fixedrange=False),
-        uirevision=_uirev,
+        yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
+        uirevision="chart-static",
         hovermode="closest"
     )
     # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
@@ -1211,8 +1165,8 @@ try:
 
         with top_r:
             label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-            # ✅ 콜백 적용 → 1클릭 즉시 반영
-            st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
+            if st.button(label, key="btn_opt_view_top"):
+                st.session_state.opt_view = not st.session_state.opt_view
 
         st.plotly_chart(
             fig,
