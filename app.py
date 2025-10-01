@@ -932,7 +932,15 @@ try:
         if sel_anchor is not None:
             start_idx = int(sel_anchor)
             end_idx   = min(start_idx + 70, len(df) - 1)
-            df_view   = df.iloc[start_idx:end_idx+1].reset_index(drop=True)
+            x_start   = df.iloc[start_idx]["time"]
+            x_end     = df.iloc[end_idx]["time"]
+
+            # 데이터는 전체 유지
+            df_view   = df.reset_index(drop=True)
+
+            # 차트 X축만 해당 구간으로 확대
+            fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
+            fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
 
     # -----------------------------
     # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
@@ -1415,9 +1423,15 @@ try:
             if df_keep.empty:
                 st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
             else:
+                # 정렬은 숫자 컬럼 기준으로 먼저 수행
+                if "승률(%)" in df_keep and pd.api.types.is_numeric_dtype(df_keep["승률(%)"]):
+                    sort_cols = ["결과","승률(%)","신호수","합계수익률(%)"]
+                else:
+                    sort_cols = ["결과","신호수","합계수익률(%)"]
+
                 df_show = df_keep.sort_values(
-                    ["결과","승률(%)","신호수","합계수익률(%)"],
-                    ascending=[True,False,False,False]
+                    sort_cols,
+                    ascending=[True,False,False,False][:len(sort_cols)]
                 ).reset_index(drop=True)
 
                 if "날짜" not in df_show:
@@ -1426,8 +1440,9 @@ try:
                     else:
                         df_show["날짜"] = ""
 
+                # 정렬 후 퍼센트 문자열 변환
                 for col in ["목표수익률(%)","승률(%)","평균수익률(%)","합계수익률(%)"]:
-                    if col in df_show:
+                    if col in df_show and pd.api.types.is_numeric_dtype(df_show[col]):
                         df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
                 if "BB_승수" in df_show:
                     df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
