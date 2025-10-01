@@ -219,6 +219,10 @@ with c12:
     cci_signal = st.number_input("CCI 신호(평균)", min_value=1, max_value=50, value=9, step=1)
 
 c13, c14, c15 = st.columns(3)
+with c14:
+    cci_over = st.number_input("CCI 과매수 기준", min_value=0, max_value=300, value=100, step=5)
+with c15:
+    cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
 with c13:
     cci_mode_label = st.selectbox(
         "CCI 조건",
@@ -233,11 +237,6 @@ with c13:
         cci_mode = "과매도"
     else:
         cci_mode = "없음"
-with c14:
-    cci_over = st.number_input("CCI 과매수 기준", min_value=0, max_value=300, value=100, step=5)
-with c15:
-    cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
-
 st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
 sec_cond = st.selectbox(
     "2차 조건 선택",
