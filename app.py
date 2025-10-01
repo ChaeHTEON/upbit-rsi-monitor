@@ -929,6 +929,7 @@ try:
             options=plot_res["anchor_i"].tolist(),
             index=len(plot_res) - 1
         )
+        sel_xrange = None
         if sel_anchor is not None:
             start_idx = int(sel_anchor)
             end_idx   = min(start_idx + 70, len(df) - 1)
@@ -937,10 +938,7 @@ try:
 
             # 데이터는 전체 유지
             df_view   = df.reset_index(drop=True)
-
-            # 차트 X축만 해당 구간으로 확대
-            fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
-            fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
+            sel_xrange = (x_start, x_end)
 
     # -----------------------------
     # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
@@ -1423,7 +1421,6 @@ try:
             if df_keep.empty:
                 st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
             else:
-                # 정렬은 숫자 컬럼 기준으로 먼저 수행
                 if "승률(%)" in df_keep and pd.api.types.is_numeric_dtype(df_keep["승률(%)"]):
                     sort_cols = ["결과","승률(%)","신호수","합계수익률(%)"]
                 else:
@@ -1456,7 +1453,7 @@ try:
                     subset=["평균수익률(%)","합계수익률(%)"]
                 )
                 if not df_show.empty:
-                    sel_idx_combo = st.selectbox("🔎 조합 인덱스 선택", df_show.index.tolist(), key="sel_idx_combo")
+                    sel_idx_combo = st.selectbox("🔎 조합 인덱스 선택", df_show.index.tolist(), key="sel_idx_combo_fixed")
                     if sel_idx_combo is not None and "anchor_i" in df_show.columns:
                         start_idx = int(df_show.loc[sel_idx_combo, "anchor_i"])
                         end_idx   = min(start_idx + 70, len(df) - 1)
@@ -1543,7 +1540,7 @@ try:
                                 return ""
                             styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
                             if not res_detail.empty:
-                                sel_idx_detail = st.selectbox("🔎 세부 신호 인덱스 선택", res_detail.index.tolist(), key="sel_idx_detail")
+                                sel_idx_detail = st.selectbox("🔎 세부 신호 인덱스 선택", res_detail.index.tolist(), key="sel_idx_detail_fixed")
                                 if sel_idx_detail is not None and "anchor_i" in res_detail.columns:
                                     sig_time = pd.to_datetime(res_detail.loc[sel_idx_detail, "신호시간"])
                                     anchor_idx = (df["time"] - sig_time).abs().idxmin()
@@ -1555,7 +1552,7 @@ try:
                                     st.plotly_chart(fig, use_container_width=True)
 
                             if not res_detail.empty and "신호시간" in res_detail.columns:
-                                sel_idx_detail = st.selectbox("🔎 세부 신호 인덱스 선택", res_detail.index.tolist(), key="sel_idx_detail")
+                                sel_idx_tbl = st.selectbox("🔎 신호 결과 인덱스 선택", tbl.index.tolist(), key="sel_idx_tbl_fixed")
                                 if sel_idx_detail is not None:
                                     sig_time = pd.to_datetime(res_detail.loc[sel_idx_detail, "신호시간"])
                                     anchor_idx = (df["time"] - sig_time).abs().idxmin()
