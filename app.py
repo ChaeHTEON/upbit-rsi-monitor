@@ -1789,8 +1789,8 @@ try:
         # CSV 업로드 버튼 (기존 로직 유지)
         tf_key = (interval_key.split("min")[0] + "min") if "min" in interval_key else "day"
         data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
-        csv_path = os.path.join(data_dir, f"{symbol}_{tf_key}.csv")
-        root_csv = os.path.join(os.path.dirname(__file__), f"{symbol}_{tf_key}.csv")
+        csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+        root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
         if st.button("📤 CSV GitHub 업로드"):
             target_file = csv_path if os.path.exists(csv_path) else root_csv
             if os.path.exists(target_file):
