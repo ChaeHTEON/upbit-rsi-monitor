@@ -538,7 +538,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, thr_pct, bb_cond, dedup
         base_sig_idx = df.index[
             (df["RSI13"] <= float(rsi_low)) &
             (df["close"] <= df["BB_low"]) &
-            (df["CCI"] <= -100)
+            (df["CCI"] <= float(cci_under))
         ].tolist()
     else:
         # RSI
