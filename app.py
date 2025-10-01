@@ -1029,13 +1029,14 @@ try:
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # -----------------------------
+    # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (긴 구간 안정화)
     # -----------------------------
-    # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (긴 구간 대응)
-    # -----------------------------
-    max_bars = 5000  # 긴 기간일 경우 최대 5000봉까지만 표시
+    max_bars = 5000
     df_view = df.copy()
     if len(df_view) > max_bars:
         df_view = df_view.iloc[-max_bars:].reset_index(drop=True)
+    else:
+        df_view = df_view.reset_index(drop=True)
 
     plot_res = pd.DataFrame()
     if res is not None and not res.empty:
@@ -1617,16 +1618,20 @@ try:
                     else:
                         df_show["날짜"] = ""
 
-                # 숫자 비교에 쓰이는 컬럼은 float 유지 → 출력할 때만 포맷 적용
-                for col in ["목표수익률(%)","평균수익률(%)","합계수익률(%)"]:
+                # 포맷팅 복구: 예전 기준
+                if "RSI(13)" in df_show:
+                    df_show["RSI(13)"] = df_show["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
+
+                if "성공기준(%)" in df_show:
+                    df_show["성공기준(%)"] = df_show["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+
+                for col in ["최종수익률(%)","최저수익률(%)","최고수익률(%)","평균수익률(%)","합계수익률(%)"]:
                     if col in df_show:
                         df_show[col] = df_show[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
 
-                # 승률(%)는 float 값 유지, 화면 표시는 별도 컬럼 추가
                 if "승률(%)" in df_show:
-                    df_show["승률(%)_표시"] = df_show["승률(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+                    df_show["승률(%)"] = df_show["승률(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
 
-                # BB 승수 표기(소수 1자리) — 독립 블록 (중첩 금지)
                 if "BB_승수" in df_show:
                     df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: f"{float(v):.1f}" if pd.notna(v) else "")
 
