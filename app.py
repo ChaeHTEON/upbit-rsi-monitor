@@ -1040,6 +1040,62 @@ try:
         customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
     ), row=1, col=1)
 
+    # ===== 신호마커/점선/⭐ 표시 (신호 결과 기반) =====
+    if not plot_res.empty:
+        for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
+            sub = plot_res[plot_res["결과"] == _label]
+            if sub.empty:
+                continue
+            fig.add_trace(go.Scatter(
+                x=pd.to_datetime(sub["신호시간"]),
+                y=sub["기준시가"], mode="markers",
+                name=f"신호({_label})",
+                marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
+            ), row=1, col=1)
+
+        legend_emitted = {"성공": False, "실패": False, "중립": False}
+        for _, row_ in plot_res.iterrows():
+            a_i = int(row_["anchor_i"]); e_i = int(row_["end_i"])
+            a_i = max(0, min(a_i, len(df_plot) - 1))
+            e_i = max(0, min(e_i, len(df_plot) - 1))
+
+            x_seg = [df_plot.at[a_i, "time"], df_plot.at[e_i, "time"]]
+            y_seg = [float(df_plot.at[a_i, "close"]), float(df_plot.at[e_i, "close"])]
+
+            fig.add_trace(go.Scatter(
+                x=x_seg, y=y_seg, mode="lines",
+                line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
+                showlegend=False, hoverinfo="skip"
+            ), row=1, col=1)
+
+            if row_["결과"] == "성공":
+                fig.add_trace(go.Scatter(
+                    x=[df_plot.at[e_i, "time"]],
+                    y=[float(df_plot.at[e_i, "close"])],
+                    mode="markers", name="도달⭐",
+                    marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
+                    showlegend=not legend_emitted["성공"]
+                ), row=1, col=1)
+                legend_emitted["성공"] = True
+            elif row_["결과"] == "실패":
+                fig.add_trace(go.Scatter(
+                    x=[df_plot.at[e_i, "time"]],
+                    y=[float(df_plot.at[e_i, "close"])],
+                    mode="markers", name="실패❌",
+                    marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=not legend_emitted["실패"]
+                ), row=1, col=1)
+                legend_emitted["실패"] = True
+            elif row_["결과"] == "중립":
+                fig.add_trace(go.Scatter(
+                    x=[df_plot.at[e_i, "time"]],
+                    y=[float(df_plot.at[e_i, "close"])],
+                    mode="markers", name="중립❌",
+                    marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
+                    showlegend=not legend_emitted["중립"]
+                ), row=1, col=1)
+                legend_emitted["중립"] = True
+
     # ===== RSI 라인 (row1, y2) =====
     fig.add_trace(go.Scatter(
         x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
