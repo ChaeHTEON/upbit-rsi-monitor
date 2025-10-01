@@ -1119,27 +1119,25 @@ try:
             name=""
         ), row=1, col=1)
 
-    # ===== 최적화뷰: 최근 70봉 비율 + AutoScale =====
+    # ===== 최적화뷰: 최근 70봉 꽉찬 화면 + AutoScale =====
     if st.session_state.get("opt_view") and len(df) > 0:
         try:
-            # 최근 70봉 기준으로 화면 초기화
+            # 최근 70봉만 선택
             window_n = 70
             start_idx = max(len(df) - window_n, 0)
-            end_idx   = len(df) - 1
+            end_idx   = start_idx + window_n - 1
+            if end_idx >= len(df):
+                end_idx = len(df) - 1
 
             x_start = df.iloc[start_idx]["time"]
             x_end   = df.iloc[end_idx]["time"]
 
-            # X축: 최근 70봉 범위로 맞춤
+            # X축: 최근 70봉만 딱 보이도록 설정
             fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
             fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
 
-            # Y축: 최근 70봉 데이터에 맞춰 AutoScale
-            y_min = df.iloc[start_idx:end_idx+1]["low"].min()
-            y_max = df.iloc[start_idx:end_idx+1]["high"].max()
-            pad = (y_max - y_min) * 0.05
-
-            fig.update_yaxes(range=[y_min - pad, y_max + pad], autorange=True, row=1, col=1)
+            # Y축: Plotly 기본 AutoScale 적용
+            fig.update_yaxes(autorange=True, row=1, col=1)
             fig.update_yaxes(autorange=True, row=2, col=1)
         except Exception:
             pass
