@@ -1802,9 +1802,5 @@ with st.expander("📒 공유 메모 (GitHub 연동, 전체 공통)", expanded=F
             else:
                 st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
 
-# (중간 코드들…)
-# 실행 블록(try:) 내부의 적절한 위치에서 아래 한 줄만 호출
-render_shared_notes_section()
-
 except Exception as e:
     st.error(f"오류: {e}")
