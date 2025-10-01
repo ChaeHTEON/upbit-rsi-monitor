@@ -1744,7 +1744,6 @@ try:
 # -----------------------------
 SHARED_NOTES_FILE = os.path.join(os.path.dirname(__file__), "shared_notes.md")
 
-# 파일 읽기(없으면 빈 문자열)
 _notes_text = ""
 try:
     if not os.path.exists(SHARED_NOTES_FILE):
@@ -1756,15 +1755,9 @@ except Exception:
     _notes_text = ""
 
 with st.expander("📒 공유 메모 (GitHub 연동, 전체 공통)", expanded=False):
-    # 입력창 (Markdown 지원)
-    notes_text = st.text_area(
-        "내용 (Markdown 지원)",
-        value=_notes_text,
-        height=220,
-        key="shared_notes_text"
-    )
+    notes_text = st.text_area("내용 (Markdown 지원)", value=_notes_text, height=220, key="shared_notes_text")
 
-    # 입력 즉시 렌더링 (문법 적용)
+    # 입력 즉시 랜더링
     if notes_text.strip():
         st.markdown(notes_text, unsafe_allow_html=True)
     else:
