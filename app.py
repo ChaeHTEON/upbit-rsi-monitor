@@ -1106,7 +1106,7 @@ try:
     ), row=1, col=1)
     fig.add_trace(go.Scatter(
         x=df_plot["time"], y=df_plot["BB_mid"], mode="lines",
-        line=dict(color="#8D99AE", width=1.1, dash="dot"), name="BB 중앙",
+        line=dict(color="#8D99AE", width=1.4, dash="dot"), name="BB 중앙",
         customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
     ), row=1, col=1)
 
