@@ -1002,6 +1002,38 @@ try:
         hoverinfo="text"
     ), row=1, col=1)
 
+    # ===== 신호 마커 + 세로 점선 =====
+    if res is not None and not res.empty:
+        for label, color, symbol in [("성공", "red", "triangle-up"),
+                                     ("실패", "blue", "triangle-down"),
+                                     ("중립", "orange", "circle")]:
+            sub = res[res["결과"] == label]
+            if not sub.empty:
+                # 마커
+                fig.add_trace(go.Scatter(
+                    x=sub["신호시간"], y=sub["기준시가"], mode="markers",
+                    name=f"신호 ({label})",
+                    marker=dict(size=9, color=color, symbol=symbol,
+                                line=dict(width=1, color="black")),
+                    hovertemplate="신호시간=%{x}<br>기준시가=%{y:,}<extra></extra>"
+                ), row=1, col=1)
+                # 세로 점선 (신호 시작~종료 구간)
+                for _, row_sig in sub.iterrows():
+                    try:
+                        anchor_time = row_sig["신호시간"]
+                        end_idx = df.index[df["time"] >= anchor_time][0] + lookahead
+                        if end_idx < len(df):
+                            end_time = df.iloc[end_idx]["time"]
+                            fig.add_shape(
+                                type="line",
+                                x0=anchor_time, x1=end_time,
+                                y0=df["low"].min(), y1=df["high"].max(),
+                                line=dict(color=color, width=1, dash="dot"),
+                                xref="x", yref="y"
+                            )
+                    except Exception:
+                        continue
+
     # ===== BB 라인 (row1) =====
     def _pnl_arr2(y_series):
         if buy_price <= 0:
