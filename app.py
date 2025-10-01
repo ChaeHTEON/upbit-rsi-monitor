@@ -1252,6 +1252,10 @@ try:
 
         # (조합 스캔 실행 로직, df_all 처리 등 원본 그대로 유지)
 
+        selected_idx = None
+        if "df_show" in locals() and df_show is not None and not df_show.empty:
+            selected_idx = st.selectbox("🔎 조합 선택", df_show.index.tolist())
+
         if selected_idx is not None:
             sel = df_show.loc[selected_idx]
             st.info(f"선택된 조건: {sel.to_dict()}")
