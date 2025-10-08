@@ -679,7 +679,11 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
         if anchor_idx >= n:
             return None, None
         signal_time = df.at[anchor_idx, "time"]
-        base_price = float(df.at[anchor_idx, "open"])
+        # ✅ 매수가: 신호 이후 다음 캔들의 시가 기준
+        if anchor_idx + 1 < n:
+            base_price = float(df.at[anchor_idx + 1, "open"])
+        else:
+            base_price = float(df.at[anchor_idx, "open"])
 
         if sec_cond == "양봉 2개 연속 상승":
             if i0 + 2 >= n:
@@ -1147,11 +1151,15 @@ try:
                         continue
             time.sleep(60)  # 1분마다 주기 실행
 
-    # --- 쓰레드 1회만 시작 ---
-    if "multi_watch_thread" not in st.session_state:
-        t = threading.Thread(target=periodic_multi_check, daemon=True)
-        t.start()
-        st.session_state["multi_watch_thread"] = True
+    # --- 쓰레드 안전 시작 (중복/누락 방지) ---
+    import threading
+    if "multi_watch_thread" not in st.session_state or not st.session_state["multi_watch_thread"]:
+        if threading.active_count() < 50:  # 안전 한도
+            t = threading.Thread(target=periodic_multi_check, daemon=True)
+            t.start()
+            st.session_state["multi_watch_thread"] = True
+        else:
+            st.warning("⚠️ 실시간 감시 스레드가 이미 실행 중입니다.")
 
     # --- 알람 박스 출력 ---
     st.markdown("### 🚨 실시간 알람 목록")
