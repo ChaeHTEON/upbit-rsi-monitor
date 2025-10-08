@@ -1086,77 +1086,10 @@ try:
     import threading, time
     from datetime import datetime, timedelta
 
-    def render_realtime_monitor(container):
-        container.markdown("---")
-        container.markdown("### 👁️ 실시간 감시 설정")
-
-        watch_symbols = container.multiselect(
-            "감시할 종목 선택 (Upbit 기준)",
-            [m[1] for m in MARKET_LIST],
-            default=["KRW-BTC"]
-        )
-        watch_timeframes = container.multiselect(
-            "감시할 봉 종류 선택",
-            ["1분", "3분", "5분", "15분", "30분", "60분", "일봉"],
-            default=["5분"]
-        )
-
-        if "alerts" not in st.session_state:
-            st.session_state["alerts"] = []
-        if "last_alert_time" not in st.session_state:
-            st.session_state["last_alert_time"] = {}
-
-        def add_alert(msg):
-            if msg not in st.session_state["alerts"]:
-                st.session_state["alerts"].append(msg)
-    
-        def periodic_multi_check():
-            TF_MAP = {
-                "1분": ("minutes/1", 1),
-                "3분": ("minutes/3", 3),
-                "5분": ("minutes/5", 5),
-                "15분": ("minutes/15", 15),
-                "30분": ("minutes/30", 30),
-                "60분": ("minutes/60", 60),
-                "일봉": ("days", 24 * 60),
-            }
-    
-            while True:
-                now = datetime.now()
-                for symbol in watch_symbols:
-                    for tf_label in watch_timeframes:
-                        interval_key, minutes_per_bar = TF_MAP[tf_label]
-                        start_dt = now - timedelta(hours=1)
-                        end_dt = now
-                        try:
-                            df_w = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar)
-                            df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
-                            if check_maemul_auto_signal(df_w):
-                                key = f"{symbol}_{tf_label}"
-                                last_time = st.session_state["last_alert_time"].get(key, datetime(2000, 1, 1))
-                                if (now - last_time).seconds >= 600:
-                                    msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
-                                    add_alert(msg)
-                                    send_kakao_alert(msg)
-                                    st.session_state["last_alert_time"][key] = now
-                                    st.toast(msg)
-                        except Exception as e:
-                            print(f"[WARN] periodic check failed for {symbol} {tf_label}: {e}");
-                            continue
-                time.sleep(60)
-    
-        if "multi_watch_thread" not in st.session_state:
-            t = threading.Thread(target=periodic_multi_check, daemon=True)
-            t.start()
-            st.session_state["multi_watch_thread"] = True
-    
-        container.markdown("### 🚨 실시간 알람 목록")
-        if st.session_state["alerts"]:
-            for i, alert in enumerate(st.session_state["alerts"]):
-                container.warning(f"{i + 1}. {alert}" )
-        else:
-            container.info("현재까지 감지된 실시간 알람이 없습니다.")
+    def render_realtime_monitor():
+        st.markdown("---")
         st.markdown("### 👁️ 실시간 감시 설정")
+
         watch_symbols = st.multiselect(
             "감시할 종목 선택 (Upbit 기준)",
             [m[1] for m in MARKET_LIST],
@@ -1185,9 +1118,8 @@ try:
                 "15분": ("minutes/15", 15),
                 "30분": ("minutes/30", 30),
                 "60분": ("minutes/60", 60),
-                "일봉": ("days", 24*60),
+                "일봉": ("days", 24 * 60),
             }
-
             while True:
                 now = datetime.now()
                 for symbol in watch_symbols:
@@ -1195,18 +1127,18 @@ try:
                         interval_key, minutes_per_bar = TF_MAP[tf_label]
                         start_dt = now - timedelta(hours=1)
                         end_dt = now
-
                         try:
                             df_w = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar)
                             df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
                             if check_maemul_auto_signal(df_w):
                                 key = f"{symbol}_{tf_label}"
-                                last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
+                                last_time = st.session_state["last_alert_time"].get(key, datetime(2000, 1, 1))
                                 if (now - last_time).seconds >= 600:
                                     msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
                                     add_alert(msg)
                                     send_kakao_alert(msg)
                                     st.session_state["last_alert_time"][key] = now
+                                    st.toast(msg)
                         except Exception as e:
                             print(f"[WARN] periodic check failed for {symbol} {tf_label}: {e}")
                             continue
@@ -1217,16 +1149,14 @@ try:
             t.start()
             st.session_state["multi_watch_thread"] = True
 
-        container.markdown("### 🚨 실시간 알람 목록")
+        st.markdown("### 🚨 실시간 알람 목록")
         if st.session_state["alerts"]:
             for i, alert in enumerate(st.session_state["alerts"]):
-                container.warning(f"{i+1}. {alert}")
+                st.warning(f"{i+1}. {alert}")
         else:
-            container.info("현재까지 감지된 실시간 알람이 없습니다.")
-
+            st.info("현재까지 감지된 실시간 알람이 없습니다.")
 # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
-monitor_box = st.container()
-render_realtime_monitor(monitor_box)
+render_realtime_monitor()
 # 보기 요약 텍스트
 total_min = lookahead * int(minutes_per_bar)
 hh, mm = divmod(total_min, 60)
