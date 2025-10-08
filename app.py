@@ -1,3 +1,4 @@
+from typing import Optional
 # app.py
 # -*- coding: utf-8 -*-
 import os  # ★ 추가
@@ -529,7 +530,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
              supply_levels: Optional[Set[float]] = None,
              manual_supply_levels: Optional[list] = None,
              cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9,
-             df_day: Optional[pd.DataFrame] = None):  # ✅ 일봉 데이터 전달 인자 추가
+             df_day: Optional[pd.DataFrame] = None, df_day_all: Optional[pd.DataFrame] = None):  # ✅ 일봉 데이터 전달 인자 추가
     """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 + CCI 1차 조건."""
     res = []
     n = len(df)
@@ -731,146 +732,48 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
 
         # === 매물대 자동 (하단→상단 재진입 + BB하단 위 양봉) ===
         elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
-            anchor_idx = None
-            scan_end = min(i0 + lookahead, n - 1)
+anchor_idx = None
+scan_end = min(i0 + lookahead, n - 1)
 
-            # === 일봉 데이터 1회 로드 (검색 시작~종료 + 30일 버퍼) ===
-            day_start = pd.to_datetime(df["time"].iloc[0]) - timedelta(days=30)
-            day_end   = pd.to_datetime(df["time"].iloc[-1])
-            df_day = fetch_upbit_paged(market_code, "days", day_start, day_end, 24*60)
-            if df_day.empty:
-                return None, None
+# 외부에서 전달된 일봉 데이터 사용 (여기서는 fetch 금지)
+if df_day_all is None or df_day_all.empty:
+    return None, None
 
-            # === 일봉 매물대 컬럼 계산 (양봉/음봉 기준)
-            df_day["maemul"] = df_day.apply(
-                lambda x: max(x["high"], x["close"]) if x["close"] >= x["open"] else max(x["high"], x["open"]),
-                axis=1
-            )
+# 일봉 매물대 컬럼이 없으면 계산
+_df_day = df_day_all
+if "maemul" not in _df_day.columns:
+    _df_day = _df_day.copy()
+    _df_day["maemul"] = _df_day.apply(
+        lambda x: max(x["high"], x["close"]) if x["close"] >= x["open"] else max(x["high"], x["open"]),
+        axis=1
+    )
 
-            # === 각 분봉 기준으로 30일 이전 일봉 슬라이싱 후 조건 탐색
-            for j in range(i0 + 1, scan_end + 1):
-                prev_time = pd.to_datetime(df.at[j, "time"])
-                window = df_day[(df_day["time"] < prev_time) & (df_day["time"] >= prev_time - timedelta(days=30))]
-                if window.empty:
-                    continue
-                maemul_level = np.mean(window["maemul"])
+for j in range(i0 + 1, scan_end + 1):
+    prev_time = pd.to_datetime(df.at[j, "time"])
+    window = _df_day[(_df_day["time"] < prev_time) & (_df_day["time"] >= prev_time - timedelta(days=30))]
+    if window.empty:
+        continue
+    maemul_level = float(window["maemul"].mean())
 
-                bb_low_j = float(df.at[j, "BB_low"])
-                low_j    = float(df.at[j, "low"])
-                close_j  = float(df.at[j, "close"])
-                open_j   = float(df.at[j, "open"])
+    bb_low_j = float(df.at[j, "BB_low"])
+    low_j    = float(df.at[j, "low"])
+    close_j  = float(df.at[j, "close"])
+    open_j   = float(df.at[j, "open"])
 
-                below = low_j <= maemul_level * 0.999
-                above = close_j >= maemul_level
-                is_bull = close_j > open_j
-                bb_above = maemul_level >= bb_low_j
+    below    = low_j   <= maemul_level * 0.999
+    above    = close_j >= maemul_level
+    is_bull  = close_j >  open_j
+    bb_above = maemul_level >= bb_low_j
 
-                if below and above and is_bull and bb_above:
-                    anchor_idx = j
-                    break
+    if below and above and is_bull and bb_above:
+        anchor_idx = j
+        break
 
-            if anchor_idx is None or anchor_idx >= n:
-                return None, None
+if anchor_idx is None or anchor_idx >= n:
+    return None, None
 
-            signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "open"])
-
-        # --- 성과 측정 ---
-        eval_start = anchor_idx + 1
-        end_idx = anchor_idx + lookahead
-        if end_idx >= n:
-            return None, None
-
-        win_slice = df.iloc[eval_start:end_idx + 1]
-        min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
-        max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
-
-        target = base_price * (1.0 + thr / 100.0)
-        hit_idx = None
-        for j in range(anchor_idx + 1, end_idx + 1):
-            c_ = float(df.at[j, "close"])
-            h_ = float(df.at[j, "high"])
-            price_for_hit = c_
-            if price_for_hit >= target * 0.9999:
-                hit_idx = j
-                break
-
-        if hit_idx is not None:
-            bars_after = hit_idx - anchor_idx
-            reach_min = bars_after * minutes_per_bar
-            end_time = df.at[hit_idx, "time"]
-            end_close = target
-            final_ret = thr
-            result = "성공"
-            lock_end = hit_idx
-        else:
-            bars_after = lookahead
-            end_idx = anchor_idx + bars_after
-            if end_idx >= n:
-                end_idx = n - 1
-                bars_after = end_idx - anchor_idx
-            end_time = df.at[end_idx, "time"]
-            end_close = float(df.at[end_idx, "close"])
-            final_ret = (end_close / base_price - 1) * 100
-            result = "실패" if final_ret <= 0 else "중립"
-            lock_end = end_idx
-
-        reach_min = bars_after * minutes_per_bar
-
-        bb_value = None
-        if bb_cond == "상한선":
-            bb_value = df.at[anchor_idx, "BB_up"]
-        elif bb_cond == "중앙선":
-            bb_value = df.at[anchor_idx, "BB_mid"]
-        elif bb_cond == "하한선":
-            bb_value = df.at[anchor_idx, "BB_low"]
-
-        end_idx_final = hit_idx if (locals().get("hit_idx") is not None) else end_idx
-
-        row = {
-            "신호시간": signal_time,
-            "종료시간": end_time,
-            "기준시가": int(round(base_price)),
-            "종료가": end_close,
-            "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 2) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
-            "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
-            "성공기준(%)": round(thr, 1),
-            "결과": result,
-            "도달분": reach_min,
-            "도달캔들(bars)": int(bars_after),
-            "최종수익률(%)": round(final_ret, 2),
-            "최저수익률(%)": round(min_ret, 2),
-            "최고수익률(%)": round(max_ret, 2),
-            "anchor_i": int(anchor_idx),
-            "end_i": int(end_idx_final),
-        }
-        return row, int(lock_end)
-
-    # --- 4) 메인 루프 (중복 포함/제거 분기) ---
-    if dedup_mode.startswith("중복 제거"):
-        i = 0
-        while i < n:
-            if i not in base_sig_idx:
-                i += 1
-                continue
-            row, lock_end = process_one(i)
-            if row is not None:
-                res.append(row)
-                i = int(lock_end) + 1
-            else:
-                i += 1
-    else:
-        for i0 in base_sig_idx:
-            row, _ = process_one(i0)
-            if row is not None:
-                res.append(row)
-
-    if res:
-        df_res = pd.DataFrame(res).drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
-        return df_res
-    return pd.DataFrame()
-
-# -----------------------------
+signal_time = df.at[anchor_idx, "time"]
+base_price  = float(df.at[anchor_idx, "open"])
 # Long-run safe utilities
 # -----------------------------
 from datetime import timedelta
@@ -1070,8 +973,7 @@ try:
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
-        df_day=df_day_all  # ✅ 일봉 데이터 전달
-    )
+        df_day=df_day_all  # ✅ 일봉 데이터 전달, df_day_all=df_day_all)
     res_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -1079,8 +981,7 @@ try:
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
-        df_day=df_day_all  # ✅ 일봉 데이터 전달
-    )
+        df_day=df_day_all  # ✅ 일봉 데이터 전달, df_day_all=df_day_all)
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
     # -----------------------------
