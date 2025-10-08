@@ -1224,12 +1224,14 @@ try:
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
 
-    # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
+# ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
+monitor_box = st.container()
+render_realtime_monitor(monitor_box)
 
-    # 보기 요약 텍스트
-    total_min = lookahead * int(minutes_per_bar)
-    hh, mm = divmod(total_min, 60)
-    look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
+# 보기 요약 텍스트
+total_min = lookahead * int(minutes_per_bar)
+hh, mm = divmod(total_min, 60)
+look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
 
     if rsi_mode == "없음":
         rsi_txt = "없음"
