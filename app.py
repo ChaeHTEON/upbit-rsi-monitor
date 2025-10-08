@@ -1079,6 +1079,84 @@ try:
         if check_maemul_auto_signal(df):
             st.toast("🚨 매물대 자동 신호 발생!")
             send_kakao_alert(f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})")
+
+    # ============================================================
+    # ✅ 실시간 다중 종목·다중 봉단위 감시 (1분 주기)
+    # ============================================================
+    import threading, time
+    from datetime import datetime, timedelta
+
+    # --- 감시 대상 선택 UI ---
+    st.markdown("---")
+    st.markdown("### 👁️ 실시간 감시 설정")
+    watch_symbols = st.multiselect(
+        "감시할 종목 선택 (Upbit 기준)",
+        [m[1] for m in MARKET_LIST],
+        default=["KRW-BTC"]
+    )
+    watch_timeframes = st.multiselect(
+        "감시할 봉 종류 선택",
+        ["1분", "3분", "5분", "15분", "30분", "60분", "일봉"],
+        default=["5분"]
+    )
+
+    # --- 세션 상태 초기화 ---
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+    if "last_alert_time" not in st.session_state:
+        st.session_state["last_alert_time"] = {}
+
+    def add_alert(msg):
+        """새 알람을 누적 저장"""
+        if msg not in st.session_state["alerts"]:
+            st.session_state["alerts"].append(msg)
+
+    # --- 주기적 감시 함수 ---
+    def periodic_multi_check():
+        TF_MAP = {
+            "1분": ("minutes/1", 1),
+            "3분": ("minutes/3", 3),
+            "5분": ("minutes/5", 5),
+            "15분": ("minutes/15", 15),
+            "30분": ("minutes/30", 30),
+            "60분": ("minutes/60", 60),
+            "일봉": ("days", 24*60),
+        }
+
+        while True:
+            now = datetime.now()
+            for symbol in watch_symbols:
+                for tf_label in watch_timeframes:
+                    interval_key, minutes_per_bar = TF_MAP[tf_label]
+                    start_dt = now - timedelta(hours=1)
+                    end_dt = now
+
+                    try:
+                        df_w = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar)
+                        df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+                        if check_maemul_auto_signal(df_w):
+                            key = f"{symbol}_{tf_label}"
+                            last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
+                            if (now - last_time).seconds >= 600:  # 10분 중복 방지
+                                msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
+                                add_alert(msg)
+                                send_kakao_alert(msg)
+                                st.session_state["last_alert_time"][key] = now
+                    except Exception as e:
+                        print(f"[WARN] periodic check failed for {symbol} {tf_label}: {e}")
+                        continue
+            time.sleep(60)  # 1분마다 주기 실행
+
+    # --- 쓰레드 1회만 시작 ---
+    if "multi_watch_thread" not in st.session_state:
+        t = threading.Thread(target=periodic_multi_check, daemon=True)
+        t.start()
+        st.session_state["multi_watch_thread"] = True
+
+    # --- 알람 박스 출력 ---
+    st.markdown("### 🚨 실시간 알람 목록")
+    if st.session_state["alerts"]:
+        for i, alert in enumerate(
     # 보기 요약 텍스트
     total_min = lookahead * int(minutes_per_bar)
     hh, mm = divmod(total_min, 60)
