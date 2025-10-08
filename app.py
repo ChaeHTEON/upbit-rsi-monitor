@@ -1403,6 +1403,20 @@ try:
             # ✅ 콜백 적용 → 1클릭 즉시 반영
             st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
 
+        # === 수동 매물대 가격대 밑줄 표시 ===
+        if manual_supply_levels:
+            try:
+                for L in manual_supply_levels:
+                    fig.add_shape(
+                        type="line",
+                        xref="paper", x0=0, x1=1,
+                        yref="y", y0=L, y1=L,
+                        line=dict(color="#FF9800", width=1.2, dash="dot"),
+                        row=1, col=1
+                    )
+            except Exception:
+                pass
+
         st.plotly_chart(
             fig,
             use_container_width=True,
