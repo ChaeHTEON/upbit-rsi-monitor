@@ -1156,7 +1156,11 @@ try:
     # --- 알람 박스 출력 ---
     st.markdown("### 🚨 실시간 알람 목록")
     if st.session_state["alerts"]:
-        for i, alert in enumerate(
+        for i, alert in enumerate(st.session_state["alerts"]):
+            st.warning(f"{i+1}. {alert}")
+    else:
+        st.info("현재까지 감지된 실시간 알람이 없습니다.")
+
     # 보기 요약 텍스트
     total_min = lookahead * int(minutes_per_bar)
     hh, mm = divmod(total_min, 60)
