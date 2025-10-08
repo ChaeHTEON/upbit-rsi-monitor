@@ -1292,27 +1292,27 @@ try:
 
 # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
 
-render_realtime_monitor()
+                            render_realtime_monitor()
 
-# 보기 요약 텍스트
-total_min = lookahead * int(minutes_per_bar)
-hh, mm = divmod(total_min, 60)
-look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
+                            # 보기 요약 텍스트
+                            total_min = lookahead * int(minutes_per_bar)
+                            hh, mm = divmod(total_min, 60)
+                            look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
 
-    if rsi_mode == "없음":
-        rsi_txt = "없음"
-    elif rsi_mode == "현재(과매도/과매수 중 하나)":
-        rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
-    elif rsi_mode == "과매도 기준":
-        rsi_txt = f"과매도≤{int(rsi_low)}"
-    else:
-        rsi_txt = f"과매수≥{int(rsi_high)}"
+                            if rsi_mode == "없음":
+                            rsi_txt = "없음"
+                            elif rsi_mode == "현재(과매도/과매수 중 하나)":
+                            rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
+                            elif rsi_mode == "과매도 기준":
+                            rsi_txt = f"과매도≤{int(rsi_low)}"
+                            else:
+                            rsi_txt = f"과매수≥{int(rsi_high)}"
 
-    bb_txt = bb_cond if bb_cond != "없음" else "없음"
-    sec_txt = f"{sec_cond}"
-    bottom_txt = "ON" if bottom_mode else "OFF"
-    cci_txt = ("없음" if cci_mode == "없음"
-               else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
+                            bb_txt = bb_cond if bb_cond != "없음" else "없음"
+                            sec_txt = f"{sec_cond}"
+                            bottom_txt = "ON" if bottom_mode else "OFF"
+                            cci_txt = ("없음" if cci_mode == "없음"
+                            else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
 
     # -----------------------------
     # 매수가 입력 + 최적화뷰 버튼
