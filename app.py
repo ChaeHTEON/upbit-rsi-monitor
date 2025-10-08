@@ -865,6 +865,43 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
 # -----------------------------
 from datetime import timedelta
 import time
+import requests
+
+# ✅ 매물대 자동 신호 감지 함수
+def check_maemul_auto_signal(df):
+    """직전봉-현재봉 기준 매물대 자동(하단→상단 재진입+BB하단 위 양봉) 신호 감지"""
+    if len(df) < 3:
+        return False
+    j = len(df) - 1
+    prev_high  = float(df.at[j - 1, "high"])
+    prev_open  = float(df.at[j - 1, "open"])
+    prev_close = float(df.at[j - 1, "close"])
+    prev_bb_low = float(df.at[j - 1, "BB_low"])
+
+    maemul = max(prev_high, prev_close if prev_close >= prev_open else prev_open)
+    cur_low = float(df.at[j, "low"])
+    cur_close = float(df.at[j, "close"])
+    cur_open = float(df.at[j, "open"])
+    cur_bb_low = float(df.at[j, "BB_low"])
+
+    below = cur_low <= maemul * 0.999
+    above = cur_close >= maemul
+    is_bull = cur_close > cur_open
+    bb_above = maemul >= cur_bb_low
+
+    return below and above and is_bull and bb_above
+
+# ✅ 카카오톡 Webhook 전송 함수
+def send_kakao_alert(msg: str):
+    """카카오 오픈빌더 Webhook으로 메시지 전송"""
+    try:
+        webhook_url = _get_secret("KAKAO_WEBHOOK_URL")
+        if not webhook_url:
+            return
+        data = {"userRequest": {"utterance": msg}}
+        requests.post(webhook_url, json=data, timeout=5)
+    except Exception as e:
+        print(f"Kakao alert send failed: {e}")
 
 def chunked_periods(start_dt, end_dt, days_per_chunk=7):
     cur = start_dt
@@ -1011,6 +1048,11 @@ try:
     df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
+    # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
+    if sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
+        if check_maemul_auto_signal(df):
+            st.toast("🚨 매물대 자동 신호 발생!")
+            send_kakao_alert(f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})")
     # 보기 요약 텍스트
     total_min = lookahead * int(minutes_per_bar)
     hh, mm = divmod(total_min, 60)
