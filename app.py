@@ -1089,6 +1089,8 @@ try:
     def render_realtime_monitor():
         st.markdown("---")
         st.markdown("### 👁️ 실시간 감시 설정")
+
+        # ✅ UI: ⑤ 실시간 감시 항목 (④ 신호 결과 아래로 위치 고정)
         watch_symbols = st.multiselect(
             "감시할 종목 선택 (Upbit 기준)",
             [m[1] for m in MARKET_LIST],
@@ -1117,7 +1119,7 @@ try:
                 "15분": ("minutes/15", 15),
                 "30분": ("minutes/30", 30),
                 "60분": ("minutes/60", 60),
-                "일봉": ("days", 24*60),
+                "일봉": ("days", 24 * 60),
             }
 
             while True:
@@ -1133,12 +1135,14 @@ try:
                             df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
                             if check_maemul_auto_signal(df_w):
                                 key = f"{symbol}_{tf_label}"
-                                last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
+                                last_time = st.session_state["last_alert_time"].get(key, datetime(2000, 1, 1))
                                 if (now - last_time).seconds >= 600:
                                     msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
                                     add_alert(msg)
                                     send_kakao_alert(msg)
                                     st.session_state["last_alert_time"][key] = now
+                                    st.toast(msg)  # ✅ UI 즉시 표시
+                                    st.experimental_rerun()  # ✅ 알람 목록 즉시 반영
                         except Exception as e:
                             print(f"[WARN] periodic check failed for {symbol} {tf_label}: {e}")
                             continue
@@ -1149,10 +1153,11 @@ try:
             t.start()
             st.session_state["multi_watch_thread"] = True
 
+        # ✅ 알람 목록은 항상 감시 설정 바로 아래에 표시되도록 재배치
         st.markdown("### 🚨 실시간 알람 목록")
         if st.session_state["alerts"]:
             for i, alert in enumerate(st.session_state["alerts"]):
-                st.warning(f"{i+1}. {alert}")
+                st.warning(f"{i + 1}. {alert}")
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
 
