@@ -731,49 +731,50 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
             base_price  = float(df.at[anchor_idx, "open"])
 
         # === 매물대 자동 (하단→상단 재진입 + BB하단 위 양봉) ===
+
+        # === 매물대 자동 (하단→상단 재진입 + BB하단 위 양봉) ===
         elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
-anchor_idx = None
-scan_end = min(i0 + lookahead, n - 1)
-
-# 외부에서 전달된 일봉 데이터 사용 (여기서는 fetch 금지)
-if df_day_all is None or df_day_all.empty:
-    return None, None
-
-# 일봉 매물대 컬럼이 없으면 계산
-_df_day = df_day_all
-if "maemul" not in _df_day.columns:
-    _df_day = _df_day.copy()
-    _df_day["maemul"] = _df_day.apply(
-        lambda x: max(x["high"], x["close"]) if x["close"] >= x["open"] else max(x["high"], x["open"]),
-        axis=1
-    )
-
-for j in range(i0 + 1, scan_end + 1):
-    prev_time = pd.to_datetime(df.at[j, "time"])
-    window = _df_day[(_df_day["time"] < prev_time) & (_df_day["time"] >= prev_time - timedelta(days=30))]
-    if window.empty:
-        continue
-    maemul_level = float(window["maemul"].mean())
-
-    bb_low_j = float(df.at[j, "BB_low"])
-    low_j    = float(df.at[j, "low"])
-    close_j  = float(df.at[j, "close"])
-    open_j   = float(df.at[j, "open"])
-
-    below    = low_j   <= maemul_level * 0.999
-    above    = close_j >= maemul_level
-    is_bull  = close_j >  open_j
-    bb_above = maemul_level >= bb_low_j
-
-    if below and above and is_bull and bb_above:
-        anchor_idx = j
-        break
-
-if anchor_idx is None or anchor_idx >= n:
-    return None, None
-
-signal_time = df.at[anchor_idx, "time"]
-base_price  = float(df.at[anchor_idx, "open"])
+            anchor_idx = None
+            scan_end = min(i0 + lookahead, n - 1)
+        
+            # 외부에서 전달된 일봉 데이터 사용 (여기서는 fetch 금지)
+            if df_day_all is None or df_day_all.empty:
+                return None, None
+        
+            _df_day = df_day_all
+            if "maemul" not in _df_day.columns:
+                _df_day = _df_day.copy()
+                _df_day["maemul"] = _df_day.apply(
+                    lambda x: max(x["high"], x["close"]) if x["close"] >= x["open"] else max(x["high"], x["open"]),
+                    axis=1
+                )
+        
+            for j in range(i0 + 1, scan_end + 1):
+                prev_time = pd.to_datetime(df.at[j, "time"])
+                window = _df_day[(_df_day["time"] < prev_time) & (_df_day["time"] >= prev_time - timedelta(days=30))]
+                if window.empty:
+                    continue
+                maemul_level = float(window["maemul"].mean())
+        
+                bb_low_j = float(df.at[j, "BB_low"])
+                low_j    = float(df.at[j, "low"])
+                close_j  = float(df.at[j, "close"])
+                open_j   = float(df.at[j, "open"])
+        
+                below    = low_j   <= maemul_level * 0.999
+                above    = close_j >= maemul_level
+                is_bull  = close_j >  open_j
+                bb_above = maemul_level >= bb_low_j
+        
+                if below and above and is_bull and bb_above:
+                    anchor_idx = j
+                    break
+        
+            if anchor_idx is None or anchor_idx >= n:
+                return None, None
+        
+            signal_time = df.at[anchor_idx, "time"]
+            base_price  = float(df.at[anchor_idx, "open"])
 # Long-run safe utilities
 # -----------------------------
 from datetime import timedelta
@@ -966,6 +967,7 @@ try:
         st.rerun()
 
     # ===== 시뮬레이션 (중복 포함/제거) =====
+
     res_all = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 포함 (연속 신호 모두)",
@@ -973,8 +975,18 @@ try:
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
-        df_day=df_day_all  # ✅ 일봉 데이터 전달, df_day_all=df_day_all)
+        df_day_all=df_day_all
+    )
     res_dedup = simulate(
+        df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+        bb_cond, "중복 제거 (연속 동일 결과 1개)",
+        minutes_per_bar, market_code, bb_window, bb_dev,
+        sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+        bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
+        df_day_all=df_day_all
+    )
+    res_dedupres_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 제거 (연속 동일 결과 1개)",
         minutes_per_bar, market_code, bb_window, bb_dev,
