@@ -1149,25 +1149,25 @@ try:
             t.start()
             st.session_state["multi_watch_thread"] = True
     
-        st.markdown("### 🚨 실시간 알람 목록")
+        st.markdown("### 🚨 실시간 알람 목록")  # 💛
         if st.session_state["alerts"]:
             for i, alert in enumerate(st.session_state["alerts"]):
                 st.warning(f"{i+1}. {alert}")
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
 
-    # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
-    render_realtime_monitor()
+        # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
+        render_realtime_monitor()
 
-    # 보기 요약 텍스트
-    total_min = lookahead * int(minutes_per_bar)
-    hh, mm = divmod(total_min, 60)
-    look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
+        # 보기 요약 텍스트
+        total_min = lookahead * int(minutes_per_bar)
+        hh, mm = divmod(total_min, 60)
+        look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
 
-    if rsi_mode == "없음":
-        rsi_txt = "없음"
-    elif rsi_mode == "현재(과매도/과매수 중 하나)":
-        rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
+        if rsi_mode == "없음":
+            rsi_txt = "없음"
+        elif rsi_mode == "현재(과매도/과매수 중 하나)":
+            rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
     elif rsi_mode == "과매도 기준":
         rsi_txt = f"과매도≤{int(rsi_low)}"
     else:
