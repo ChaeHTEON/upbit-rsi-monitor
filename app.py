@@ -728,6 +728,52 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "open"])
 
+        # === 매물대 자동 (하단→상단 재진입 + BB하단 위 양봉) ===
+        elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
+            anchor_idx = None
+            scan_end = min(i0 + lookahead, n - 1)
+
+            # 일봉 데이터 로드 (30일 전~현재)
+            day_start = pd.to_datetime(df.at[i0, "time"]) - timedelta(days=30)
+            df_day = fetch_upbit_paged(
+                market_code, "days", day_start, pd.to_datetime(df.at[i0, "time"]), 24*60
+            )
+            if df_day.empty:
+                return None, None
+
+            # 일봉별 매물대 계산
+            df_day["maemul"] = df_day.apply(
+                lambda x: max(x["high"], x["close"]) if x["close"] >= x["open"] else max(x["high"], x["open"]),
+                axis=1
+            )
+
+            for j in range(i0 + 1, scan_end + 1):
+                prev_time = pd.to_datetime(df.at[j, "time"])
+                window = df_day[(df_day["time"] < prev_time) & (df_day["time"] >= prev_time - timedelta(days=30))]
+                if window.empty:
+                    continue
+                maemul_level = np.mean(window["maemul"])
+                bb_low_j = float(df.at[j, "BB_low"])
+                low_j    = float(df.at[j, "low"])
+                close_j  = float(df.at[j, "close"])
+                open_j   = float(df.at[j, "open"])
+                high_j   = float(df.at[j, "high"])
+
+                below = low_j <= maemul_level * 0.999
+                above = close_j >= maemul_level
+                is_bull = close_j > open_j
+                bb_above = maemul_level >= bb_low_j
+
+                if below and above and is_bull and bb_above:
+                    anchor_idx = j
+                    break
+
+            if anchor_idx is None or anchor_idx >= n:
+                return None, None
+
+            signal_time = df.at[anchor_idx, "time"]
+            base_price  = float(df.at[anchor_idx, "open"])
+
         # === 신규 매물대 자동 조건 ===
         elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
             anchor_idx = None
