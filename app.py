@@ -1089,7 +1089,7 @@ try:
     def render_realtime_monitor(container):
         container.markdown("---")
         container.markdown("### 👁️ 실시간 감시 설정")
-    
+
         watch_symbols = container.multiselect(
             "감시할 종목 선택 (Upbit 기준)",
             [m[1] for m in MARKET_LIST],
@@ -1100,12 +1100,12 @@ try:
             ["1분", "3분", "5분", "15분", "30분", "60분", "일봉"],
             default=["5분"]
         )
-    
+
         if "alerts" not in st.session_state:
             st.session_state["alerts"] = []
         if "last_alert_time" not in st.session_state:
             st.session_state["last_alert_time"] = {}
-    
+
         def add_alert(msg):
             if msg not in st.session_state["alerts"]:
                 st.session_state["alerts"].append(msg)
@@ -1217,17 +1217,16 @@ try:
             t.start()
             st.session_state["multi_watch_thread"] = True
 
-        st.markdown("### 🚨 실시간 알람 목록")
+        container.markdown("### 🚨 실시간 알람 목록")
         if st.session_state["alerts"]:
             for i, alert in enumerate(st.session_state["alerts"]):
-                st.warning(f"{i+1}. {alert}")
+                container.warning(f"{i+1}. {alert}")
         else:
-            st.info("현재까지 감지된 실시간 알람이 없습니다.")
+            container.info("현재까지 감지된 실시간 알람이 없습니다.")
 
 # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
 monitor_box = st.container()
 render_realtime_monitor(monitor_box)
-
 # 보기 요약 텍스트
 total_min = lookahead * int(minutes_per_bar)
 hh, mm = divmod(total_min, 60)
