@@ -1157,8 +1157,7 @@ try:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
 
         # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
-        render_realtime_monitor()
-        
+        # (⚙️ 내부 자기호출 제거 — 함수 종료 후 외부에서 한 번만 호출)
         # 보기 요약 텍스트
         total_min = lookahead * int(minutes_per_bar)
         hh, mm = divmod(total_min, 60)
@@ -1178,6 +1177,8 @@ try:
         bottom_txt = "ON" if bottom_mode else "OFF"
         cci_txt = ("없음" if cci_mode == "없음"
                    else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
+    # === ⑤ 함수 외부에서 호출 (정상 위치) ===
+    render_realtime_monitor()
 
     # -----------------------------
     # 매수가 입력 + 최적화뷰 버튼
