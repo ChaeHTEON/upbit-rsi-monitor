@@ -17,6 +17,32 @@ from pytz import timezone
 import numpy as np
 from typing import Optional, Set
 
+# ✅ 카카오 Webhook 테스트용 코드 추가
+def send_kakao_alert(msg: str):
+    """카카오 Webhook(site)으로 메시지 전송"""
+    try:
+        url = st.secrets["KAKAO_WEBHOOK_URL"]
+        payload = {"userRequest": {"utterance": msg}}
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        if response.status_code == 200:
+            st.success("✅ 메시지 전송 성공!")
+        else:
+            st.warning(f"⚠️ 전송 실패 (응답 코드: {response.status_code})")
+    except Exception as e:
+        st.error(f"❌ 전송 중 오류 발생: {e}")
+
+# ✅ Streamlit 실행 시 Webhook 연결 확인
+try:
+    _ = st.secrets["KAKAO_WEBHOOK_URL"]
+    st.caption("🔐 KAKAO_WEBHOOK_URL 로드 완료")
+except Exception as e:
+    st.error(f"❌ secrets.toml 설정 오류: {e}")
+
+# ✅ 테스트 버튼
+if st.button("📢 카카오톡 알림 테스트 보내기"):
+    send_kakao_alert("🚨 Streamlit에서 테스트 메시지 전송됨!")
+
 # -----------------------------
 # 페이지/스타일
 # -----------------------------
