@@ -1158,12 +1158,12 @@ try:
 
         # ===> ⑤ 실시간 감시 항목을 ④ 신호 결과 아래로 이동 (여기서 호출)
         render_realtime_monitor()
-
+        
         # 보기 요약 텍스트
         total_min = lookahead * int(minutes_per_bar)
         hh, mm = divmod(total_min, 60)
         look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
-
+        
         if rsi_mode == "없음":
             rsi_txt = "없음"
         elif rsi_mode == "현재(과매도/과매수 중 하나)":
