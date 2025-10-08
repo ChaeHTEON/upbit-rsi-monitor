@@ -733,31 +733,31 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
             anchor_idx = None
             scan_end = min(i0 + lookahead, n - 1)
 
-            # 일봉 데이터 로드 (30일 전~현재)
-            day_start = pd.to_datetime(df.at[i0, "time"]) - timedelta(days=30)
-            df_day = fetch_upbit_paged(
-                market_code, "days", day_start, pd.to_datetime(df.at[i0, "time"]), 24*60
-            )
+            # === 일봉 데이터 1회 로드 (검색 시작~종료 + 30일 버퍼) ===
+            day_start = pd.to_datetime(df["time"].iloc[0]) - timedelta(days=30)
+            day_end   = pd.to_datetime(df["time"].iloc[-1])
+            df_day = fetch_upbit_paged(market_code, "days", day_start, day_end, 24*60)
             if df_day.empty:
                 return None, None
 
-            # 일봉별 매물대 계산
+            # === 일봉 매물대 컬럼 계산 (양봉/음봉 기준)
             df_day["maemul"] = df_day.apply(
                 lambda x: max(x["high"], x["close"]) if x["close"] >= x["open"] else max(x["high"], x["open"]),
                 axis=1
             )
 
+            # === 각 분봉 기준으로 30일 이전 일봉 슬라이싱 후 조건 탐색
             for j in range(i0 + 1, scan_end + 1):
                 prev_time = pd.to_datetime(df.at[j, "time"])
                 window = df_day[(df_day["time"] < prev_time) & (df_day["time"] >= prev_time - timedelta(days=30))]
                 if window.empty:
                     continue
                 maemul_level = np.mean(window["maemul"])
+
                 bb_low_j = float(df.at[j, "BB_low"])
                 low_j    = float(df.at[j, "low"])
                 close_j  = float(df.at[j, "close"])
                 open_j   = float(df.at[j, "open"])
-                high_j   = float(df.at[j, "high"])
 
                 below = low_j <= maemul_level * 0.999
                 above = close_j >= maemul_level
@@ -771,43 +771,6 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
             if anchor_idx is None or anchor_idx >= n:
                 return None, None
 
-            signal_time = df.at[anchor_idx, "time"]
-            base_price  = float(df.at[anchor_idx, "open"])
-
-        # === 신규 매물대 자동 조건 ===
-        elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
-            anchor_idx = None
-            scan_end = min(i0 + lookahead, n - 1)
-            for j in range(i0 + 2, scan_end + 1):
-                prev_high = float(df.at[j - 1, "high"])
-                prev_open = float(df.at[j - 1, "open"])
-                prev_close = float(df.at[j - 1, "close"])
-                prev_bb_low = float(df.at[j - 1, "BB_low"])
-
-                # 매물대 기준 정의
-                if prev_close >= prev_open:  # 양봉
-                    maemul = max(prev_high, prev_close)
-                else:  # 음봉
-                    maemul = max(prev_high, prev_open)
-
-                cur_low = float(df.at[j, "low"])
-                cur_high = float(df.at[j, "high"])
-                cur_close = float(df.at[j, "close"])
-                cur_open = float(df.at[j, "open"])
-                cur_bb_low = float(df.at[j, "BB_low"])
-
-                # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
-                below = cur_low <= maemul * 0.999
-                above = cur_close >= maemul
-                is_bull = cur_close > cur_open
-                bb_above = maemul >= cur_bb_low
-
-                if below and above and is_bull and bb_above:
-                    anchor_idx = j
-                    break
-
-            if anchor_idx is None or anchor_idx >= n:
-                return None, None
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "open"])
 
