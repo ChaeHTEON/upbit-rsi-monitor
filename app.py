@@ -242,7 +242,8 @@ sec_cond = st.selectbox(
         "양봉 2개 (범위 내)",
         "양봉 2개 연속 상승",
         "BB 기반 첫 양봉 50% 진입",
-        "매물대 터치 후 반등(위→아래→반등)"
+        "매물대 터치 후 반등(위→아래→반등)",
+        "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"
     ]
 )
 
@@ -723,6 +724,43 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
                 return None, None
             anchor_idx = rebound_idx + 1
             if anchor_idx >= n:
+                return None, None
+            signal_time = df.at[anchor_idx, "time"]
+            base_price  = float(df.at[anchor_idx, "open"])
+
+        # === 신규 매물대 자동 조건 ===
+        elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
+            anchor_idx = None
+            scan_end = min(i0 + lookahead, n - 1)
+            for j in range(i0 + 2, scan_end + 1):
+                prev_high = float(df.at[j - 1, "high"])
+                prev_open = float(df.at[j - 1, "open"])
+                prev_close = float(df.at[j - 1, "close"])
+                prev_bb_low = float(df.at[j - 1, "BB_low"])
+
+                # 매물대 기준 정의
+                if prev_close >= prev_open:  # 양봉
+                    maemul = max(prev_high, prev_close)
+                else:  # 음봉
+                    maemul = max(prev_high, prev_open)
+
+                cur_low = float(df.at[j, "low"])
+                cur_high = float(df.at[j, "high"])
+                cur_close = float(df.at[j, "close"])
+                cur_open = float(df.at[j, "open"])
+                cur_bb_low = float(df.at[j, "BB_low"])
+
+                # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
+                below = cur_low <= maemul * 0.999
+                above = cur_close >= maemul
+                is_bull = cur_close > cur_open
+                bb_above = maemul >= cur_bb_low
+
+                if below and above and is_bull and bb_above:
+                    anchor_idx = j
+                    break
+
+            if anchor_idx is None or anchor_idx >= n:
                 return None, None
             signal_time = df.at[anchor_idx, "time"]
             base_price  = float(df.at[anchor_idx, "open"])
