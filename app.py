@@ -1149,10 +1149,10 @@ try:
             t.start()
             st.session_state["multi_watch_thread"] = True
     
-        st.markdown("### 🚨 실시간 알람 목록")  # 💛
+        st.markdown("### 🚨 실시간 알람 목록")
         if st.session_state["alerts"]:
             for i, alert in enumerate(st.session_state["alerts"]):
-                st.warning(f"{i+1}. {alert}")
+                st.warning(f"{i + 1}. {alert}")
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
 
@@ -1168,16 +1168,16 @@ try:
             rsi_txt = "없음"
         elif rsi_mode == "현재(과매도/과매수 중 하나)":
             rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
-    elif rsi_mode == "과매도 기준":
-        rsi_txt = f"과매도≤{int(rsi_low)}"
-    else:
-        rsi_txt = f"과매수≥{int(rsi_high)}"
+        elif rsi_mode == "과매도 기준":
+            rsi_txt = f"과매도≤{int(rsi_low)}"
+        else:
+            rsi_txt = f"과매수≥{int(rsi_high)}"
 
-    bb_txt = bb_cond if bb_cond != "없음" else "없음"
-    sec_txt = f"{sec_cond}"
-    bottom_txt = "ON" if bottom_mode else "OFF"
-    cci_txt = ("없음" if cci_mode == "없음"
-        else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
+        bb_txt = bb_cond if bb_cond != "없음" else "없음"
+        sec_txt = f"{sec_cond}"
+        bottom_txt = "ON" if bottom_mode else "OFF"
+        cci_txt = ("없음" if cci_mode == "없음"
+                   else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
 
     # -----------------------------
     # 매수가 입력 + 최적화뷰 버튼
