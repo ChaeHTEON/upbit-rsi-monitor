@@ -975,8 +975,9 @@ try:
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
-        df_day_all=df_day_all
+        df_day=df_day_all, df_day_all=df_day_all
     )
+
     res_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
         bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -984,7 +985,7 @@ try:
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
-        df_day_all=df_day_all
+        df_day=df_day_all, df_day_all=df_day_all
     )
     res_dedupres_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
