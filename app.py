@@ -528,7 +528,8 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
              hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
              supply_levels: Optional[Set[float]] = None,
              manual_supply_levels: Optional[list] = None,
-             cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9):
+             cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9,
+             df_day: Optional[pd.DataFrame] = None):  # ✅ 일봉 데이터 전달 인자 추가
     """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 + CCI 1차 조건."""
     res = []
     n = len(df)
@@ -1020,6 +1021,11 @@ try:
     df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
     df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
+    # === 일봉 데이터 1회 로드 (검색 구간 + 30일 버퍼) ===
+    day_start = start_dt - timedelta(days=30)
+    day_end   = end_dt
+    df_day_all = fetch_upbit_paged(market_code, "days", day_start, day_end, 24*60)
+
     # 보기 요약 텍스트
     total_min = lookahead * int(minutes_per_bar)
     hh, mm = divmod(total_min, 60)
@@ -1063,7 +1069,8 @@ try:
         minutes_per_bar, market_code, bb_window, bb_dev,
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
+        df_day=df_day_all  # ✅ 일봉 데이터 전달
     )
     res_dedup = simulate(
         df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
@@ -1071,7 +1078,8 @@ try:
         minutes_per_bar, market_code, bb_window, bb_dev,
         sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
         bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
+        df_day=df_day_all  # ✅ 일봉 데이터 전달
     )
     res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
