@@ -964,8 +964,25 @@ def _save_ckpt(key: str, value):
 import threading, time
 
 def render_realtime_monitor():
+    import json
     st.markdown("---")
     st.markdown("### 👁️ 실시간 감시 설정")
+
+    SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings_realtime.json")
+
+    # --- 기존 설정 복원 ---
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            if "watch_symbols" in saved:
+                st.session_state["watch_symbols"] = saved["watch_symbols"]
+            if "watch_timeframes" in saved:
+                st.session_state["watch_timeframes"] = saved["watch_timeframes"]
+            if "alerts" in saved and "alerts" not in st.session_state:
+                st.session_state["alerts"] = saved["alerts"]
+        except Exception:
+            pass
 
     # --- 감시 대상 및 봉종류 ---
     watch_symbols = st.multiselect(
@@ -978,8 +995,19 @@ def render_realtime_monitor():
         ["1분","3분","5분","15분","30분","60분","일봉"],
         default=st.session_state.get("watch_timeframes", ["5분"])
     )
+
+    # --- 변경사항 저장 ---
     st.session_state["watch_symbols"] = watch_symbols
     st.session_state["watch_timeframes"] = watch_timeframes
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "watch_symbols": watch_symbols,
+                "watch_timeframes": watch_timeframes,
+                "alerts": st.session_state.get("alerts", [])
+            }, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
     # --- 세션 상태 ---
     if "alerts" not in st.session_state:
