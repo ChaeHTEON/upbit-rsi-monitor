@@ -679,11 +679,7 @@ def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
         if anchor_idx >= n:
             return None, None
         signal_time = df.at[anchor_idx, "time"]
-        # ✅ 매수가: 신호 이후 다음 캔들의 시가 기준
-        if anchor_idx + 1 < n:
-            base_price = float(df.at[anchor_idx + 1, "open"])
-        else:
-            base_price = float(df.at[anchor_idx, "open"])
+        base_price = float(df.at[anchor_idx, "open"])
 
         if sec_cond == "양봉 2개 연속 상승":
             if i0 + 2 >= n:
@@ -958,180 +954,6 @@ def _load_ckpt(key: str):
 def _save_ckpt(key: str, value):
     st.session_state[key] = value
 
-# ===============================================
-# ✅ 실시간 감시 렌더 함수 정의 (render_realtime_monitor)
-# ===============================================
-import threading, time
-
-def render_realtime_monitor():
-    import json
-    st.markdown("---")
-    st.markdown("### 👁️ 실시간 감시 설정")
-
-    SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings_realtime.json")
-
-    # --- 기존 설정 복원 ---
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            if "watch_symbols" in saved:
-                st.session_state["watch_symbols"] = saved["watch_symbols"]
-            if "watch_timeframes" in saved:
-                st.session_state["watch_timeframes"] = saved["watch_timeframes"]
-            if "alerts" in saved and "alerts" not in st.session_state:
-                st.session_state["alerts"] = saved["alerts"]
-        except Exception:
-            pass
-
-    # --- 감시 대상 및 봉종류 ---
-    watch_symbols = st.multiselect(
-        "감시할 종목 선택 (Upbit 기준)",
-        [m[1] for m in MARKET_LIST],
-        default=st.session_state.get("watch_symbols", ["KRW-BTC"])
-    )
-    watch_timeframes = st.multiselect(
-        "감시할 봉 종류 선택",
-        ["1분","3분","5분","15분","30분","60분","일봉"],
-        default=st.session_state.get("watch_timeframes", ["5분"])
-    )
-
-    # --- 변경사항 저장 ---
-    st.session_state["watch_symbols"] = watch_symbols
-    st.session_state["watch_timeframes"] = watch_timeframes
-    try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump({
-                "watch_symbols": watch_symbols,
-                "watch_timeframes": watch_timeframes,
-                "alerts": st.session_state.get("alerts", [])
-            }, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-
-    # --- 세션 상태 ---
-    if "alerts" not in st.session_state:
-        st.session_state["alerts"] = []
-    if "last_alert_time" not in st.session_state:
-        st.session_state["last_alert_time"] = {}
-    if "watch_stop" not in st.session_state:
-        st.session_state["watch_stop"] = threading.Event()
-    if "watch_thread" not in st.session_state:
-        st.session_state["watch_thread"] = None
-
-    TF_MAP_LOCAL = {
-        "1분": ("minutes/1", 1),
-        "3분": ("minutes/3", 3),
-        "5분": ("minutes/5", 5),
-        "15분": ("minutes/15", 15),
-        "30분": ("minutes/30", 30),
-        "60분": ("minutes/60", 60),
-        "일봉": ("days", 24*60),
-    }
-
-    def _add_alert(msg: str):
-        if msg not in st.session_state["alerts"]:
-            st.session_state["alerts"].append(msg)
-
-    def _periodic_multi_check(stop_event: threading.Event):
-        from datetime import datetime, timedelta
-        while not stop_event.is_set():
-            now = datetime.now()
-            syms = st.session_state.get("watch_symbols", [])
-            tfs  = st.session_state.get("watch_timeframes", [])
-            for symbol in syms:
-                for tf_label in tfs:
-                    interval_key, minutes_per_bar = TF_MAP_LOCAL[tf_label]
-                    start_dt = now - timedelta(hours=1)
-                    end_dt   = now
-                    try:
-                        df_w = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar)
-                        if df_w is None or df_w.empty:
-                            continue
-                        df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
-                        # ==============================================
-                        # ==============================================
-                        # ✅ 기본 감시 항상 켜짐 + 다중 조건 실시간 감시 통합
-                        # ==============================================
-                        signal_triggered = False
-                        msg = ""
-
-                        # (1) 기본 감시: 매물대 자동 신호 (항상 활성)
-                        try:
-                            if check_maemul_auto_signal(df_w):
-                                msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
-                                signal_triggered = True
-                        except Exception as e:
-                            print(f"[WARN] base maemul signal check failed for {symbol} {tf_label}: {e}")
-
-                        # (2) 선택 조건 감시: RSI / CCI / BB 조합
-                        try:
-                            # 조건이 하나라도 설정되어 있으면 simulate 수행
-                            if (
-                                (rsi_mode and rsi_mode != "없음") or
-                                (bb_cond and bb_cond != "없음") or
-                                (cci_mode and cci_mode != "없음")
-                            ):
-                                res_check = simulate(
-                                    df_w, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
-                                    bb_cond, "중복 제거 (연속 동일 결과 1개)",
-                                    minutes_per_bar, symbol, bb_window, bb_dev,
-                                    sec_cond=sec_cond, bottom_mode=bottom_mode,
-                                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under,
-                                    cci_signal_n=cci_signal
-                                )
-                                if not res_check.empty:
-                                    msg = f"🚨 [{symbol}] {tf_label} 조건 충족 신호 발생!"
-                                    signal_triggered = True
-                        except Exception as e:
-                            print(f"[WARN] simulate check failed for {symbol} {tf_label}: {e}")
-
-                        # (3) 알람 처리 (중복 방지 및 카카오톡 발송)
-                        if signal_triggered and msg:
-                            key = f"{symbol}_{tf_label}"
-                            last_time = st.session_state["last_alert_time"].get(key)
-                            allow = True
-                            if last_time is not None:
-                                allow = (now - last_time).seconds >= 600
-                            if allow:
-                                _add_alert(msg)
-                                send_kakao_alert(msg)
-                                st.session_state["last_alert_time"][key] = now
-                        print(f"[WARN] realtime check failed for {symbol} {tf_label}: {e}")
-                        continue
-
-            # 주기 대기 (stop_event 체크)
-            for _ in range(60):
-                if stop_event.is_set():
-                    break
-                time.sleep(1)
-
-    # --- 스레드 실행 관리 ---
-    th = st.session_state.get("watch_thread")
-    if th is None or not th.is_alive():
-        st.session_state["watch_stop"].clear()
-        th = threading.Thread(target=_periodic_multi_check, args=(st.session_state["watch_stop"],), daemon=True)
-        th.start()
-        st.session_state["watch_thread"] = th
-
-    # --- 상태 배너 ---
-    alive = st.session_state["watch_thread"].is_alive() if st.session_state["watch_thread"] else False
-    if alive:
-        st.info("✅ 실시간 감시 스레드가 실행 중입니다.")
-    else:
-        st.warning("⚠️ 실시간 감시 스레드가 정지 상태입니다. (자동 재시작됨)")
-
-    # --- 알람 박스 ---
-    st.markdown("### 🚨 실시간 알람 목록")
-    if st.session_state["alerts"]:
-        for i, alert in enumerate(st.session_state["alerts"]):
-            st.warning(f"{i+1}. {alert}")
-    else:
-        st.info("현재까지 감지된 실시간 알람이 없습니다.")
-
-# ===============================================
-# 끝 (이 아래 run_combination_scan_chunked 기존 유지)
-# ===============================================
 def run_combination_scan_chunked(
     symbol: str,
     interval_key: str,
@@ -1258,7 +1080,86 @@ try:
             st.toast("🚨 매물대 자동 신호 발생!")
             send_kakao_alert(f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})")
 
-    # (⑤ 실시간 감시는 ④ 신호 결과 아래에서 render_realtime_monitor()로 렌더됩니다.)
+    # ============================================================
+    # ✅ 실시간 다중 종목·다중 봉단위 감시 (1분 주기)
+    # ============================================================
+    import threading, time
+    from datetime import datetime, timedelta
+
+    # --- 감시 대상 선택 UI ---
+    st.markdown("---")
+    st.markdown("### 👁️ 실시간 감시 설정")
+    watch_symbols = st.multiselect(
+        "감시할 종목 선택 (Upbit 기준)",
+        [m[1] for m in MARKET_LIST],
+        default=["KRW-BTC"]
+    )
+    watch_timeframes = st.multiselect(
+        "감시할 봉 종류 선택",
+        ["1분", "3분", "5분", "15분", "30분", "60분", "일봉"],
+        default=["5분"]
+    )
+
+    # --- 세션 상태 초기화 ---
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+    if "last_alert_time" not in st.session_state:
+        st.session_state["last_alert_time"] = {}
+
+    def add_alert(msg):
+        """새 알람을 누적 저장"""
+        if msg not in st.session_state["alerts"]:
+            st.session_state["alerts"].append(msg)
+
+    # --- 주기적 감시 함수 ---
+    def periodic_multi_check():
+        TF_MAP = {
+            "1분": ("minutes/1", 1),
+            "3분": ("minutes/3", 3),
+            "5분": ("minutes/5", 5),
+            "15분": ("minutes/15", 15),
+            "30분": ("minutes/30", 30),
+            "60분": ("minutes/60", 60),
+            "일봉": ("days", 24*60),
+        }
+
+        while True:
+            now = datetime.now()
+            for symbol in watch_symbols:
+                for tf_label in watch_timeframes:
+                    interval_key, minutes_per_bar = TF_MAP[tf_label]
+                    start_dt = now - timedelta(hours=1)
+                    end_dt = now
+
+                    try:
+                        df_w = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar)
+                        df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+                        if check_maemul_auto_signal(df_w):
+                            key = f"{symbol}_{tf_label}"
+                            last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
+                            if (now - last_time).seconds >= 600:  # 10분 중복 방지
+                                msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
+                                add_alert(msg)
+                                send_kakao_alert(msg)
+                                st.session_state["last_alert_time"][key] = now
+                    except Exception as e:
+                        print(f"[WARN] periodic check failed for {symbol} {tf_label}: {e}")
+                        continue
+            time.sleep(60)  # 1분마다 주기 실행
+
+    # --- 쓰레드 1회만 시작 ---
+    if "multi_watch_thread" not in st.session_state:
+        t = threading.Thread(target=periodic_multi_check, daemon=True)
+        t.start()
+        st.session_state["multi_watch_thread"] = True
+
+    # --- 알람 박스 출력 ---
+    st.markdown("### 🚨 실시간 알람 목록")
+    if st.session_state["alerts"]:
+        for i, alert in enumerate(st.session_state["alerts"]):
+            st.warning(f"{i+1}. {alert}")
+    else:
+        st.info("현재까지 감지된 실시간 알람이 없습니다.")
 
     # 보기 요약 텍스트
     total_min = lookahead * int(minutes_per_bar)
@@ -2091,11 +1992,6 @@ try:
 
         styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
         st.dataframe(styled_tbl, width="stretch")
-
-    # -----------------------------
-    # ⑤ 실시간 감시 (④ 신호 결과 아래로 이동)
-    # -----------------------------
-    render_realtime_monitor()
 
     # -----------------------------
     # 📒 공유 메모 (GitHub 연동, 전체 공통)
