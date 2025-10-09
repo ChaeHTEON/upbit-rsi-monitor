@@ -2052,53 +2052,60 @@ try:
         st.session_state["watch_bg_thread"] = True
 
     st.markdown("---")
-    st.markdown("### 👁️ ⑤ 실시간 감시")
-    ui_cols = st.columns(3)
+    
+st.markdown("### ⑤ 실시간 감시")
+# ▶ UI: 선택 중에는 앱 전체 재실행이 일어나지 않도록 form 사용
+with st.form("watch_form", clear_on_submit=False):
+    ui_cols = st.columns(2)
     with ui_cols[0]:
-        st.session_state["watch_ui_symbols"] = st.multiselect(
+        sel_symbols = st.multiselect(
             "감시할 종목",
             [m[1] for m in MARKET_LIST],
-            default=st.session_state["watch_ui_symbols"],
+            default=st.session_state.get("watch_ui_symbols", ["KRW-BTC"]),
             key="watch_ui_symbols_sel"
         )
     with ui_cols[1]:
-        st.session_state["watch_ui_tfs"] = st.multiselect(
+        sel_tfs = st.multiselect(
             "감시할 봉",
             ["1분", "3분", "5분", "15분", "30분", "60분", "일봉"],
-            default=st.session_state["watch_ui_tfs"],
+            default=st.session_state.get("watch_ui_tfs", ["5분"]),
             key="watch_ui_tfs_sel"
         )
-    with ui_cols[2]:
-        if st.button("✅ 적용(저장)", use_container_width=True):
-            new_cfg = {
-                "symbols": st.session_state["watch_ui_symbols"] or ["KRW-BTC"],
-                "timeframes": st.session_state["watch_ui_tfs"] or ["5분"],
-            }
-            _watch_save(new_cfg)
-            st.session_state["watch_active_config"] = new_cfg
-            st.success("감시 설정이 저장되고 적용되었습니다.")
 
-    ctrl_cols = st.columns(3)
-    with ctrl_cols[0]:
-        if st.button("▶ 감시 시작", use_container_width=True):
-            if not st.session_state.get("watch_active"):
-                st.session_state["watch_active"] = True
-                st.success("실시간 감시를 시작했습니다.")
-    with ctrl_cols[1]:
-        if st.button("⏸ 감시 일시중지", use_container_width=True):
-            st.session_state["watch_active"] = False
+    submitted = st.form_submit_button("✅ 적용(저장)", use_container_width=True)
+    if submitted:
+        new_cfg = {
+            "symbols": sel_symbols or ["KRW-BTC"],
+            "timeframes": sel_tfs or ["5분"],
+        }
+        _watch_save(new_cfg)
+        st.session_state["watch_ui_symbols"] = new_cfg["symbols"]
+        st.session_state["watch_ui_tfs"] = new_cfg["timeframes"]
+        st.session_state["watch_active_config"] = new_cfg
+        st.success("감시 설정이 저장되고 적용되었습니다.")
+
+# ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
+bcols = st.columns([1,1,1])
+with bcols[0]:
+    toggle_label = "⏸ 감시 일시중지" if st.session_state.get("watch_active") else "▶ 감시 시작"
+    if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
+        st.session_state["watch_active"] = not st.session_state.get("watch_active")
+        if st.session_state["watch_active"]:
+            st.success("실시간 감시를 시작했습니다.")
+        else:
             st.info("실시간 감시가 일시중지되었습니다.")
-    with ctrl_cols[2]:
-        if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
-            send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
-            st.success("테스트 알림을 전송했습니다.")
+with bcols[2]:
+    if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
+        send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
+        st.success("테스트 알림을 전송했습니다.")
 
-    if "watch_auto_started" not in st.session_state:
-        st.session_state["watch_active"] = True
-        st.session_state["watch_auto_started"] = True
-        st.session_state["watch_active_config"] = _persisted.copy()
+# 첫 방문/새로고침 시 자동 동작 (조건 미선택이어도 기본값으로)
+if "watch_auto_started" not in st.session_state:
+    st.session_state["watch_active"] = True
+    st.session_state["watch_auto_started"] = True
+    st.session_state["watch_active_config"] = _persisted.copy()
 
-    st.markdown("#### 🚨 실시간 알람 목록")
+st.markdown("#### 🚨 실시간 알람 목록")
     if st.session_state["alerts"]:
         for i, alert in enumerate(st.session_state["alerts"]):
             st.warning(f"{i+1}. {alert}")
