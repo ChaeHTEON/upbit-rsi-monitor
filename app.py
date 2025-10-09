@@ -2105,19 +2105,22 @@ def main():
                 st.success("감시 설정이 저장되고 적용되었습니다.")
             
         # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
-        bcols = st.columns([1,1,1])
-            with bcols[0]:
-        toggle_label = "⏸ 감시 일시중지" if st.session_state.get("watch_active") else "▶ 감시 시작"
+        # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
+        bcols = st.columns([1, 1, 1])
+
+        with bcols[0]:
+            toggle_label = "⏸ 감시 일시중지" if st.session_state.get("watch_active") else "▶ 감시 시작"
             if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
-            st.session_state["watch_active"] = not st.session_state.get("watch_active")
-            if st.session_state["watch_active"]:
-            st.success("실시간 감시를 시작했습니다.")
-            else:
-            st.info("실시간 감시가 일시중지되었습니다.")
-            with bcols[2]:
+                st.session_state["watch_active"] = not st.session_state.get("watch_active")
+                if st.session_state["watch_active"]:
+                    st.success("실시간 감시를 시작했습니다.")
+                else:
+                    st.info("실시간 감시가 일시중지되었습니다.")
+
+        with bcols[2]:
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
-        send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
-            st.success("테스트 알림을 전송했습니다.")
+                send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
+                st.success("테스트 알림을 전송했습니다.")
             
         # 첫 방문/새로고침 시 자동 동작 (조건 미선택이어도 기본값으로)
             if "watch_auto_started" not in st.session_state:
