@@ -1049,14 +1049,12 @@ def render_realtime_monitor():
                         if df_w is None or df_w.empty:
                             continue
                         df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
-                        # ==============================================
-                        # ==============================================
-                        # ✅ 기본 감시 항상 켜짐 + 다중 조건 실시간 감시 통합
-                        # ==============================================
+
+                        # ---- 통합 감시 ----
                         signal_triggered = False
                         msg = ""
 
-                        # (1) 기본 감시: 매물대 자동 신호 (항상 활성)
+                        # (1) 매물대 자동 신호
                         try:
                             if check_maemul_auto_signal(df_w):
                                 msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
@@ -1064,14 +1062,11 @@ def render_realtime_monitor():
                         except Exception as e:
                             print(f"[WARN] base maemul signal check failed for {symbol} {tf_label}: {e}")
 
-                        # (2) 선택 조건 감시: RSI / CCI / BB 조합
+                        # (2) 선택 조건(RSI/BB/CCI) 충족
                         try:
-                            # 조건이 하나라도 설정되어 있으면 simulate 수행
-                            if (
-                                (rsi_mode and rsi_mode != "없음") or
+                            if ((rsi_mode and rsi_mode != "없음") or
                                 (bb_cond and bb_cond != "없음") or
-                                (cci_mode and cci_mode != "없음")
-                            ):
+                                (cci_mode and cci_mode != "없음")):
                                 res_check = simulate(
                                     df_w, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
                                     bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -1086,7 +1081,7 @@ def render_realtime_monitor():
                         except Exception as e:
                             print(f"[WARN] simulate check failed for {symbol} {tf_label}: {e}")
 
-                        # (3) 알람 처리 (중복 방지 및 카카오톡 발송)
+                        # (3) 알람 처리
                         if signal_triggered and msg:
                             key = f"{symbol}_{tf_label}"
                             last_time = st.session_state["last_alert_time"].get(key)
@@ -1097,14 +1092,17 @@ def render_realtime_monitor():
                                 _add_alert(msg)
                                 send_kakao_alert(msg)
                                 st.session_state["last_alert_time"][key] = now
+
+                    # ✅ 누락된 except 블록 추가
+                    except Exception as e:
                         print(f"[WARN] realtime check failed for {symbol} {tf_label}: {e}")
                         continue
 
-                # 주기 대기 (stop_event 체크)
-                for _ in range(60):
-                    if stop_event.is_set():
-                        break
-                    time.sleep(1)
+            # ✅ while 루프 내로 정확히 들여쓰기된 대기 루프
+            for _ in range(60):
+                if stop_event.is_set():
+                    break
+                time.sleep(1)
 
     # --- 스레드 실행 관리 ---
     th = st.session_state.get("watch_thread")
