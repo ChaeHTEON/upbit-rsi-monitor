@@ -1520,16 +1520,23 @@ def main():
         # 📒 공유 메모 바로 위에서는 ④ 신호 결과 블록 제거
     
         # -----------------------------
+        # ④ 신호 결과 (최신 순)
+        # -----------------------------
+        st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+        render_signal_table()
+
+        # -----------------------------
         # 🔎 통계/조합 탐색 (사용자 지정) — 📒 공유 메모 위로 이동
+        # (※ ④ 신호 결과 아래로 이동)
         # -----------------------------
         if "sweep_expanded" not in st.session_state:
             st.session_state["sweep_expanded"] = False
         def _keep_sweep_open():
             st.session_state["sweep_expanded"] = True
-    
+
         with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=st.session_state["sweep_expanded"]):
             st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
-    
+
             main_idx_for_sweep = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == market_code), default_idx)
             sweep_market_label, sweep_market = st.selectbox(
                 "종목 선택 (통계 전용)", MARKET_LIST, index=main_idx_for_sweep,
@@ -1537,8 +1544,11 @@ def main():
             )
             sweep_start = st.date_input("시작일 (통계 전용)", value=start_date,
                                         key="sweep_start", on_change=_keep_sweep_open)
-            sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
-                                        key="sweep_end", on_change=_keep_sweep_open)
+            sweep_end = st.date_input("종료일 (통계 전용)", value=end_date,
+                                      key="sweep_end", on_change=_keep_sweep_open)
+            st.divider()
+            if st.button("▶ 통계/조합 실행", use_container_width=True, on_click=_keep_sweep_open):
+                run_sweep_analysis(sweep_market, sweep_start, sweep_end)
     
             col_thr, col_win = st.columns(2)
             with col_thr:
@@ -2101,16 +2111,17 @@ def main():
         # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
         bcols = st.columns([1, 1, 1])
 
-        # 초기 상태: 감시중 활성화
+        # 기본 상태: 감시중 (자동 ON)
         if "watch_active" not in st.session_state:
             st.session_state["watch_active"] = True
 
         with bcols[0]:
-            toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
+            # 감시중 ↔ 감시 시작 토글 (디폴트: 감시중)
+            toggle_label = "감시 시작" if st.session_state["watch_active"] else "감시중"
             if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
                 st.session_state["watch_active"] = not st.session_state["watch_active"]
                 if st.session_state["watch_active"]:
-                    st.success("실시간 감시를 시작했습니다.")
+                    st.success("실시간 감시가 다시 시작되었습니다.")
                 else:
                     st.info("실시간 감시가 중지되었습니다.")
 
