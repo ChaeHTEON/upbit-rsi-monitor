@@ -1100,11 +1100,11 @@ def render_realtime_monitor():
                         print(f"[WARN] realtime check failed for {symbol} {tf_label}: {e}")
                         continue
 
-            # 주기 대기 (stop_event 체크)
-            for _ in range(60):
-                if stop_event.is_set():
-                    break
-                time.sleep(1)
+                # 주기 대기 (stop_event 체크)
+                for _ in range(60):
+                    if stop_event.is_set():
+                        break
+                    time.sleep(1)
 
     # --- 스레드 실행 관리 ---
     th = st.session_state.get("watch_thread")
