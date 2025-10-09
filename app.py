@@ -963,7 +963,7 @@ def _save_ckpt(key: str, value):
 # ===============================================
 import threading, time
 
-def render_realtime_monitor()
+def render_realtime_monitor():
     # --- 세션 상태 ---
     if "alerts" not in st.session_state:
         st.session_state["alerts"] = []
