@@ -1,0 +1,18 @@
+{
+  "symbols": [
+    "KRW-BTC",
+    "KRW-ETH",
+    "KRW-XRP",
+    "KRW-SOL",
+    "KRW-DOGE"
+  ],
+  "timeframes": [
+    "1분",
+    "3분",
+    "5분",
+    "15분",
+    "30분",
+    "60분",
+    "일봉"
+  ]
+}
