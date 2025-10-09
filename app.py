@@ -2123,16 +2123,17 @@ def main():
                 st.success("테스트 알림을 전송했습니다.")
             
         # 첫 방문/새로고침 시 자동 동작 (조건 미선택이어도 기본값으로)
-            if "watch_auto_started" not in st.session_state:
+        if "watch_auto_started" not in st.session_state:
             st.session_state["watch_active"] = True
             st.session_state["watch_auto_started"] = True
             st.session_state["watch_active_config"] = _persisted.copy()
-            
-            st.markdown("#### 🚨 실시간 알람 목록")
-            if st.session_state["alerts"]:
-        for i, alert in enumerate(st.session_state["alerts"]):
-            st.warning(f"{i+1}. {alert}")
-            else:
+
+        # 🚨 실시간 알람 목록 표시
+        st.markdown("#### 🚨 실시간 알람 목록")
+        if st.session_state["alerts"]:
+            for i, alert in enumerate(st.session_state["alerts"]):
+                st.warning(f"{i+1}. {alert}")
+        else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
     
     
