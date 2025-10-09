@@ -1050,18 +1050,28 @@ def render_realtime_monitor():
                             continue
                         df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
                         # ==============================================
-                        # ✅ 다중 조건 실시간 감시 (매물대 + RSI/CCI/BB 조합 포함)
+                        # ==============================================
+                        # ✅ 기본 감시 항상 켜짐 + 다중 조건 실시간 감시 통합
                         # ==============================================
                         signal_triggered = False
+                        msg = ""
 
-                        # (1) 매물대 자동 신호
-                        if check_maemul_auto_signal(df_w):
-                            msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
-                            signal_triggered = True
+                        # (1) 기본 감시: 매물대 자동 신호 (항상 활성)
+                        try:
+                            if check_maemul_auto_signal(df_w):
+                                msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
+                                signal_triggered = True
+                        except Exception as e:
+                            print(f"[WARN] base maemul signal check failed for {symbol} {tf_label}: {e}")
 
-                        # (2) RSI/CCI/BB 조건 감시
-                        else:
-                            try:
+                        # (2) 선택 조건 감시: RSI / CCI / BB 조합
+                        try:
+                            # 조건이 하나라도 설정되어 있으면 simulate 수행
+                            if (
+                                (rsi_mode and rsi_mode != "없음") or
+                                (bb_cond and bb_cond != "없음") or
+                                (cci_mode and cci_mode != "없음")
+                            ):
                                 res_check = simulate(
                                     df_w, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
                                     bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -1073,11 +1083,11 @@ def render_realtime_monitor():
                                 if not res_check.empty:
                                     msg = f"🚨 [{symbol}] {tf_label} 조건 충족 신호 발생!"
                                     signal_triggered = True
-                            except Exception as e:
-                                print(f"[WARN] simulate check failed for {symbol} {tf_label}: {e}")
+                        except Exception as e:
+                            print(f"[WARN] simulate check failed for {symbol} {tf_label}: {e}")
 
                         # (3) 알람 처리 (중복 방지 및 카카오톡 발송)
-                        if signal_triggered:
+                        if signal_triggered and msg:
                             key = f"{symbol}_{tf_label}"
                             last_time = st.session_state["last_alert_time"].get(key)
                             allow = True
@@ -1087,7 +1097,6 @@ def render_realtime_monitor():
                                 _add_alert(msg)
                                 send_kakao_alert(msg)
                                 st.session_state["last_alert_time"][key] = now
-                    except Exception as e:
                         print(f"[WARN] realtime check failed for {symbol} {tf_label}: {e}")
                         continue
 
