@@ -1066,11 +1066,17 @@ def main():
         # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
         if sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
             if check_maemul_auto_signal(df):
-                st.toast("🚨 매물대 자동 신호 발생!")
-                send_kakao_alert(f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})")
+                msg = f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})"
+                st.toast(msg)
+                send_kakao_alert(msg)
+                
+                # 🔸 실시간 알람 목록에도 추가
+                if "alerts" not in st.session_state:
+                    st.session_state["alerts"] = []
+                st.session_state["alerts"].append(msg)
         # (이 위치의 실시간 감시 UI/스레드는 ⑤ 섹션으로 이동했습니다)
     
-    
+
         # 보기 요약 텍스트
         total_min = lookahead * int(minutes_per_bar)
         hh, mm = divmod(total_min, 60)
