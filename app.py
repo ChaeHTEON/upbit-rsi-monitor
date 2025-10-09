@@ -2053,7 +2053,7 @@ try:
 
     st.markdown("---")
     
-st.markdown("### ⑤ 실시간 감시")
+    st.markdown("### ⑤ 실시간 감시")
 # ▶ UI: 선택 중에는 앱 전체 재실행이 일어나지 않도록 form 사용
 with st.form("watch_form", clear_on_submit=False):
     ui_cols = st.columns(2)
@@ -2105,8 +2105,8 @@ if "watch_auto_started" not in st.session_state:
     st.session_state["watch_auto_started"] = True
     st.session_state["watch_active_config"] = _persisted.copy()
 
-st.markdown("#### 🚨 실시간 알람 목록")
-if st.session_state["alerts"]:
+    st.markdown("#### 🚨 실시간 알람 목록")
+    if st.session_state["alerts"]:
         for i, alert in enumerate(st.session_state["alerts"]):
             st.warning(f"{i+1}. {alert}")
     else:
