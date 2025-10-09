@@ -2093,31 +2093,39 @@ def main():
                 st.session_state["watch_active_config"] = new_cfg
                 st.success("감시 설정이 저장되고 적용되었습니다.")
             
-        # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
+        # ---------------------------------------------
+        # ⑤ 실시간 감시 (④ 신호 결과와 동일한 스타일)
+        # ---------------------------------------------
+        st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
+
         # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
         bcols = st.columns([1, 1, 1])
 
+        # 초기 상태: 감시중 활성화
+        if "watch_active" not in st.session_state:
+            st.session_state["watch_active"] = True
+
         with bcols[0]:
-            toggle_label = "⏸ 감시 일시중지" if st.session_state.get("watch_active") else "▶ 감시 시작"
+            toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
             if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
-                st.session_state["watch_active"] = not st.session_state.get("watch_active")
+                st.session_state["watch_active"] = not st.session_state["watch_active"]
                 if st.session_state["watch_active"]:
                     st.success("실시간 감시를 시작했습니다.")
                 else:
-                    st.info("실시간 감시가 일시중지되었습니다.")
+                    st.info("실시간 감시가 중지되었습니다.")
 
         with bcols[2]:
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
                 send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
                 st.success("테스트 알림을 전송했습니다.")
-            
-        # 첫 방문/새로고침 시 자동 동작 (조건 미선택이어도 기본값으로)
+
+        # ▶ 최초 방문 시 자동 감시 활성화 (기본 ON)
         if "watch_auto_started" not in st.session_state:
             st.session_state["watch_active"] = True
             st.session_state["watch_auto_started"] = True
             st.session_state["watch_active_config"] = _persisted.copy()
 
-        # 🚨 실시간 알람 목록 표시
+        # 🚨 실시간 알람 목록
         st.markdown("#### 🚨 실시간 알람 목록")
         if st.session_state["alerts"]:
             for i, alert in enumerate(st.session_state["alerts"]):
