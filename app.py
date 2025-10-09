@@ -963,38 +963,7 @@ def _save_ckpt(key: str, value):
 # ===============================================
 import threading, time
 
-def render_realtime_monitor():
-    import json
-    st.markdown("---")
-    st.markdown("### 👁️ 실시간 감시 설정")
-
-    SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings_realtime.json")
-
-    # --- 기존 설정 복원 ---
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            if "watch_symbols" in saved:
-                st.session_state["watch_symbols"] = saved["watch_symbols"]
-            if "watch_timeframes" in saved:
-                st.session_state["watch_timeframes"] = saved["watch_timeframes"]
-            if "alerts" in saved and "alerts" not in st.session_state:
-                st.session_state["alerts"] = saved["alerts"]
-        except Exception:
-            pass
-
-    # --- 감시 대상 및 봉종류 ---
-    watch_symbols = st.multiselect(
-        "감시할 종목 선택 (Upbit 기준)",
-        [m[1] for m in MARKET_LIST],
-        default=st.session_state.get("watch_symbols", ["KRW-BTC"])
-    )
-    watch_timeframes = st.multiselect(
-        "감시할 봉 종류 선택",
-        ["1분","3분","5분","15분","30분","60분","일봉"],
-        default=st.session_state.get("watch_timeframes", ["5분"])
-    )
+def render_realtime_monitor()
 
     # --- 변경사항 저장 ---
     st.session_state["watch_symbols"] = watch_symbols
