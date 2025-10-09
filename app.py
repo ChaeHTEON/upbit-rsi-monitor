@@ -1049,14 +1049,41 @@ def render_realtime_monitor():
                         if df_w is None or df_w.empty:
                             continue
                         df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+                        # ==============================================
+                        # ✅ 다중 조건 실시간 감시 (매물대 + RSI/CCI/BB 조합 포함)
+                        # ==============================================
+                        signal_triggered = False
+
+                        # (1) 매물대 자동 신호
                         if check_maemul_auto_signal(df_w):
+                            msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
+                            signal_triggered = True
+
+                        # (2) RSI/CCI/BB 조건 감시
+                        else:
+                            try:
+                                res_check = simulate(
+                                    df_w, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+                                    bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                                    minutes_per_bar, symbol, bb_window, bb_dev,
+                                    sec_cond=sec_cond, bottom_mode=bottom_mode,
+                                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under,
+                                    cci_signal_n=cci_signal
+                                )
+                                if not res_check.empty:
+                                    msg = f"🚨 [{symbol}] {tf_label} 조건 충족 신호 발생!"
+                                    signal_triggered = True
+                            except Exception as e:
+                                print(f"[WARN] simulate check failed for {symbol} {tf_label}: {e}")
+
+                        # (3) 알람 처리 (중복 방지 및 카카오톡 발송)
+                        if signal_triggered:
                             key = f"{symbol}_{tf_label}"
                             last_time = st.session_state["last_alert_time"].get(key)
                             allow = True
                             if last_time is not None:
                                 allow = (now - last_time).seconds >= 600
                             if allow:
-                                msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_label}, {now:%H:%M})"
                                 _add_alert(msg)
                                 send_kakao_alert(msg)
                                 st.session_state["last_alert_time"][key] = now
