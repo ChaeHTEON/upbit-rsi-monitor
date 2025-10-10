@@ -938,12 +938,13 @@ def check_maemul_auto_signal(df):
             return True
 
     return False
-    
-    def chunked_periods(start_dt, end_dt, days_per_chunk=7):
+
+def chunked_periods(start_dt, end_dt, days_per_chunk=7):
     cur = start_dt
+    delta = timedelta(days=days_per_chunk)
     while cur < end_dt:
-        nxt = min(cur + timedelta(days=days_per_chunk), end_dt)
-        yield (cur, nxt)
+        nxt = min(cur + delta, end_dt)
+        yield cur, nxt
         cur = nxt
     
     @st.cache_data(show_spinner=False, ttl=3600)
