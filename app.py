@@ -1,14 +1,25 @@
+# app.py
+# -*- coding: utf-8 -*-
+import os
+# ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
+
+# ✅ Streamlit과 핵심 라이브러리들은 전역 import 로 이동
+import streamlit as st
+import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+import ta
+from datetime import datetime, timedelta
+from pytz import timezone
+import numpy as np
+from typing import Optional, Set
+
+
 def main():
-    # app.py
-    # -*- coding: utf-8 -*-
-    import os  # ★ 추가
-    # ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
-    os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
-    os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
-    
-    import streamlit as st
-    import pandas as pd
-    import requests
     from requests.adapters import HTTPAdapter, Retry
     import plotly.graph_objs as go
     from plotly.subplots import make_subplots
