@@ -1605,8 +1605,20 @@ def main():
             sweep_end = st.date_input("종료일 (통계 전용)", value=end_date,
                                       key="sweep_end", on_change=_keep_sweep_open)
             st.divider()
+
             if st.button("▶ 통계/조합 실행", use_container_width=True, on_click=_keep_sweep_open):
-                run_sweep_analysis(sweep_market, sweep_start, sweep_end)
+                try:
+                    st.info("📊 통계/조합 실행 중입니다. 잠시만 기다려주세요...")
+                    run_combination_scan_chunked(
+                        market_code=sweep_market,
+                        start_date=sweep_start,
+                        end_date=sweep_end,
+                        save_csv=False,
+                        show_result=True
+                    )
+                    st.success("✅ 통계/조합 탐색이 완료되었습니다.")
+                except Exception as e:
+                    st.error(f"❌ 오류 발생: {e}")
     
             col_thr, col_win = st.columns(2)
             with col_thr:
