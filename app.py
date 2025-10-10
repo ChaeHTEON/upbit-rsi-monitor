@@ -946,11 +946,12 @@ def chunked_periods(start_dt, end_dt, days_per_chunk=7):
         nxt = min(cur + delta, end_dt)
         yield cur, nxt
         cur = nxt
-    
-    @st.cache_data(show_spinner=False, ttl=3600)
-    def fetch_window_cached(symbol, interval_key, start_dt, end_dt, minutes_per_bar):
-        df = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=0)
-        return df
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def fetch_window_cached(symbol, interval_key, start_dt, end_dt, minutes_per_bar):
+    df = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=0)
+    return df
     
     def _safe_sleep(sec: float):
         try:
