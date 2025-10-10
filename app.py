@@ -680,7 +680,7 @@ def main():
             if anchor_idx >= n:
                 return None, None
             signal_time = df.at[anchor_idx, "time"]
-            base_price = float(df.at[anchor_idx, "open"])
+            base_price = float(df.at[anchor_idx, "close"])  # ✅ 기준시가를 '신호 발생 캔들 종가'로 변경
     
             if sec_cond == "양봉 2개 연속 상승":
                 if i0 + 2 >= n:
@@ -1137,22 +1137,15 @@ def main():
             df_view = df_view.reset_index(drop=True)
     
         plot_res = pd.DataFrame()
+        # ✅ 특정 신호 구간보기 기능 제거 (불필요한 선택 UI 제거)
         if res is not None and not res.empty:
             plot_res = (
                 res.sort_values("신호시간")
                    .drop_duplicates(subset=["anchor_i"], keep="first")
                    .reset_index(drop=True)
             )
-            sel_anchor = st.selectbox(
-                "🔎 특정 신호 구간 보기 (anchor 인덱스)",
-                options=plot_res["anchor_i"].tolist(),
-                index=len(plot_res) - 1
-            )
-            if sel_anchor is not None:
-                start_idx = max(int(sel_anchor) - 1000, 0)
-                end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
-                # ✅ index reset 하지 않고 원본 df 인덱스 보존
-                df_view   = df.iloc[start_idx:end_idx+1]
+            # 전체 데이터 기준으로 df_view 유지 (UI 단순화)
+            df_view = df.copy()
     
         # -----------------------------
         # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
@@ -1512,14 +1505,7 @@ def main():
     
         st.markdown("---")
         # 📒 공유 메모 바로 위에서는 ④ 신호 결과 블록 제거
-    
-        # -----------------------------
-        # 🔎 통계/조합 탐색 (사용자 지정) — 📒 공유 메모 위로 이동
-        # -----------------------------
-        if "sweep_expanded" not in st.session_state:
-            st.session_state["sweep_expanded"] = False
-        def _keep_sweep_open():
-            st.session_state["sweep_expanded"] = True
+
     
         with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=st.session_state["sweep_expanded"]):
             st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
@@ -1549,11 +1535,13 @@ def main():
                 prog = st.progress(0)
                 def _on_progress(p): prog.progress(min(max(p, 0.0), 1.0))
     
+                # ✅ 날짜 범위 정확히 지정 (입력된 시작/종료일만 반영)
                 if fast_mode:
                     sdt = datetime.combine(sweep_end - timedelta(days=30), datetime.min.time())
                 else:
                     sdt = datetime.combine(sweep_start, datetime.min.time())
                 edt = datetime.combine(sweep_end, datetime.max.time())
+                # 🔍 테스트: sdt~edt 구간만 스캔
     
                 try:
                     simulate_kwargs = dict(
@@ -1952,11 +1940,18 @@ def main():
     
             styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
             st.dataframe(styled_tbl, width="stretch")
-        # -----------------------------
-        # ⑤ 실시간 감시 (공유 메모 바로 위) — 저장·적용·자동동작
-        # -----------------------------
-        import threading, time, json
-        from datetime import datetime, timedelta
+            # -----------------------------
+            # 🔎 통계/조합 탐색 (사용자 지정) — 📒 공유 메모 위로 이동
+            # -----------------------------
+            if "sweep_expanded" not in st.session_state:
+                st.session_state["sweep_expanded"] = False
+            def _keep_sweep_open():
+                st.session_state["sweep_expanded"] = True
+            # -----------------------------
+            # ⑤ 실시간 감시 (공유 메모 바로 위) — 저장·적용·자동동작
+            # -----------------------------
+            import threading, time, json
+            from datetime import datetime, timedelta
     
         WATCH_CFG_FILE = os.path.join(os.path.dirname(__file__), "watch_config.json")
     
@@ -2055,7 +2050,7 @@ def main():
         st.markdown("---")
         
         
-        st.markdown("### ⑤ 실시간 감시")
+        st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
 
         # ▶ UI: 선택 중에는 앱 전체 재실행이 일어나지 않도록 form 사용
         with st.form("watch_form_realtime", clear_on_submit=False):
