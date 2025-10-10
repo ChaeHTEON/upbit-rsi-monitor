@@ -2037,6 +2037,7 @@ def main():
 
         # --- 실시간 감시 스레드 ---
         def _periodic_multi_check():
+            """실시간 감시 스레드 (UI 상태 즉시 반영)"""
             TF_MAP_LOC = {
                 "1분": ("minutes/1", 1),
                 "3분": ("minutes/3", 3),
@@ -2046,21 +2047,30 @@ def main():
                 "60분": ("minutes/60", 60),
                 "일봉": ("days", 24*60),
             }
+
             while True:
                 try:
+                    # 감시 중지 시 대기
                     if not st.session_state.get("watch_active"):
                         time.sleep(1)
                         continue
 
-                    cfg = st.session_state.get("watch_active_config", _persisted)
-                    symbols = cfg.get("symbols", ["KRW-BTC"])
-                    tfs     = cfg.get("timeframes", ["5분"])
+                    # ✅ UI에서 선택된 상태를 즉시 반영 (적용버튼 불필요)
+                    symbols = st.session_state.get("watch_ui_symbols_sel") \
+                        or st.session_state.get("watch_ui_symbols") \
+                        or ["KRW-BTC"]
+                    tfs = st.session_state.get("watch_ui_tfs_sel") \
+                        or st.session_state.get("watch_ui_tfs") \
+                        or ["5분"]
+
                     now = datetime.now()
 
                     for symbol in symbols:
                         for tf_lbl in tfs:
+                            if tf_lbl not in TF_MAP_LOC:
+                                continue
                             interval_key_s, mpb_s = TF_MAP_LOC[tf_lbl]
-                            start_dt = now - timedelta(hours=4)
+                            start_dt = now - timedelta(hours=1)
                             end_dt   = now
                             try:
                                 df_w = fetch_upbit_paged(symbol, interval_key_s, start_dt, end_dt, mpb_s)
