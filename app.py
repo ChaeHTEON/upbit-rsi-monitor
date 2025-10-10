@@ -2077,7 +2077,10 @@ def main():
                     symbols = cfg.get("symbols", ["KRW-BTC"])
                     tfs     = cfg.get("timeframes", ["5분"])
 
-                    now = datetime.now()
+                    # ✅ KST 기준의 naive datetime으로 맞춤 (fetch_upbit_paged는 KST.localize(end_dt) 전제)
+                    from pytz import timezone as _tz
+                    _KST = _tz("Asia/Seoul")
+                    now = datetime.now(_KST).replace(tzinfo=None)
 
                     for symbol in symbols:
                         for tf_lbl in tfs:
