@@ -2131,10 +2131,16 @@ def main():
             st.session_state["watch_active"] = True
 
         with bcols[0]:
-            toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
-            if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
-                st.session_state["watch_active"] = not st.session_state["watch_active"]
-                st.rerun()  # ✅ 즉시 UI 반영
+            with bcols[0]:
+                toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
+                # ✅ 상태값에 따라 key를 바꿔 위젯 재생성 → 라벨 즉시 반영
+                if st.button(
+                    toggle_label,
+                    use_container_width=True,
+                    key=f"btn_watch_toggle_{int(st.session_state['watch_active'])}"
+                ):
+                    st.session_state["watch_active"] = not st.session_state["watch_active"]
+                    st.rerun()
 
         with bcols[2]:
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
