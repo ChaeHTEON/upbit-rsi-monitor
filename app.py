@@ -2017,7 +2017,7 @@ def main():
                 st.warning(f"감시 설정 저장 실패: {_e}")
 
         # --- 상태 초기화 ---
-        _persisted = _watch_load()
+        _persisted = _watch_load()  # ⑤ 전용 설정 파일에서 로드
         if "alerts" not in st.session_state:
             st.session_state["alerts"] = []
         if "last_alert_time" not in st.session_state:
@@ -2025,12 +2025,12 @@ def main():
         if "watch_active" not in st.session_state:
             st.session_state["watch_active"] = True
         if "watch_active_config" not in st.session_state:
+            # ✅ 첫 진입 즉시 ⑤ 설정을 단일 진실로 사용
             st.session_state["watch_active_config"] = _persisted.copy()
         if "watch_ui_symbols" not in st.session_state:
             st.session_state["watch_ui_symbols"] = _persisted.get("symbols", ["KRW-BTC"])
         if "watch_ui_tfs" not in st.session_state:
             st.session_state["watch_ui_tfs"] = _persisted.get("timeframes", ["5분"])
-
         def _add_alert(msg):
             if msg not in st.session_state["alerts"]:
                 st.session_state["alerts"].append(msg)
@@ -2055,13 +2055,12 @@ def main():
                         time.sleep(1)
                         continue
 
-                    # ✅ UI에서 선택된 상태를 즉시 반영 (적용버튼 불필요)
-                    symbols = st.session_state.get("watch_ui_symbols_sel") \
-                        or st.session_state.get("watch_ui_symbols") \
-                        or ["KRW-BTC"]
-                    tfs = st.session_state.get("watch_ui_tfs_sel") \
-                        or st.session_state.get("watch_ui_tfs") \
-                        or ["5분"]
+                    # ✅ ⑤ 실시간 감시 전용 설정만 사용 (단일 진실)
+                    #    - 페이지 첫 진입: _watch_load() → _persisted → watch_active_config 로 세팅
+                    #    - "적용(저장)" 클릭 시 watch_active_config 갱신
+                    cfg = st.session_state.get("watch_active_config", _persisted)
+                    symbols = cfg.get("symbols", ["KRW-BTC"])
+                    tfs     = cfg.get("timeframes", ["5분"])
 
                     now = datetime.now()
 
