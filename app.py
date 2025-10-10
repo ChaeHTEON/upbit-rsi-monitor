@@ -2084,22 +2084,39 @@ def main():
                             if tf_lbl not in TF_MAP_LOC:
                                 continue
                             interval_key_s, mpb_s = TF_MAP_LOC[tf_lbl]
-                            start_dt = now - timedelta(minutes=minutes_per_bar * 3)
+
+                            # ✅ 각 봉 단위에 맞게 최근 3봉(또는 약 3배 시간 구간)만 조회
+                            start_dt = now - timedelta(minutes=mpb_s * 3)
                             end_dt   = now
                             try:
-                                df_w = fetch_upbit_paged(symbol, interval_key_s, start_dt, end_dt, mpb_s, warmup_bars=-1)
+                                # ✅ 캐시 무시(-1)로 항상 최신 데이터 요청
+                                df_w = fetch_upbit_paged(
+                                    symbol,
+                                    interval_key_s,
+                                    start_dt,
+                                    end_dt,
+                                    mpb_s,
+                                    warmup_bars=-1
+                                )
+
                                 if df_w is None or df_w.empty:
                                     continue
+
                                 df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+
+                                # ✅ 최근 데이터에서 신호 감지
                                 if check_maemul_auto_signal(df_w):
                                     key = f"{symbol}_{tf_lbl}"
-                                    last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
+                                    last_time = st.session_state["last_alert_time"].get(
+                                        key, datetime(2000, 1, 1)
+                                    )
                                     if (now - last_time).seconds >= 600:
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
                                         st.toast(msg)
                                         send_kakao_alert(msg)
                                         st.session_state["last_alert_time"][key] = now
+
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
                                 continue
