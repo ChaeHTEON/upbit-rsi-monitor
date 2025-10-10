@@ -2084,10 +2084,10 @@ def main():
                             if tf_lbl not in TF_MAP_LOC:
                                 continue
                             interval_key_s, mpb_s = TF_MAP_LOC[tf_lbl]
-                            start_dt = now - timedelta(hours=1)
+                            start_dt = now - timedelta(minutes=minutes_per_bar * 3)
                             end_dt   = now
                             try:
-                                df_w = fetch_upbit_paged(symbol, interval_key_s, start_dt, end_dt, mpb_s)
+                                df_w = fetch_upbit_paged(symbol, interval_key_s, start_dt, end_dt, mpb_s, warmup_bars=-1)
                                 if df_w is None or df_w.empty:
                                     continue
                                 df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
