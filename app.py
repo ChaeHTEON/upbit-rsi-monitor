@@ -20,6 +20,38 @@ from typing import Optional, Set
 
 
 def main():
+    st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
+
+# ✅ 통합 알림 함수
+def notify_alert(msg: str, category: str = "manual"):
+    """
+    카카오 Webhook + Toast + 실시간 알람 목록 통합 처리
+    category: "manual" | "auto"
+    """
+    try:
+        url = st.secrets.get("KAKAO_WEBHOOK_URL", None)
+        if not url:
+            st.warning("⚠️ KAKAO_WEBHOOK_URL이 설정되지 않았습니다.")
+            return
+        payload = {"userRequest": {"utterance": msg}}
+        headers = {"Content-Type": "application/json"}
+        r = requests.post(url, json=payload, headers=headers, timeout=5)
+
+        # Toast + 목록
+        st.toast(msg)
+        if "alerts" not in st.session_state:
+            st.session_state["alerts"] = []
+        if msg not in st.session_state["alerts"]:
+            st.session_state["alerts"].append(msg)
+
+        if r.status_code == 200 and category == "manual":
+            st.success("✅ 카카오톡 알림 전송 성공")
+        elif r.status_code != 200:
+            st.warning(f"⚠️ 전송 실패 (응답 코드: {r.status_code})")
+    except Exception as e:
+        st.error(f"❌ 알림 처리 오류: {e}")
+
+
     from requests.adapters import HTTPAdapter, Retry
     import plotly.graph_objs as go
     from plotly.subplots import make_subplots
@@ -30,19 +62,6 @@ def main():
     from typing import Optional, Set
     
     # ✅ 카카오 Webhook 테스트용 코드 추가
-    def send_kakao_alert(msg: str):
-        """카카오 Webhook(site)으로 메시지 전송"""
-        try:
-            url = st.secrets["KAKAO_WEBHOOK_URL"]
-            payload = {"userRequest": {"utterance": msg}}
-            headers = {"Content-Type": "application/json"}
-            response = requests.post(url, json=payload, headers=headers, timeout=5)
-            if response.status_code == 200:
-                st.success("✅ 메시지 전송 성공!")
-            else:
-                st.warning(f"⚠️ 전송 실패 (응답 코드: {response.status_code})")
-        except Exception as e:
-            st.error(f"❌ 전송 중 오류 발생: {e}")
     
     # ✅ Streamlit 실행 시 Webhook 연결 확인
     try:
@@ -53,12 +72,12 @@ def main():
     
     # ✅ 테스트 버튼
     if st.button("📢 카카오톡 알림 테스트 보내기"):
-        send_kakao_alert("🚨 Streamlit에서 테스트 메시지 전송됨!")
+        notify_alert("🚨 Streamlit에서 테스트 메시지 전송됨!", category="manual")
     
     # -----------------------------
     # 페이지/스타일
     # -----------------------------
-    st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
+
     st.markdown("""
     <style>
       .block-container {padding-top: 0.8rem; padding-bottom: 0.8rem; max-width: 1100px;}
@@ -1102,7 +1121,7 @@ def _safe_sleep(sec: float):
             if check_maemul_auto_signal(df):
                 msg = f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})"
                 st.toast(msg)
-                send_kakao_alert(msg)
+                notify_alert(msg, category="manual")
                 
         # (이 위치의 실시간 감시 UI/스레드는 ⑤ 섹션으로 이동했습니다)
     
@@ -2130,7 +2149,7 @@ def _safe_sleep(sec: float):
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
                                         st.toast(msg)
-                                        send_kakao_alert(msg)
+                                        notify_alert(msg, category="manual", category="auto")
                                         st.session_state["last_alert_time"][key] = now
 
                             except Exception as e:
@@ -2202,7 +2221,7 @@ def _safe_sleep(sec: float):
         with bcols[2]:
             # 🔔 카카오톡 테스트 알림
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
-                send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
+                notify_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인", category="manual", category="auto")
                 st.success("테스트 알림을 전송했습니다.")
 
             # 🧪 테스트 신호 강제 발생
@@ -2212,7 +2231,7 @@ def _safe_sleep(sec: float):
                 msg = f"🚨 [TEST] 매물대 자동 신호 (가상) 발생! ({now:%H:%M:%S})"
                 st.toast(msg)
                 _add_alert(msg)
-                send_kakao_alert(msg)
+                notify_alert(msg, category="manual", category="auto")
                 st.session_state["last_alert_time"]["TEST"] = now
                 st.success("테스트 신호를 강제로 발생시켰습니다.")
 
