@@ -901,43 +901,43 @@ def main():
     import requests
     
     # ✅ 매물대 자동 신호 감지 함수
-    def check_maemul_auto_signal(df):
-        """
-        ⑤ 실시간 감시용 '매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)' 검출.
-        - 시뮬레이션과 동일한 조건을 최근 구간 전체(j=1..n-1)에 적용하여,
-          한 번이라도 만족하면 True를 반환한다.
-        - 알림 중복은 호출부에서 last_alert_time(10분)으로 제어.
-        """
-        n = len(df)
-        if n < 3:
-            return False
-    
-        for j in range(1, n):
-            prev_high  = float(df.at[j - 1, "high"])
-            prev_open  = float(df.at[j - 1, "open"])
-            prev_close = float(df.at[j - 1, "close"])
-    
-            # 직전봉 기준 '매물대' 정의 (시뮬레이션과 동일)
-            maemul = max(prev_high, prev_close if prev_close >= prev_open else prev_open)
-    
-            cur_low   = float(df.at[j, "low"])
-            cur_open  = float(df.at[j, "open"])
-            cur_close = float(df.at[j, "close"])
-            cur_bb_low = df.at[j, "BB_low"]
-            try:
-                cur_bb_low = float(cur_bb_low) if cur_bb_low is not None else float('nan')
-            except Exception:
-                cur_bb_low = float('nan')
-    
-            below    = cur_low   <= maemul * 0.999      # 하향 터치/하회
-            above    = cur_close >= maemul              # 상단 재진입(종가 기준)
-            is_bull  = cur_close >  cur_open            # 양봉
-            bb_above = (cur_bb_low != cur_bb_low) or (maemul >= cur_bb_low)  # BB 하단 위(NA 허용)
-    
-            if below and above and is_bull and bb_above:
-                return True
-    
+def check_maemul_auto_signal(df):
+    """
+    ⑤ 실시간 감시용 '매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)' 검출.
+    simulate()와 동일한 정식 조건 로직으로 통합.
+    """
+    n = len(df)
+    if n < 3:
         return False
+
+    for j in range(2, n):  # i0+2 이후 검색
+        prev_high = float(df.at[j - 1, "high"])
+        prev_open = float(df.at[j - 1, "open"])
+        prev_close = float(df.at[j - 1, "close"])
+        prev_bb_low = float(df.at[j - 1, "BB_low"])
+
+        # 매물대 기준 정의 (시뮬레이션 동일)
+        if prev_close >= prev_open:  # 양봉
+            maemul = max(prev_high, prev_close)
+        else:  # 음봉
+            maemul = max(prev_high, prev_open)
+
+        cur_low = float(df.at[j, "low"])
+        cur_high = float(df.at[j, "high"])
+        cur_close = float(df.at[j, "close"])
+        cur_open = float(df.at[j, "open"])
+        cur_bb_low = float(df.at[j, "BB_low"])
+
+        # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
+        below = cur_low <= maemul * 0.999
+        above = cur_close >= maemul
+        is_bull = cur_close > cur_open
+        bb_above = maemul >= cur_bb_low
+
+        if below and above and is_bull and bb_above:
+            return True
+
+    return False
     
     def chunked_periods(start_dt, end_dt, days_per_chunk=7):
         cur = start_dt
