@@ -1070,10 +1070,6 @@ def main():
                 st.toast(msg)
                 send_kakao_alert(msg)
                 
-                # 🔸 실시간 알람 목록에도 추가
-                if "alerts" not in st.session_state:
-                    st.session_state["alerts"] = []
-                st.session_state["alerts"].append(msg)
         # (이 위치의 실시간 감시 UI/스레드는 ⑤ 섹션으로 이동했습니다)
     
 
@@ -1984,61 +1980,6 @@ def main():
                                 st.dataframe(styled_detail, use_container_width=True)
     
         # -----------------------------
-        # ④ 신호 결과 (테이블)
-        # -----------------------------
-        st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-        if res is None or res.empty:
-            st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
-        else:
-            tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-            # ✅ 안전 포맷 유틸 (숫자만 포맷, 문자열/NaN 그대로 유지)
-            def _safe_fmt(v, fmt=":.2f", suffix=""):
-                if pd.isna(v):
-                    return ""
-                try:
-                    return format(float(v), fmt) + suffix
-                except Exception:
-                    return str(v)
-    
-            tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-            tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(float(v)):,}" if pd.notna(v) else "")
-            if "RSI(13)" in tbl:
-                tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: _safe_fmt(v, ":.2f"))
-            if "성공기준(%)" in tbl:
-                tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: _safe_fmt(v, ":.1f", "%"))
-            for col in ["최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
-                if col in tbl:
-                    tbl[col] = tbl[col].map(lambda v: _safe_fmt(v, ":.2f", "%"))
-    
-            if "도달캔들(bars)" in tbl.columns:
-                tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
-                def _fmt_from_bars(b):
-                    total_min = int(b) * int(minutes_per_bar)
-                    hh, mm = divmod(total_min, 60)
-                    return f"{hh:02d}:{mm:02d}"
-                tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
-            else:
-                tbl["도달캔들"] = 0
-                tbl["도달시간"] = "-"
-    
-            drop_cols = [c for c in ["BB값", "도달분", "도달캔들(bars)"] if c in tbl.columns]
-            if drop_cols:
-                tbl = tbl.drop(columns=drop_cols)
-    
-            keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
-                         "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
-            keep_cols = [c for c in keep_cols if c in tbl.columns]
-            tbl = tbl[keep_cols]
-    
-            def style_result(val):
-                if val == "성공": return "background-color: #FFF59D; color: #E53935; font-weight:600;"
-                if val == "실패": return "color: #1E40AF; font-weight:600;"
-                if val == "중립": return "color: #FF9800; font-weight:600;"
-                return ""
-    
-            styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
-            st.dataframe(styled_tbl, width="stretch")
-        # -----------------------------
         # ⑤ 실시간 감시 (공유 메모 바로 위) — 저장·적용·자동동작
         # -----------------------------
         import threading, time, json
@@ -2075,7 +2016,7 @@ def main():
         if "last_alert_time" not in st.session_state:
             st.session_state["last_alert_time"] = {}
         if "watch_active" not in st.session_state:
-            st.session_state["watch_active"] = False
+            st.session_state["watch_active"] = True
         if "watch_active_config" not in st.session_state:
             st.session_state["watch_active_config"] = _persisted.copy()
         if "watch_ui_symbols" not in st.session_state:
@@ -2139,9 +2080,6 @@ def main():
             st.session_state["watch_bg_thread"] = True
     
         st.markdown("---")
-        
-        
-        st.markdown("### ⑤ 실시간 감시")
 
         # ▶ UI: 선택 중에는 앱 전체 재실행이 일어나지 않도록 form 사용
         with st.form("watch_form_realtime", clear_on_submit=False):
@@ -2187,7 +2125,7 @@ def main():
 
         with bcols[0]:
             # 감시중 ↔ 감시 시작 토글 (디폴트: 감시중)
-            toggle_label = "감시 시작" if st.session_state["watch_active"] else "감시중"
+            toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
             if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
                 st.session_state["watch_active"] = not st.session_state["watch_active"]
                 if st.session_state["watch_active"]:
@@ -2206,11 +2144,23 @@ def main():
             st.session_state["watch_auto_started"] = True
             st.session_state["watch_active_config"] = _persisted.copy()
 
-        # 🚨 실시간 알람 목록
+        # 🚨 실시간 알람 목록 — X버튼으로 개별 삭제 가능
         st.markdown("#### 🚨 실시간 알람 목록")
+
+        if "alerts" not in st.session_state:
+            st.session_state["alerts"] = []
+
         if st.session_state["alerts"]:
+            new_alerts = []
             for i, alert in enumerate(st.session_state["alerts"]):
-                st.warning(f"{i+1}. {alert}")
+                cols = st.columns([9, 1])
+                with cols[0]:
+                    st.warning(f"{i+1}. {alert}")
+                with cols[1]:
+                    if st.button("❌", key=f"del_alert_{i}"):
+                        continue  # 클릭된 항목은 미저장 → 삭제
+                new_alerts.append(alert)
+            st.session_state["alerts"] = new_alerts
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
     
