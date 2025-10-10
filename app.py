@@ -2156,6 +2156,16 @@ def main():
                 send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
                 st.success("테스트 알림을 전송했습니다.")
 
+    # 🧪 테스트 신호 강제 발생
+    if st.button("🧪 테스트 신호 발생", use_container_width=True):
+        now = datetime.now()
+        msg = f"🚨 [TEST] 매물대 자동 신호 (가상) 발생! ({now:%H:%M:%S})"
+        st.toast(msg)
+        _add_alert(msg)
+        send_kakao_alert(msg)
+        st.session_state["last_alert_time"]["TEST"] = now
+        st.success("테스트 신호를 강제로 발생시켰습니다.")
+
         # 🚨 실시간 알람 목록 — X버튼으로 개별 삭제 가능
         st.markdown("#### 🚨 실시간 알람 목록")
         if st.session_state["alerts"]:
