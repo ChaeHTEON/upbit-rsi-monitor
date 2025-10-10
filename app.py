@@ -2221,8 +2221,8 @@ def _safe_sleep(sec: float):
         with bcols[2]:
             # 🔔 카카오톡 테스트 알림
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
-                notify_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인", category="manual", category="auto")
-                st.success("테스트 알림을 전송했습니다.")
+            notify_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인", category="manual")
+            st.success("테스트 알림을 전송했습니다.")
 
             # 🧪 테스트 신호 강제 발생
             if st.button("🧪 테스트 신호 발생", use_container_width=True):
