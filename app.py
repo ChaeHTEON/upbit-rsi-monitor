@@ -902,10 +902,19 @@ def main():
     
     # ✅ 매물대 자동 신호 감지 함수
     def check_maemul_auto_signal(df):
-        """직전봉-현재봉 기준 매물대 자동(하단→상단 재진입+BB하단 위 양봉) 신호 감지"""
-        if len(df) < 3:
+        """최근 구간 전체를 검사하여 신호가 한 번이라도 있으면 True 반환"""
+        if len(df) < 5:
             return False
-        j = len(df) - 1
+    
+        # 최근 1시간 범위 내 모든 캔들 검사
+        for i in range(1, len(df)):
+            prev = df.iloc[i - 1]
+            cur  = df.iloc[i]
+    
+            # 단순 예시: 이전 봉이 BB 하단 근처, 현재 봉이 양봉일 때 신호
+            if (cur["close"] > cur["open"]) and (prev["low"] <= prev["BB_low"]):
+                return True
+        return False
         prev_high  = float(df.at[j - 1, "high"])
         prev_open  = float(df.at[j - 1, "open"])
         prev_close = float(df.at[j - 1, "close"])
