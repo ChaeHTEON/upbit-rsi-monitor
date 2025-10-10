@@ -1,4 +1,8 @@
 def main():
+    # ✅ sweep_expanded 세션 초기화 (통계/조합 탐색용)
+    if "sweep_expanded" not in st.session_state:
+        st.session_state["sweep_expanded"] = False
+
     # app.py
     # -*- coding: utf-8 -*-
     import os  # ★ 추가
@@ -1980,11 +1984,6 @@ def main():
     
         _persisted = _watch_load()
         if "alerts" not in st.session_state:
-            st.session_state["alerts"] = []
-    
-        # ✅ sweep_expanded 초기화 추가 (통계/조합 탐색 오류 방지)
-        if "sweep_expanded" not in st.session_state:
-            st.session_state["sweep_expanded"] = False
             st.session_state["alerts"] = []
         if "last_alert_time" not in st.session_state:
             st.session_state["last_alert_time"] = {}
