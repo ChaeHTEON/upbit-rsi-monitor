@@ -21,6 +21,7 @@ from typing import Optional, Set
 
 def main():
     st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
+    st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
 
 # ✅ 통합 알림 함수
 def notify_alert(msg: str, category: str = "manual"):
