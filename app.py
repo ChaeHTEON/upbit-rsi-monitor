@@ -18,31 +18,49 @@ def main():
     import numpy as np
     from typing import Optional, Set
     
-    # ✅ 카카오 Webhook 테스트용 코드 추가
-    def send_kakao_alert(msg: str):
-        """카카오 Webhook(site)으로 메시지 전송"""
+    # ✅ 통합 알림 함수 (notify_alert)
+    def notify_alert(msg: str, category: str = "manual"):
+        """
+        카카오 Webhook + Toast + 실시간 알람 목록 통합 처리
+        category: "manual" | "auto"
+        """
         try:
-            url = st.secrets["KAKAO_WEBHOOK_URL"]
+            # Webhook URL 로드
+            url = st.secrets.get("KAKAO_WEBHOOK_URL", None)
+            if not url:
+                st.warning("⚠️ KAKAO_WEBHOOK_URL이 설정되지 않았습니다.")
+                return
+
             payload = {"userRequest": {"utterance": msg}}
             headers = {"Content-Type": "application/json"}
             response = requests.post(url, json=payload, headers=headers, timeout=5)
+
+            # ✅ 통합 UI 처리 (토스트 + 알람 목록)
+            st.toast(msg)
+            if "alerts" not in st.session_state:
+                st.session_state["alerts"] = []
+            if msg not in st.session_state["alerts"]:
+                st.session_state["alerts"].append(msg)
+
             if response.status_code == 200:
-                st.success("✅ 메시지 전송 성공!")
+                if category == "manual":
+                    st.success("✅ 카카오톡 알림 전송 성공")
             else:
                 st.warning(f"⚠️ 전송 실패 (응답 코드: {response.status_code})")
+
         except Exception as e:
-            st.error(f"❌ 전송 중 오류 발생: {e}")
-    
-    # ✅ Streamlit 실행 시 Webhook 연결 확인
+            st.error(f"❌ 알림 처리 오류: {e}")
+
+    # ✅ Webhook 연결 확인
     try:
         _ = st.secrets["KAKAO_WEBHOOK_URL"]
         st.caption("🔐 KAKAO_WEBHOOK_URL 로드 완료")
     except Exception as e:
         st.error(f"❌ secrets.toml 설정 오류: {e}")
-    
-    # ✅ 테스트 버튼
+
+    # ✅ 테스트 버튼 (통합된 notify_alert 사용)
     if st.button("📢 카카오톡 알림 테스트 보내기"):
-        send_kakao_alert("🚨 Streamlit에서 테스트 메시지 전송됨!")
+        notify_alert("🚨 Streamlit에서 테스트 메시지 전송됨!", category="manual")
     
     # -----------------------------
     # 페이지/스타일
@@ -2081,9 +2099,7 @@ def main():
                                     last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
                                     if (now - last_time).seconds >= 600:
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
-                                        _add_alert(msg)
-                                        st.toast(msg)
-                                        send_kakao_alert(msg)
+                                        notify_alert(msg, category="auto")
                                         st.session_state["last_alert_time"][key] = now
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
