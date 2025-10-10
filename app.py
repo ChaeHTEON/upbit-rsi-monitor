@@ -2194,7 +2194,8 @@ def main():
 
             # 🧪 테스트 신호 강제 발생
             if st.button("🧪 테스트 신호 발생", use_container_width=True):
-                now = datetime.now()
+                from pytz import timezone
+                now = datetime.now(timezone("Asia/Seoul")).replace(tzinfo=None)
                 msg = f"🚨 [TEST] 매물대 자동 신호 (가상) 발생! ({now:%H:%M:%S})"
                 st.toast(msg)
                 _add_alert(msg)
