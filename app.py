@@ -17,6 +17,11 @@ def main():
     from pytz import timezone
     import numpy as np
     from typing import Optional, Set
+
+    # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
+    def _keep_sweep_open():
+        """통계/조합 탐색(expander) 닫힘 방지"""
+        st.session_state["sweep_expanded"] = True
     
     # ✅ 카카오 Webhook 테스트용 코드 추가
     def send_kakao_alert(msg: str):
