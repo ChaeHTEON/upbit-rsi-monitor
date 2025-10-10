@@ -764,33 +764,39 @@ def main():
                     prev_open = float(df.at[j - 1, "open"])
                     prev_close = float(df.at[j - 1, "close"])
                     prev_bb_low = float(df.at[j - 1, "BB_low"])
-    
+
                     # 매물대 기준 정의
                     if prev_close >= prev_open:  # 양봉
                         maemul = max(prev_high, prev_close)
                     else:  # 음봉
                         maemul = max(prev_high, prev_open)
-    
+
                     cur_low = float(df.at[j, "low"])
                     cur_high = float(df.at[j, "high"])
                     cur_close = float(df.at[j, "close"])
                     cur_open = float(df.at[j, "open"])
                     cur_bb_low = float(df.at[j, "BB_low"])
-    
+
                     # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
                     below = cur_low <= maemul * 0.999
                     above = cur_close >= maemul
                     is_bull = cur_close > cur_open
                     bb_above = maemul >= cur_bb_low
-    
+
                     if below and above and is_bull and bb_above:
                         anchor_idx = j
                         break
-    
+
                 if anchor_idx is None or anchor_idx >= n:
                     return None, None
+
                 signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "open"])
+
+                # ✅ 모든 분봉 공통: 신호 이후 '다음 캔들 시가'로 매수가 측정
+                if anchor_idx + 1 < n:
+                    base_price = float(df.at[anchor_idx + 1, "open"])
+                else:
+                    base_price = float(df.at[anchor_idx, "open"])
     
             # --- 성과 측정 ---
             eval_start = anchor_idx + 1
@@ -2061,15 +2067,14 @@ def main():
                                 if df_w is None or df_w.empty:
                                     continue
                                 df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
-                                # ✅ 매물대 자동 신호 감지 로직 개선
                                 if check_maemul_auto_signal(df_w):
                                     key = f"{symbol}_{tf_lbl}"
                                     last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
                                     if (now - last_time).seconds >= 600:
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
-                                        send_kakao_alert(msg)
                                         st.toast(msg)
+                                        send_kakao_alert(msg)
                                         st.session_state["last_alert_time"][key] = now
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
@@ -2087,7 +2092,7 @@ def main():
         st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
 
         # ---------------------------------------------
-        # ▶ 감시 설정 UI (⑤ 제목 아래로 이동)
+        # ▶ 감시 설정 UI (⑤ 제목 아래)
         # ---------------------------------------------
         with st.form("watch_form_realtime", clear_on_submit=False):
             ui_cols = st.columns(2)
@@ -2129,12 +2134,7 @@ def main():
             toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
             if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
                 st.session_state["watch_active"] = not st.session_state["watch_active"]
-                new_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
-                st.session_state["toggle_label"] = new_label
-                if st.session_state["watch_active"]:
-                    st.success("실시간 감시가 다시 시작되었습니다.")
-                else:
-                    st.info("실시간 감시가 중지되었습니다.")
+                st.rerun()  # ✅ 즉시 UI 반영
 
         with bcols[2]:
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
