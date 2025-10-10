@@ -711,7 +711,8 @@ def main():
                 if anchor_idx >= n:
                     return None, None
                 signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "open"])
+                # ✅ 기준시가를 '신호 발생 캔들의 종가'로 변경 (다음 캔들부터 매수 반영)
+                base_price = float(df.at[anchor_idx, "close"])
     
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
                 if bb_cond == "없음":
@@ -1127,32 +1128,24 @@ def main():
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
     
         # -----------------------------
-        # 신호 선택 → 해당 구간 ±2000봉 차트 표시 (긴 구간 안정화)
+        # -----------------------------
+        # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
         # -----------------------------
         max_bars = 5000
-        df_view = df.copy()
-        if len(df_view) > max_bars:
-            df_view = df_view.iloc[-max_bars:].reset_index(drop=True)
-        else:
-            df_view = df_view.reset_index(drop=True)
-    
-        plot_res = pd.DataFrame()
         if res is not None and not res.empty:
             plot_res = (
                 res.sort_values("신호시간")
                    .drop_duplicates(subset=["anchor_i"], keep="first")
                    .reset_index(drop=True)
             )
-            sel_anchor = st.selectbox(
-                "🔎 특정 신호 구간 보기 (anchor 인덱스)",
-                options=plot_res["anchor_i"].tolist(),
-                index=len(plot_res) - 1
-            )
-            if sel_anchor is not None:
-                start_idx = max(int(sel_anchor) - 1000, 0)
-                end_idx   = min(int(sel_anchor) + 1000, len(df) - 1)
-                # ✅ index reset 하지 않고 원본 df 인덱스 보존
-                df_view   = df.iloc[start_idx:end_idx+1]
+        else:
+            plot_res = pd.DataFrame()
+
+        df_view = df.copy()
+        if len(df_view) > max_bars:
+            df_view = df_view.iloc[-max_bars:].reset_index(drop=True)
+        else:
+            df_view = df_view.reset_index(drop=True)
     
         # -----------------------------
         # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
@@ -1514,12 +1507,10 @@ def main():
         # 📒 공유 메모 바로 위에서는 ④ 신호 결과 블록 제거
     
         # -----------------------------
-        # 🔎 통계/조합 탐색 (사용자 지정) — 📒 공유 메모 위로 이동
+        # 🔎 통계/조합 탐색 (사용자 지정) — ④ 신호 결과 (최신 순) 아래로 이동
         # -----------------------------
         if "sweep_expanded" not in st.session_state:
             st.session_state["sweep_expanded"] = False
-        def _keep_sweep_open():
-            st.session_state["sweep_expanded"] = True
     
         with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=st.session_state["sweep_expanded"]):
             st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
@@ -1533,6 +1524,10 @@ def main():
                                         key="sweep_start", on_change=_keep_sweep_open)
             sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
                                         key="sweep_end", on_change=_keep_sweep_open)
+
+            # ✅ 지정한 날짜를 실제 시뮬레이션 계산 시 정확히 반영
+            sdt = datetime.combine(sweep_start, datetime.min.time())
+            edt = datetime.combine(sweep_end, datetime.max.time())
     
             col_thr, col_win = st.columns(2)
             with col_thr:
@@ -2055,7 +2050,7 @@ def main():
         st.markdown("---")
         
         
-        st.markdown("### ⑤ 실시간 감시")
+        st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
 
         # ▶ UI: 선택 중에는 앱 전체 재실행이 일어나지 않도록 form 사용
         with st.form("watch_form_realtime", clear_on_submit=False):
