@@ -1984,9 +1984,9 @@ def main():
         # -----------------------------
         import threading, time, json
         from datetime import datetime, timedelta
-    
+
         WATCH_CFG_FILE = os.path.join(os.path.dirname(__file__), "watch_config.json")
-    
+
         def _watch_load():
             try:
                 if os.path.exists(WATCH_CFG_FILE):
@@ -1995,7 +1995,7 @@ def main():
             except Exception:
                 pass
             return {"symbols": ["KRW-BTC"], "timeframes": ["5분"]}
-    
+
         def _watch_save(cfg: dict):
             try:
                 with open(WATCH_CFG_FILE, "w", encoding="utf-8") as f:
@@ -2009,7 +2009,8 @@ def main():
                     github_commit_csv(WATCH_CFG_FILE)
             except Exception as _e:
                 st.warning(f"감시 설정 저장 실패: {_e}")
-    
+
+        # --- 상태 초기화 ---
         _persisted = _watch_load()
         if "alerts" not in st.session_state:
             st.session_state["alerts"] = []
@@ -2023,11 +2024,12 @@ def main():
             st.session_state["watch_ui_symbols"] = _persisted.get("symbols", ["KRW-BTC"])
         if "watch_ui_tfs" not in st.session_state:
             st.session_state["watch_ui_tfs"] = _persisted.get("timeframes", ["5분"])
-    
+
         def _add_alert(msg):
             if msg not in st.session_state["alerts"]:
                 st.session_state["alerts"].append(msg)
-    
+
+        # --- 실시간 감시 스레드 ---
         def _periodic_multi_check():
             TF_MAP_LOC = {
                 "1분": ("minutes/1", 1),
@@ -2043,12 +2045,12 @@ def main():
                     if not st.session_state.get("watch_active"):
                         time.sleep(1)
                         continue
-    
+
                     cfg = st.session_state.get("watch_active_config", _persisted)
                     symbols = cfg.get("symbols", ["KRW-BTC"])
                     tfs     = cfg.get("timeframes", ["5분"])
                     now = datetime.now()
-    
+
                     for symbol in symbols:
                         for tf_lbl in tfs:
                             interval_key_s, mpb_s = TF_MAP_LOC[tf_lbl]
@@ -2059,6 +2061,7 @@ def main():
                                 if df_w is None or df_w.empty:
                                     continue
                                 df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+                                # ✅ 매물대 자동 신호 감지 로직 개선
                                 if check_maemul_auto_signal(df_w):
                                     key = f"{symbol}_{tf_lbl}"
                                     last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
@@ -2066,6 +2069,7 @@ def main():
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
                                         send_kakao_alert(msg)
+                                        st.toast(msg)
                                         st.session_state["last_alert_time"][key] = now
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
@@ -2073,15 +2077,18 @@ def main():
                     time.sleep(60)
                 except Exception:
                     time.sleep(3)
-    
+
         if "watch_bg_thread" not in st.session_state:
             t = threading.Thread(target=_periodic_multi_check, daemon=True)
             t.start()
             st.session_state["watch_bg_thread"] = True
-    
-        st.markdown("---")
 
-        # ▶ UI: 선택 중에는 앱 전체 재실행이 일어나지 않도록 form 사용
+        st.markdown("---")
+        st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
+
+        # ---------------------------------------------
+        # ▶ 감시 설정 UI (⑤ 제목 아래로 이동)
+        # ---------------------------------------------
         with st.form("watch_form_realtime", clear_on_submit=False):
             ui_cols = st.columns(2)
             with ui_cols[0]:
@@ -2110,24 +2117,20 @@ def main():
                 st.session_state["watch_ui_tfs"] = new_cfg["timeframes"]
                 st.session_state["watch_active_config"] = new_cfg
                 st.success("감시 설정이 저장되고 적용되었습니다.")
-            
-        # ---------------------------------------------
-        # ⑤ 실시간 감시 (④ 신호 결과와 동일한 스타일)
-        # ---------------------------------------------
-        st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
 
-        # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
+        # ---------------------------------------------
+        # ▶ 감시 제어/테스트 버튼
+        # ---------------------------------------------
         bcols = st.columns([1, 1, 1])
-
-        # 기본 상태: 감시중 (자동 ON)
         if "watch_active" not in st.session_state:
             st.session_state["watch_active"] = True
 
         with bcols[0]:
-            # 감시중 ↔ 감시 시작 토글 (디폴트: 감시중)
             toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
             if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
                 st.session_state["watch_active"] = not st.session_state["watch_active"]
+                new_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
+                st.session_state["toggle_label"] = new_label
                 if st.session_state["watch_active"]:
                     st.success("실시간 감시가 다시 시작되었습니다.")
                 else:
@@ -2138,18 +2141,8 @@ def main():
                 send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
                 st.success("테스트 알림을 전송했습니다.")
 
-        # ▶ 최초 방문 시 자동 감시 활성화 (기본 ON)
-        if "watch_auto_started" not in st.session_state:
-            st.session_state["watch_active"] = True
-            st.session_state["watch_auto_started"] = True
-            st.session_state["watch_active_config"] = _persisted.copy()
-
         # 🚨 실시간 알람 목록 — X버튼으로 개별 삭제 가능
         st.markdown("#### 🚨 실시간 알람 목록")
-
-        if "alerts" not in st.session_state:
-            st.session_state["alerts"] = []
-
         if st.session_state["alerts"]:
             new_alerts = []
             for i, alert in enumerate(st.session_state["alerts"]):
@@ -2158,7 +2151,7 @@ def main():
                     st.warning(f"{i+1}. {alert}")
                 with cols[1]:
                     if st.button("❌", key=f"del_alert_{i}"):
-                        continue  # 클릭된 항목은 미저장 → 삭제
+                        continue
                 new_alerts.append(alert)
             st.session_state["alerts"] = new_alerts
         else:
