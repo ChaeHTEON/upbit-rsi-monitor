@@ -1,14 +1,25 @@
+# app.py
+# -*- coding: utf-8 -*-
+import os
+# ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
+
+# ✅ Streamlit과 핵심 라이브러리들은 전역 import 로 이동
+import streamlit as st
+import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+import ta
+from datetime import datetime, timedelta
+from pytz import timezone
+import numpy as np
+from typing import Optional, Set
+
+
 def main():
-    # app.py
-    # -*- coding: utf-8 -*-
-    import os  # ★ 추가
-    # ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
-    os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
-    os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
-    
-    import streamlit as st
-    import pandas as pd
-    import requests
     from requests.adapters import HTTPAdapter, Retry
     import plotly.graph_objs as go
     from plotly.subplots import make_subplots
@@ -18,49 +29,31 @@ def main():
     import numpy as np
     from typing import Optional, Set
     
-    # ✅ 통합 알림 함수 (notify_alert)
-    def notify_alert(msg: str, category: str = "manual"):
-        """
-        카카오 Webhook + Toast + 실시간 알람 목록 통합 처리
-        category: "manual" | "auto"
-        """
+    # ✅ 카카오 Webhook 테스트용 코드 추가
+    def send_kakao_alert(msg: str):
+        """카카오 Webhook(site)으로 메시지 전송"""
         try:
-            # Webhook URL 로드
-            url = st.secrets.get("KAKAO_WEBHOOK_URL", None)
-            if not url:
-                st.warning("⚠️ KAKAO_WEBHOOK_URL이 설정되지 않았습니다.")
-                return
-
+            url = st.secrets["KAKAO_WEBHOOK_URL"]
             payload = {"userRequest": {"utterance": msg}}
             headers = {"Content-Type": "application/json"}
             response = requests.post(url, json=payload, headers=headers, timeout=5)
-
-            # ✅ 통합 UI 처리 (토스트 + 알람 목록)
-            st.toast(msg)
-            if "alerts" not in st.session_state:
-                st.session_state["alerts"] = []
-            if msg not in st.session_state["alerts"]:
-                st.session_state["alerts"].append(msg)
-
             if response.status_code == 200:
-                if category == "manual":
-                    st.success("✅ 카카오톡 알림 전송 성공")
+                st.success("✅ 메시지 전송 성공!")
             else:
                 st.warning(f"⚠️ 전송 실패 (응답 코드: {response.status_code})")
-
         except Exception as e:
-            st.error(f"❌ 알림 처리 오류: {e}")
-
-    # ✅ Webhook 연결 확인
+            st.error(f"❌ 전송 중 오류 발생: {e}")
+    
+    # ✅ Streamlit 실행 시 Webhook 연결 확인
     try:
         _ = st.secrets["KAKAO_WEBHOOK_URL"]
         st.caption("🔐 KAKAO_WEBHOOK_URL 로드 완료")
     except Exception as e:
         st.error(f"❌ secrets.toml 설정 오류: {e}")
-
-    # ✅ 테스트 버튼 (통합된 notify_alert 사용)
+    
+    # ✅ 테스트 버튼
     if st.button("📢 카카오톡 알림 테스트 보내기"):
-        notify_alert("🚨 Streamlit에서 테스트 메시지 전송됨!", category="manual")
+        send_kakao_alert("🚨 Streamlit에서 테스트 메시지 전송됨!")
     
     # -----------------------------
     # 페이지/스타일
@@ -919,47 +912,64 @@ def main():
     import requests
     
     # ✅ 매물대 자동 신호 감지 함수
-    def check_maemul_auto_signal(df):
-        """직전봉-현재봉 기준 매물대 자동(하단→상단 재진입+BB하단 위 양봉) 신호 감지"""
-        if len(df) < 3:
-            return False
-        j = len(df) - 1
-        prev_high  = float(df.at[j - 1, "high"])
-        prev_open  = float(df.at[j - 1, "open"])
+def check_maemul_auto_signal(df):
+    """
+    ⑤ 실시간 감시용 '매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)' 검출.
+    simulate()와 동일한 정식 조건 로직으로 통합.
+    """
+    n = len(df)
+    if n < 3:
+        return False
+
+    for j in range(2, n):  # i0+2 이후 검색
+        prev_high = float(df.at[j - 1, "high"])
+        prev_open = float(df.at[j - 1, "open"])
         prev_close = float(df.at[j - 1, "close"])
         prev_bb_low = float(df.at[j - 1, "BB_low"])
-    
-        maemul = max(prev_high, prev_close if prev_close >= prev_open else prev_open)
+
+        # 매물대 기준 정의 (시뮬레이션 동일)
+        if prev_close >= prev_open:  # 양봉
+            maemul = max(prev_high, prev_close)
+        else:  # 음봉
+            maemul = max(prev_high, prev_open)
+
         cur_low = float(df.at[j, "low"])
+        cur_high = float(df.at[j, "high"])
         cur_close = float(df.at[j, "close"])
         cur_open = float(df.at[j, "open"])
         cur_bb_low = float(df.at[j, "BB_low"])
-    
+
+        # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
         below = cur_low <= maemul * 0.999
         above = cur_close >= maemul
         is_bull = cur_close > cur_open
         bb_above = maemul >= cur_bb_low
-    
-        return below and above and is_bull and bb_above
-    
-    def chunked_periods(start_dt, end_dt, days_per_chunk=7):
-        cur = start_dt
-        delta = timedelta(days=days_per_chunk)
-        while cur < end_dt:
-            nxt = min(cur + delta, end_dt)
-            yield cur, nxt
-            cur = nxt
-    
-    @st.cache_data(show_spinner=False, ttl=3600)
-    def fetch_window_cached(symbol, interval_key, start_dt, end_dt, minutes_per_bar):
-        df = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=0)
-        return df
-    
-    def _safe_sleep(sec: float):
-        try:
-            time.sleep(sec)
-        except Exception:
-            pass
+
+        if below and above and is_bull and bb_above:
+            return True
+
+    return False
+
+def chunked_periods(start_dt, end_dt, days_per_chunk=7):
+    cur = start_dt
+    delta = timedelta(days=days_per_chunk)
+    while cur < end_dt:
+        nxt = min(cur + delta, end_dt)
+        yield cur, nxt
+        cur = nxt
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def fetch_window_cached(symbol, interval_key, start_dt, end_dt, minutes_per_bar):
+    df = fetch_upbit_paged(symbol, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars=0)
+    return df
+
+
+def _safe_sleep(sec: float):
+    try:
+        time.sleep(sec)
+    except Exception:
+        pass
     
     def _load_ckpt(key: str):
         return st.session_state.get(key)
@@ -2080,27 +2090,49 @@ def main():
                     symbols = cfg.get("symbols", ["KRW-BTC"])
                     tfs     = cfg.get("timeframes", ["5분"])
 
-                    now = datetime.now()
+                    # ✅ KST 기준의 naive datetime으로 맞춤 (fetch_upbit_paged는 KST.localize(end_dt) 전제)
+                    from pytz import timezone as _tz
+                    _KST = _tz("Asia/Seoul")
+                    now = datetime.now(_KST).replace(tzinfo=None)
 
                     for symbol in symbols:
                         for tf_lbl in tfs:
                             if tf_lbl not in TF_MAP_LOC:
                                 continue
                             interval_key_s, mpb_s = TF_MAP_LOC[tf_lbl]
-                            start_dt = now - timedelta(hours=1)
+
+                            # ✅ 각 봉 단위에 맞게 최근 3봉(또는 약 3배 시간 구간)만 조회
+                            start_dt = now - timedelta(minutes=mpb_s * 3)
                             end_dt   = now
                             try:
-                                df_w = fetch_upbit_paged(symbol, interval_key_s, start_dt, end_dt, mpb_s)
+                                # ✅ 캐시 무시(-1)로 항상 최신 데이터 요청
+                                df_w = fetch_upbit_paged(
+                                    symbol,
+                                    interval_key_s,
+                                    start_dt,
+                                    end_dt,
+                                    mpb_s,
+                                    warmup_bars=-1
+                                )
+
                                 if df_w is None or df_w.empty:
                                     continue
+
                                 df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+
+                                # ✅ 최근 데이터에서 신호 감지
                                 if check_maemul_auto_signal(df_w):
                                     key = f"{symbol}_{tf_lbl}"
-                                    last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
+                                    last_time = st.session_state["last_alert_time"].get(
+                                        key, datetime(2000, 1, 1)
+                                    )
                                     if (now - last_time).seconds >= 600:
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
-                                        notify_alert(msg, category="auto")
+                                        _add_alert(msg)
+                                        st.toast(msg)
+                                        send_kakao_alert(msg)
                                         st.session_state["last_alert_time"][key] = now
+
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
                                 continue
@@ -2168,9 +2200,21 @@ def main():
                     st.rerun()
 
         with bcols[2]:
+            # 🔔 카카오톡 테스트 알림
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
                 send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
                 st.success("테스트 알림을 전송했습니다.")
+
+            # 🧪 테스트 신호 강제 발생
+            if st.button("🧪 테스트 신호 발생", use_container_width=True):
+                from pytz import timezone
+                now = datetime.now(timezone("Asia/Seoul")).replace(tzinfo=None)
+                msg = f"🚨 [TEST] 매물대 자동 신호 (가상) 발생! ({now:%H:%M:%S})"
+                st.toast(msg)
+                _add_alert(msg)
+                send_kakao_alert(msg)
+                st.session_state["last_alert_time"]["TEST"] = now
+                st.success("테스트 신호를 강제로 발생시켰습니다.")
 
         # 🚨 실시간 알람 목록 — X버튼으로 개별 삭제 가능
         st.markdown("#### 🚨 실시간 알람 목록")
