@@ -764,39 +764,33 @@ def main():
                     prev_open = float(df.at[j - 1, "open"])
                     prev_close = float(df.at[j - 1, "close"])
                     prev_bb_low = float(df.at[j - 1, "BB_low"])
-
+    
                     # 매물대 기준 정의
                     if prev_close >= prev_open:  # 양봉
                         maemul = max(prev_high, prev_close)
                     else:  # 음봉
                         maemul = max(prev_high, prev_open)
-
+    
                     cur_low = float(df.at[j, "low"])
                     cur_high = float(df.at[j, "high"])
                     cur_close = float(df.at[j, "close"])
                     cur_open = float(df.at[j, "open"])
                     cur_bb_low = float(df.at[j, "BB_low"])
-
+    
                     # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
                     below = cur_low <= maemul * 0.999
                     above = cur_close >= maemul
                     is_bull = cur_close > cur_open
                     bb_above = maemul >= cur_bb_low
-
+    
                     if below and above and is_bull and bb_above:
                         anchor_idx = j
                         break
-
+    
                 if anchor_idx is None or anchor_idx >= n:
                     return None, None
-
                 signal_time = df.at[anchor_idx, "time"]
-
-                # ✅ 모든 분봉 공통: 신호 이후 '다음 캔들 시가'로 매수가 측정
-                if anchor_idx + 1 < n:
-                    base_price = float(df.at[anchor_idx + 1, "open"])
-                else:
-                    base_price = float(df.at[anchor_idx, "open"])
+                base_price  = float(df.at[anchor_idx, "open"])
     
             # --- 성과 측정 ---
             eval_start = anchor_idx + 1
@@ -901,43 +895,28 @@ def main():
     import requests
     
     # ✅ 매물대 자동 신호 감지 함수
-def check_maemul_auto_signal(df):
-    """
-    ⑤ 실시간 감시용 '매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)' 검출.
-    simulate()와 동일한 정식 조건 로직으로 통합.
-    """
-    n = len(df)
-    if n < 3:
-        return False
-
-    for j in range(2, n):  # i0+2 이후 검색
-        prev_high = float(df.at[j - 1, "high"])
-        prev_open = float(df.at[j - 1, "open"])
+    def check_maemul_auto_signal(df):
+        """직전봉-현재봉 기준 매물대 자동(하단→상단 재진입+BB하단 위 양봉) 신호 감지"""
+        if len(df) < 3:
+            return False
+        j = len(df) - 1
+        prev_high  = float(df.at[j - 1, "high"])
+        prev_open  = float(df.at[j - 1, "open"])
         prev_close = float(df.at[j - 1, "close"])
         prev_bb_low = float(df.at[j - 1, "BB_low"])
-
-        # 매물대 기준 정의 (시뮬레이션 동일)
-        if prev_close >= prev_open:  # 양봉
-            maemul = max(prev_high, prev_close)
-        else:  # 음봉
-            maemul = max(prev_high, prev_open)
-
+    
+        maemul = max(prev_high, prev_close if prev_close >= prev_open else prev_open)
         cur_low = float(df.at[j, "low"])
-        cur_high = float(df.at[j, "high"])
         cur_close = float(df.at[j, "close"])
         cur_open = float(df.at[j, "open"])
         cur_bb_low = float(df.at[j, "BB_low"])
-
-        # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
+    
         below = cur_low <= maemul * 0.999
         above = cur_close >= maemul
         is_bull = cur_close > cur_open
         bb_above = maemul >= cur_bb_low
-
-        if below and above and is_bull and bb_above:
-            return True
-
-    return False
+    
+        return below and above and is_bull and bb_above
     
     def chunked_periods(start_dt, end_dt, days_per_chunk=7):
         cur = start_dt
@@ -1087,13 +1066,11 @@ def check_maemul_auto_signal(df):
         # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
         if sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
             if check_maemul_auto_signal(df):
-                msg = f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})"
-                st.toast(msg)
-                send_kakao_alert(msg)
-                
+                st.toast("🚨 매물대 자동 신호 발생!")
+                send_kakao_alert(f"🚨 매물대 자동 신호 발생! ({market_code}, {tf_label})")
         # (이 위치의 실시간 감시 UI/스레드는 ⑤ 섹션으로 이동했습니다)
     
-
+    
         # 보기 요약 텍스트
         total_min = lookahead * int(minutes_per_bar)
         hh, mm = divmod(total_min, 60)
@@ -1537,81 +1514,16 @@ def check_maemul_auto_signal(df):
         # 📒 공유 메모 바로 위에서는 ④ 신호 결과 블록 제거
     
         # -----------------------------
-        # ④ 신호 결과 (최신 순)
-        # -----------------------------
-        def render_signal_table():
-            """④ 신호 결과 테이블 렌더링"""
-            st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-            if res is None or res.empty:
-                st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
-                return
-
-            tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
-
-            def _safe_fmt(v, fmt=":.2f", suffix=""):
-                if pd.isna(v):
-                    return ""
-                try:
-                    return format(float(v), fmt) + suffix
-                except Exception:
-                    return str(v)
-
-            tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
-            tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(float(v)):,}" if pd.notna(v) else "")
-            if "RSI(13)" in tbl:
-                tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: _safe_fmt(v, ":.2f"))
-            if "성공기준(%)" in tbl:
-                tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: _safe_fmt(v, ":.1f", "%"))
-            for col in ["최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
-                if col in tbl:
-                    tbl[col] = tbl[col].map(lambda v: _safe_fmt(v, ":.2f", "%"))
-
-            if "도달캔들(bars)" in tbl.columns:
-                tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
-                def _fmt_from_bars(b):
-                    total_min = int(b) * int(minutes_per_bar)
-                    hh, mm = divmod(total_min, 60)
-                    return f"{hh:02d}:{mm:02d}"
-                tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
-            else:
-                tbl["도달캔들"] = 0
-                tbl["도달시간"] = "-"
-
-            drop_cols = [c for c in ["BB값", "도달분", "도달캔들(bars)"] if c in tbl.columns]
-            if drop_cols:
-                tbl = tbl.drop(columns=drop_cols)
-
-            keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
-                         "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
-            keep_cols = [c for c in keep_cols if c in tbl.columns]
-            tbl = tbl[keep_cols]
-
-            def style_result(val):
-                if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
-                if val == "실패": return "color:#1E40AF; font-weight:600;"
-                if val == "중립": return "color:#FF9800; font-weight:600;"
-                return ""
-
-            styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
-            st.dataframe(styled_tbl, use_container_width=True)
-
-        try:
-            render_signal_table()
-        except Exception as e:
-            st.error(f"오류 발생: {e}")
-
-        # -----------------------------
         # 🔎 통계/조합 탐색 (사용자 지정) — 📒 공유 메모 위로 이동
-        # (※ ④ 신호 결과 아래로 이동)
         # -----------------------------
         if "sweep_expanded" not in st.session_state:
             st.session_state["sweep_expanded"] = False
         def _keep_sweep_open():
             st.session_state["sweep_expanded"] = True
-
+    
         with st.expander("🔎 통계/조합 탐색 (사용자 지정)", expanded=st.session_state["sweep_expanded"]):
             st.caption("※ 선택한 종목/기간/조건에 대해 여러 조합을 자동 시뮬레이션합니다. (기본 설정과는 별도 동작)")
-
+    
             main_idx_for_sweep = next((i for i, (_, code) in enumerate(MARKET_LIST) if code == market_code), default_idx)
             sweep_market_label, sweep_market = st.selectbox(
                 "종목 선택 (통계 전용)", MARKET_LIST, index=main_idx_for_sweep,
@@ -1619,23 +1531,8 @@ def check_maemul_auto_signal(df):
             )
             sweep_start = st.date_input("시작일 (통계 전용)", value=start_date,
                                         key="sweep_start", on_change=_keep_sweep_open)
-            sweep_end = st.date_input("종료일 (통계 전용)", value=end_date,
-                                      key="sweep_end", on_change=_keep_sweep_open)
-            st.divider()
-
-            if st.button("▶ 통계/조합 실행", use_container_width=True, on_click=_keep_sweep_open):
-                try:
-                    st.info("📊 통계/조합 실행 중입니다. 잠시만 기다려주세요...")
-                    run_combination_scan_chunked(
-                        market_code=sweep_market,
-                        start_date=sweep_start,
-                        end_date=sweep_end,
-                        save_csv=False,
-                        show_result=True
-                    )
-                    st.success("✅ 통계/조합 탐색이 완료되었습니다.")
-                except Exception as e:
-                    st.error(f"❌ 오류 발생: {e}")
+            sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
+                                        key="sweep_end", on_change=_keep_sweep_open)
     
             col_thr, col_win = st.columns(2)
             with col_thr:
@@ -2001,13 +1898,68 @@ def check_maemul_auto_signal(df):
                                 st.dataframe(styled_detail, use_container_width=True)
     
         # -----------------------------
+        # ④ 신호 결과 (테이블)
+        # -----------------------------
+        st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+        if res is None or res.empty:
+            st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
+        else:
+            tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+            # ✅ 안전 포맷 유틸 (숫자만 포맷, 문자열/NaN 그대로 유지)
+            def _safe_fmt(v, fmt=":.2f", suffix=""):
+                if pd.isna(v):
+                    return ""
+                try:
+                    return format(float(v), fmt) + suffix
+                except Exception:
+                    return str(v)
+    
+            tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+            tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(float(v)):,}" if pd.notna(v) else "")
+            if "RSI(13)" in tbl:
+                tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: _safe_fmt(v, ":.2f"))
+            if "성공기준(%)" in tbl:
+                tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: _safe_fmt(v, ":.1f", "%"))
+            for col in ["최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
+                if col in tbl:
+                    tbl[col] = tbl[col].map(lambda v: _safe_fmt(v, ":.2f", "%"))
+    
+            if "도달캔들(bars)" in tbl.columns:
+                tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
+                def _fmt_from_bars(b):
+                    total_min = int(b) * int(minutes_per_bar)
+                    hh, mm = divmod(total_min, 60)
+                    return f"{hh:02d}:{mm:02d}"
+                tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
+            else:
+                tbl["도달캔들"] = 0
+                tbl["도달시간"] = "-"
+    
+            drop_cols = [c for c in ["BB값", "도달분", "도달캔들(bars)"] if c in tbl.columns]
+            if drop_cols:
+                tbl = tbl.drop(columns=drop_cols)
+    
+            keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
+                         "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
+            keep_cols = [c for c in keep_cols if c in tbl.columns]
+            tbl = tbl[keep_cols]
+    
+            def style_result(val):
+                if val == "성공": return "background-color: #FFF59D; color: #E53935; font-weight:600;"
+                if val == "실패": return "color: #1E40AF; font-weight:600;"
+                if val == "중립": return "color: #FF9800; font-weight:600;"
+                return ""
+    
+            styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
+            st.dataframe(styled_tbl, width="stretch")
+        # -----------------------------
         # ⑤ 실시간 감시 (공유 메모 바로 위) — 저장·적용·자동동작
         # -----------------------------
         import threading, time, json
         from datetime import datetime, timedelta
-
+    
         WATCH_CFG_FILE = os.path.join(os.path.dirname(__file__), "watch_config.json")
-
+    
         def _watch_load():
             try:
                 if os.path.exists(WATCH_CFG_FILE):
@@ -2016,7 +1968,7 @@ def check_maemul_auto_signal(df):
             except Exception:
                 pass
             return {"symbols": ["KRW-BTC"], "timeframes": ["5분"]}
-
+    
         def _watch_save(cfg: dict):
             try:
                 with open(WATCH_CFG_FILE, "w", encoding="utf-8") as f:
@@ -2030,29 +1982,26 @@ def check_maemul_auto_signal(df):
                     github_commit_csv(WATCH_CFG_FILE)
             except Exception as _e:
                 st.warning(f"감시 설정 저장 실패: {_e}")
-
-        # --- 상태 초기화 ---
-        _persisted = _watch_load()  # ⑤ 전용 설정 파일에서 로드
+    
+        _persisted = _watch_load()
         if "alerts" not in st.session_state:
             st.session_state["alerts"] = []
         if "last_alert_time" not in st.session_state:
             st.session_state["last_alert_time"] = {}
         if "watch_active" not in st.session_state:
-            st.session_state["watch_active"] = True
+            st.session_state["watch_active"] = False
         if "watch_active_config" not in st.session_state:
-            # ✅ 첫 진입 즉시 ⑤ 설정을 단일 진실로 사용
             st.session_state["watch_active_config"] = _persisted.copy()
         if "watch_ui_symbols" not in st.session_state:
             st.session_state["watch_ui_symbols"] = _persisted.get("symbols", ["KRW-BTC"])
         if "watch_ui_tfs" not in st.session_state:
             st.session_state["watch_ui_tfs"] = _persisted.get("timeframes", ["5분"])
+    
         def _add_alert(msg):
             if msg not in st.session_state["alerts"]:
                 st.session_state["alerts"].append(msg)
-
-        # --- 실시간 감시 스레드 ---
+    
         def _periodic_multi_check():
-            """실시간 감시 스레드 (UI 상태 즉시 반영)"""
             TF_MAP_LOC = {
                 "1분": ("minutes/1", 1),
                 "3분": ("minutes/3", 3),
@@ -2062,82 +2011,53 @@ def check_maemul_auto_signal(df):
                 "60분": ("minutes/60", 60),
                 "일봉": ("days", 24*60),
             }
-
             while True:
                 try:
-                    # 감시 중지 시 대기
                     if not st.session_state.get("watch_active"):
                         time.sleep(1)
                         continue
-
-                    # ✅ ⑤ 실시간 감시 전용 설정만 사용 (단일 진실)
-                    #    - 페이지 첫 진입: _watch_load() → _persisted → watch_active_config 로 세팅
-                    #    - "적용(저장)" 클릭 시 watch_active_config 갱신
+    
                     cfg = st.session_state.get("watch_active_config", _persisted)
                     symbols = cfg.get("symbols", ["KRW-BTC"])
                     tfs     = cfg.get("timeframes", ["5분"])
-
-                    # ✅ KST 기준의 naive datetime으로 맞춤 (fetch_upbit_paged는 KST.localize(end_dt) 전제)
-                    from pytz import timezone as _tz
-                    _KST = _tz("Asia/Seoul")
-                    now = datetime.now(_KST).replace(tzinfo=None)
-
+                    now = datetime.now()
+    
                     for symbol in symbols:
                         for tf_lbl in tfs:
-                            if tf_lbl not in TF_MAP_LOC:
-                                continue
                             interval_key_s, mpb_s = TF_MAP_LOC[tf_lbl]
-
-                            # ✅ 각 봉 단위에 맞게 최근 3봉(또는 약 3배 시간 구간)만 조회
-                            start_dt = now - timedelta(minutes=mpb_s * 3)
+                            start_dt = now - timedelta(hours=1)
                             end_dt   = now
                             try:
-                                # ✅ 캐시 무시(-1)로 항상 최신 데이터 요청
-                                df_w = fetch_upbit_paged(
-                                    symbol,
-                                    interval_key_s,
-                                    start_dt,
-                                    end_dt,
-                                    mpb_s,
-                                    warmup_bars=-1
-                                )
-
+                                df_w = fetch_upbit_paged(symbol, interval_key_s, start_dt, end_dt, mpb_s)
                                 if df_w is None or df_w.empty:
                                     continue
-
                                 df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
-
-                                # ✅ 최근 데이터에서 신호 감지
                                 if check_maemul_auto_signal(df_w):
                                     key = f"{symbol}_{tf_lbl}"
-                                    last_time = st.session_state["last_alert_time"].get(
-                                        key, datetime(2000, 1, 1)
-                                    )
+                                    last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
                                     if (now - last_time).seconds >= 600:
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
-                                        st.toast(msg)
                                         send_kakao_alert(msg)
                                         st.session_state["last_alert_time"][key] = now
-
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
                                 continue
                     time.sleep(60)
                 except Exception:
                     time.sleep(3)
-
+    
         if "watch_bg_thread" not in st.session_state:
             t = threading.Thread(target=_periodic_multi_check, daemon=True)
             t.start()
             st.session_state["watch_bg_thread"] = True
-
+    
         st.markdown("---")
-        st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
+        
+        
+        st.markdown("### ⑤ 실시간 감시")
 
-        # ---------------------------------------------
-        # ▶ 감시 설정 UI (⑤ 제목 아래)
-        # ---------------------------------------------
+        # ▶ UI: 선택 중에는 앱 전체 재실행이 일어나지 않도록 form 사용
         with st.form("watch_form_realtime", clear_on_submit=False):
             ui_cols = st.columns(2)
             with ui_cols[0]:
@@ -2166,56 +2086,36 @@ def check_maemul_auto_signal(df):
                 st.session_state["watch_ui_tfs"] = new_cfg["timeframes"]
                 st.session_state["watch_active_config"] = new_cfg
                 st.success("감시 설정이 저장되고 적용되었습니다.")
-
-        # ---------------------------------------------
-        # ▶ 감시 제어/테스트 버튼
-        # ---------------------------------------------
+            
+        # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
+        # ▶ 감시 토글/테스트 버튼 (적용 아래 정렬)
         bcols = st.columns([1, 1, 1])
-        if "watch_active" not in st.session_state:
-            st.session_state["watch_active"] = True
 
         with bcols[0]:
-            with bcols[0]:
-                toggle_label = "감시중" if st.session_state["watch_active"] else "감시 시작"
-                # ✅ 상태값에 따라 key를 바꿔 위젯 재생성 → 라벨 즉시 반영
-                if st.button(
-                    toggle_label,
-                    use_container_width=True,
-                    key=f"btn_watch_toggle_{int(st.session_state['watch_active'])}"
-                ):
-                    st.session_state["watch_active"] = not st.session_state["watch_active"]
-                    st.rerun()
+            toggle_label = "⏸ 감시 일시중지" if st.session_state.get("watch_active") else "▶ 감시 시작"
+            if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
+                st.session_state["watch_active"] = not st.session_state.get("watch_active")
+                if st.session_state["watch_active"]:
+                    st.success("실시간 감시를 시작했습니다.")
+                else:
+                    st.info("실시간 감시가 일시중지되었습니다.")
 
         with bcols[2]:
-            # 🔔 카카오톡 테스트 알림
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
                 send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
                 st.success("테스트 알림을 전송했습니다.")
+            
+        # 첫 방문/새로고침 시 자동 동작 (조건 미선택이어도 기본값으로)
+        if "watch_auto_started" not in st.session_state:
+            st.session_state["watch_active"] = True
+            st.session_state["watch_auto_started"] = True
+            st.session_state["watch_active_config"] = _persisted.copy()
 
-            # 🧪 테스트 신호 강제 발생
-            if st.button("🧪 테스트 신호 발생", use_container_width=True):
-                from pytz import timezone
-                now = datetime.now(timezone("Asia/Seoul")).replace(tzinfo=None)
-                msg = f"🚨 [TEST] 매물대 자동 신호 (가상) 발생! ({now:%H:%M:%S})"
-                st.toast(msg)
-                _add_alert(msg)
-                send_kakao_alert(msg)
-                st.session_state["last_alert_time"]["TEST"] = now
-                st.success("테스트 신호를 강제로 발생시켰습니다.")
-
-        # 🚨 실시간 알람 목록 — X버튼으로 개별 삭제 가능
+        # 🚨 실시간 알람 목록 표시
         st.markdown("#### 🚨 실시간 알람 목록")
         if st.session_state["alerts"]:
-            new_alerts = []
             for i, alert in enumerate(st.session_state["alerts"]):
-                cols = st.columns([9, 1])
-                with cols[0]:
-                    st.warning(f"{i+1}. {alert}")
-                with cols[1]:
-                    if st.button("❌", key=f"del_alert_{i}"):
-                        continue
-                new_alerts.append(alert)
-            st.session_state["alerts"] = new_alerts
+                st.warning(f"{i+1}. {alert}")
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
     
