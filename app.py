@@ -2149,7 +2149,7 @@ def _safe_sleep(sec: float):
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
                                         st.toast(msg)
-                                        notify_alert(msg, category="auto")
+                                        notify_alert(msg, category="manual")
                                         st.session_state["last_alert_time"][key] = now
 
                             except Exception as e:
@@ -2231,7 +2231,7 @@ def _safe_sleep(sec: float):
                 msg = f"🚨 [TEST] 매물대 자동 신호 (가상) 발생! ({now:%H:%M:%S})"
                 st.toast(msg)
                 _add_alert(msg)
-                notify_alert(msg, category="auto")
+                notify_alert(msg, category="manual")
                 st.session_state["last_alert_time"]["TEST"] = now
                 st.success("테스트 신호를 강제로 발생시켰습니다.")
 
