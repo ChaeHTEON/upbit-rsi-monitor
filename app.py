@@ -423,8 +423,8 @@ def main():
                     st.warning(f"⚠️ 캐시 파일 삭제 실패: {e2}")
     
         # CSV 로드
-        if os.path.exists(csv_path):
-            df_cache = pd.read_csv(csv_path, parse_dates=["time"])
+        if os.path.exists(cache_path):
+            df_cache = pd.read_csv(cache_path, parse_dates=["time"])
             df_cache["time"] = pd.to_datetime(df_cache["time"]).dt.tz_localize(None)
         else:
             root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
