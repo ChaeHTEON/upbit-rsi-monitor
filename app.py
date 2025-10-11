@@ -2058,11 +2058,11 @@ def main():
             watchlist = st.session_state.get("alarm_watchlist", [])
             for item in watchlist:
                 m = item.get("market")
-                    tf_lbl = item.get("tf")
-                    strat = item.get("strategy", "")
+                tf_lbl = item.get("tf")
+                strat = item.get("strategy", "")
 
-                    if not m or not tf_lbl:
-                        continue
+                if not m or not tf_lbl:
+                    continue
 
                 interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
                 lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
@@ -2095,7 +2095,6 @@ def main():
                         "strategy": strat,
                         "time": df_i.iloc[-1]["time"]
                     })
-
             if hits:
                 st.success(f"총 {len(hits)}건의 신호가 감지되었습니다. (30초마다 자동 업데이트)")
                 st.dataframe(pd.DataFrame(hits), width="stretch")
