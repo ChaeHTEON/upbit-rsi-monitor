@@ -2074,7 +2074,7 @@ def main():
                             rsi = calc_rsi(df["close"])
                             if rsi.iloc[-2] < 30 <= rsi.iloc[-1]:
                                 msg = f"📈 RSI 과매도 반등 [{symbol}, {tf}분] → RSI {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
-                                _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "RSI_과매도반등", "msg": msg, "checked": False}
+                                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "RSI_과매도반등", "msg": msg, "checked": False}
                                 st.session_state["alerts_live"].insert(0, _entry)
                                 st.session_state["alert_history"].insert(0, _entry)
                                 st.toast(msg, icon="📊")
