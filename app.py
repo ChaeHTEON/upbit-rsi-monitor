@@ -2129,16 +2129,50 @@ def main():
             else:
                 st.info("히스토리가 없습니다.")
 
-        # 초기화
-        if st.button("🗑️ 알림 초기화"):
+        # 알람 제어 UI 및 초기화 개선
+        st.markdown("### ⚙️ 알람 제어")
+
+        # 감시 전략 선택 (추가)
+        all_strategies = ["TGV", "RSI", "CCI", "매물대", "기타"]
+        selected_strategies = st.multiselect(
+            "감시할 알람 종류 선택",
+            options=all_strategies,
+            default=["TGV"],
+            help="선택된 전략의 알람만 감시/표시됩니다."
+        )
+        st.session_state["selected_strategies"] = selected_strategies
+
+        # 개별 알람 제어 (확인/삭제)
+        st.markdown("### 🚨 실시간 알람 목록 (수동 관리)")
+
+        if st.session_state["alerts_live"]:
+            for i, a in enumerate(list(st.session_state["alerts_live"])):
+                if a["strategy"] not in st.session_state["selected_strategies"]:
+                    continue
+                cols = st.columns([4, 1, 1])
+                with cols[0]:
+                    st.warning(f"{a['time']} | {a['symbol']} {a['tf']}분 | {a['strategy']}")
+                with cols[1]:
+                    if st.button("✅ 확인", key=f"check_{i}"):
+                        st.session_state["alerts_live"][i]["checked"] = True
+                        st.success(f"{a['strategy']} 신호 확인됨")
+                with cols[2]:
+                    if st.button("🗑 삭제", key=f"del_{i}"):
+                        st.session_state["alerts_live"].pop(i)
+                        st.session_state["alert_history"] = [
+                            h for h in st.session_state["alert_history"] if h != a
+                        ]
+                        st.warning(f"{a['strategy']} 알람 삭제됨")
+                        st.rerun()
+        else:
+            st.info("현재까지 감지된 실시간 알람이 없습니다.")
+
+        # 전체 초기화 버튼 → 즉시 신호 재갱신 포함
+        if st.button("🗑️ 전체 알람 초기화 및 새로고침"):
             st.session_state["alerts_live"].clear()
             st.session_state["alert_history"].clear()
-            st.success("모든 알람이 초기화되었습니다.")
-            
-            # ✅ tbl 미정의 시 방어: 신호 테이블 포맷팅 루틴 제거
-            #    (알람 초기화 시에는 tbl과 무관)
-            #    → 단순 메시지 출력으로 교체
-            st.info("📋 신호 테이블은 알람 초기화와 별개입니다. (tbl 참조 제거 완료)")
+            st.success("✅ 모든 알람이 초기화되었습니다. 신호를 다시 가져옵니다...")
+            st.rerun()
         # -----------------------------
         # 📒 공유 메모 (GitHub 연동, 전체 공통)
         # -----------------------------
