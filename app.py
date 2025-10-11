@@ -1982,7 +1982,7 @@ def main():
             ],
             default=["TGV", "RVB", "PR", "RSI_과매도반등"],
         )
-        st.session_state["selected_strategies"] = selected_strategies
+        st.session_state["selected_strategies"] = sel_strategies
 
         st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
 
