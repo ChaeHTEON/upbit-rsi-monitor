@@ -2047,6 +2047,28 @@ def main():
                                         _add_alert(msg)
                                         send_kakao_alert(msg)
                                         st.session_state["last_alert_time"][key] = now
+
+                                        # CSV 로깅
+                                        try:
+                                            import os
+                                            import pandas as pd
+                                            os.makedirs("data_cache", exist_ok=True)
+                                            alert_csv = "data_cache/realtime_alerts.csv"
+                                            row = {
+                                                "시간": now.strftime("%Y-%m-%d %H:%M:%S"),
+                                                "코인": symbol,
+                                                "분봉": tf_lbl,
+                                                "신호": "매물대 자동",
+                                                "현재가": float(df_w.iloc[-1]["close"])
+                                            }
+                                            if os.path.exists(alert_csv):
+                                                prev = pd.read_csv(alert_csv)
+                                                prev = pd.concat([prev, pd.DataFrame([row])], ignore_index=True)
+                                            else:
+                                                prev = pd.DataFrame([row])
+                                            prev.to_csv(alert_csv, index=False)
+                                        except Exception as _e:
+                                            print(f"[WARN] alert csv save failed: {_e}")
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
                                 continue
@@ -2107,69 +2129,17 @@ def main():
                 else:
                     st.info("실시간 감시가 일시중지되었습니다.")
 
-        # ▶ 알림 중심형(1안): 조건 성립 시 카카오 알림 + CSV 기록 (표시 생략)
+        # ▶ 알림 중심형(1안): 백그라운드 쓰레드가 감지/알림/CSV 저장을 수행하므로, 여기서는 로그 준비만 합니다.
         import os
         import pandas as pd
-        from datetime import datetime
         os.makedirs("data_cache", exist_ok=True)
         alert_csv = "data_cache/realtime_alerts.csv"
 
-        # 알림 로그 DataFrame 준비
         if "alerts_df" not in st.session_state:
             if os.path.exists(alert_csv):
                 st.session_state["alerts_df"] = pd.read_csv(alert_csv)
             else:
                 st.session_state["alerts_df"] = pd.DataFrame(columns=["시간", "코인", "분봉", "신호", "현재가"])
-
-        # 감시가 활성화된 경우에만 체크
-        if st.session_state.get("watch_active"):
-            watch_symbols = st.session_state.get("watch_ui_symbols") or ["KRW-BTC"]
-            watch_tfs = st.session_state.get("watch_ui_tfs") or ["5분"]
-
-            TF_MAP = {"1분":"1", "3분":"3", "5분":"5", "15분":"15", "30분":"30", "60분":"60", "일봉":"day"}
-
-            new_rows = []
-            for sym in watch_symbols:
-                for tf_label in watch_tfs:
-                    tf_code = TF_MAP.get(tf_label, tf_label)  # 내부 로더가 코드값을 기대하는 경우 대비
-                    try:
-                        df = load_ohlcv(sym, tf_code)
-                        # 2차조건 '매물대 자동' 실시간 성립 여부
-                        if check_maemul_auto_signal(df):
-                            curr_price = float(df.iloc[-1]["close"])
-                            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            row = {
-                                "시간": now_str,
-                                "코인": sym,
-                                "분봉": tf_label,
-                                "신호": "매물대 자동",
-                                "현재가": curr_price
-                            }
-
-                            recent = st.session_state["alerts_df"]
-                            # 10분 내 동일 종목·분봉 중복 알림 방지
-                            is_dup = False
-                            if not recent.empty:
-                                recent_time = pd.to_datetime(recent["시간"], errors="coerce")
-                                mask = (
-                                    (recent["코인"] == sym) &
-                                    (recent["분봉"] == tf_label) &
-                                    (recent_time > datetime.now() - pd.Timedelta(minutes=10))
-                                )
-                                is_dup = bool(mask.any())
-
-                            if not is_dup:
-                                new_rows.append(row)
-                                notify_alert(f"📢 {sym} {tf_label} — 매물대 자동 신호 발생!", category="auto")
-                    except Exception as e:
-                        st.warning(f"{sym} {tf_label} 감시 중 오류 발생: {e}")
-
-            # 신규 알림 발생 시 CSV 동기화
-            if new_rows:
-                new_df = pd.DataFrame(new_rows)
-                st.session_state["alerts_df"] = pd.concat([st.session_state["alerts_df"], new_df], ignore_index=True)
-                st.session_state["alerts_df"].to_csv(alert_csv, index=False)
-
         with bcols[2]:
             if st.button("🔔 카카오톡 테스트 알림", use_container_width=True):
                 send_kakao_alert("🔔 테스트: 실시간 감시 알림 정상 동작 확인")
