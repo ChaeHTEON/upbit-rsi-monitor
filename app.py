@@ -2023,6 +2023,7 @@ def main():
         from datetime import datetime, timedelta
         now_kst = datetime.utcnow() + timedelta(hours=9)
         current_minute = now_kst.minute
+        from streamlit_autorefresh import st_autorefresh  # ← 추가
         st_autorefresh(interval=60 * 1000, key="realtime_refresh")
 
         if current_minute % 1 == 0 and len(sel_symbols) > 0:
