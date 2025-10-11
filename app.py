@@ -2066,15 +2066,8 @@ def main():
                         check_tgv_signal(df_watch, s_code, tf)
                     except Exception as e:
                         st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
-        # 다중 종목/분봉 루프
-        for symbol in sel_symbols:
-            for tf in sel_tfs:
-                try:
-                    # TODO: 실제 데이터 연동 시 df 전달
-                    check_test_signal(symbol, tf)
-                except Exception as e:
-                    st.warning(f"⚠️ {symbol}({tf}분) 감시 중 오류: {e}")
-
+        # (삭제) TEST_SIGNAL 호출 루프 제거
+        # 실전 감시는 위의 fetch_upbit_paged → add_indicators → check_tgv_signal 루프에서 수행합니다.
         # 중복 제거 (최근 10개만 유지)
         uniq = []
         seen = set()
