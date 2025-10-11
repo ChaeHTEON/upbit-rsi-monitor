@@ -68,67 +68,67 @@ def main():
         - 실패 시 기존 BTC 우선 + 코드순으로 폴백
         """
         try:
-                # 1) 전체 마켓 목록
-                r = requests.get("https://api.upbit.com/v1/market/all",
-                                 params={"isDetails": "false"}, timeout=8)
-                r.raise_for_status()
-                items = r.json()
-    
-                # 코드 → 한글명 매핑
-                code2name = {}
-                krw_codes = []
-                for it in items:
-                    mk = it.get("market", "")
-                    if mk.startswith("KRW-"):
-                        krw_codes.append(mk)
-                        code2name[mk] = it.get("korean_name", "")
-    
-                if not krw_codes:
-                    raise RuntimeError("no_krw_markets")
-    
-                # 2) 티커로 24h 거래대금 조회 (청크 요청)
-                def _fetch_tickers(codes, chunk=50):
-                    out = {}
-                    for i in range(0, len(codes), chunk):
-                        subset = codes[i:i+chunk]
-                        rr = requests.get(
-                            "https://api.upbit.com/v1/ticker",
-                            params={"markets": ",".join(subset)},
-                            timeout=8
-                        )
-                        rr.raise_for_status()
-                        for t in rr.json():
-                            mk = t.get("market")
-                            # 거래대금(원화 기준) 사용
-                            out[mk] = float(t.get("acc_trade_price_24h", 0.0))
-                    return out
-    
-                vol_krw = _fetch_tickers(krw_codes)
-    
-                # 3) 정렬: 거래대금 내림차순
-                sorted_all = sorted(
-                    krw_codes,
-                    key=lambda c: (-vol_krw.get(c, 0.0), c)
-                )
-    
-                # 4) 메인 5개를 상단에, 그 외 나머지
-                MAIN5 = ["KRW-BTC", "KRW-XRP", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]
-                main_sorted   = [c for c in sorted_all if c in MAIN5]
-                others_sorted = [c for c in sorted_all if c not in MAIN5]
-    
-                ordered = main_sorted + others_sorted
-    
-                # 5) 라벨 구성
-                rows = []
-                for mk in ordered:
-                    sym = mk[4:]
-                    knm = code2name.get(mk, sym)
-                    label = f"{knm} ({sym}) — {mk}"
-                    rows.append((label, mk))
-    
-                if rows:
-                    return rows
-    
+            # 1) 전체 마켓 목록
+            r = requests.get("https://api.upbit.com/v1/market/all",
+                             params={"isDetails": "false"}, timeout=8)
+            r.raise_for_status()
+            items = r.json()
+
+            # 코드 → 한글명 매핑
+            code2name = {}
+            krw_codes = []
+            for it in items:
+                mk = it.get("market", "")
+                if mk.startswith("KRW-"):
+                    krw_codes.append(mk)
+                    code2name[mk] = it.get("korean_name", "")
+
+            if not krw_codes:
+                raise RuntimeError("no_krw_markets")
+
+            # 2) 티커로 24h 거래대금 조회 (청크 요청)
+            def _fetch_tickers(codes, chunk=50):
+                out = {}
+                for i in range(0, len(codes), chunk):
+                    subset = codes[i:i+chunk]
+                    rr = requests.get(
+                        "https://api.upbit.com/v1/ticker",
+                        params={"markets": ",".join(subset)},
+                        timeout=8
+                    )
+                    rr.raise_for_status()
+                    for t in rr.json():
+                        mk = t.get("market")
+                        # 거래대금(원화 기준) 사용
+                        out[mk] = float(t.get("acc_trade_price_24h", 0.0))
+                return out
+
+            vol_krw = _fetch_tickers(krw_codes)
+
+            # 3) 정렬: 거래대금 내림차순
+            sorted_all = sorted(
+                krw_codes,
+                key=lambda c: (-vol_krw.get(c, 0.0), c)
+            )
+
+            # 4) 메인 5개를 상단에, 그 외 나머지
+            MAIN5 = ["KRW-BTC", "KRW-XRP", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]
+            main_sorted   = [c for c in sorted_all if c in MAIN5]
+            others_sorted = [c for c in sorted_all if c not in MAIN5]
+
+            ordered = main_sorted + others_sorted
+
+            # 5) 라벨 구성
+            rows = []
+            for mk in ordered:
+                sym = mk[4:]
+                knm = code2name.get(mk, sym)
+                label = f"{knm} ({sym}) — {mk}"
+                rows.append((label, mk))
+
+            if rows:
+                return rows
+
         except Exception:
             pass
 
@@ -293,7 +293,7 @@ def main():
 
     def _get_secret(key, default=None):
         try:
-                return st.secrets[key]
+            return st.secrets[key]
         except Exception:
             return os.environ.get(key, default)
 
@@ -340,12 +340,12 @@ def main():
         url = f"https://api.github.com/repos/{repo}/contents/{basename}"
         headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
         try:
-                r = requests.get(url, headers=headers, params={"ref": branch}, timeout=8)
-                if r.status_code == 200:
-                    return True, None
-                if r.status_code == 404:
-                    return False, None
-                return False, f"status_{r.status_code}"
+            r = requests.get(url, headers=headers, params={"ref": branch}, timeout=8)
+            if r.status_code == 200:
+                return True, None
+            if r.status_code == 404:
+                return False, None
+            return False, f"status_{r.status_code}"
         except Exception as e:
             return False, f"error:{e}"
 
@@ -363,19 +363,19 @@ def main():
         if st.button("💾 매물대 저장"):
             # 1) 로컬 저장
             try:
-                    save_supply_levels(market_code, manual_supply_levels)
-                    # 2) GitHub에는 '최초 1회'만 업로드
-                    exists, err = github_file_exists(os.path.basename(CSV_FILE))
-                    if err == "no_token":
-                        st.info("메모는 로컬에 저장되었습니다. (GitHub 토큰/레포 설정이 없어 업로드 생략)")
-                    elif exists:
-                        st.success("로컬 저장 완료. (GitHub에는 이미 파일이 있어 이번에는 업로드하지 않습니다.)")
+                save_supply_levels(market_code, manual_supply_levels)
+                # 2) GitHub에는 '최초 1회'만 업로드
+                exists, err = github_file_exists(os.path.basename(CSV_FILE))
+                if err == "no_token":
+                    st.info("메모는 로컬에 저장되었습니다. (GitHub 토큰/레포 설정이 없어 업로드 생략)")
+                elif exists:
+                    st.success("로컬 저장 완료. (GitHub에는 이미 파일이 있어 이번에는 업로드하지 않습니다.)")
+                else:
+                    ok, msg = github_commit_csv(CSV_FILE)
+                    if ok:
+                        st.success("로컬 저장 완료 + GitHub 최초 업로드 완료!")
                     else:
-                        ok, msg = github_commit_csv(CSV_FILE)
-                        if ok:
-                            st.success("로컬 저장 완료 + GitHub 최초 업로드 완료!")
-                        else:
-                            st.warning(f"로컬 저장은 되었지만 GitHub 최초 업로드 실패: {msg}")
+                        st.warning(f"로컬 저장은 되었지만 GitHub 최초 업로드 실패: {msg}")
             except Exception as _e:
                 st.warning(f"매물대 저장 실패: {_e}")
 
@@ -429,22 +429,22 @@ def main():
         all_data = []
         to_time = _KST.localize(end_dt).astimezone(_UTC).replace(tzinfo=None)
         try:
-                while True:
-                    params = {"market": market_code, "count": 200}
-                    if to_time is not None:
-                        params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
-                    r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-                    r.raise_for_status()
-                    batch = r.json()
-                    if not batch:
-                        break
-                    all_data.extend(batch)
-    
-                    last_kst = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                    last_utc = pd.to_datetime(batch[-1]["candle_date_time_utc"])
-                    if last_kst <= start_cutoff:
-                        break
-                    to_time = (last_utc - timedelta(seconds=1))
+            while True:
+                params = {"market": market_code, "count": 200}
+                if to_time is not None:
+                    params["to"] = to_time.strftime("%Y-%m-%d %H:%M:%S")
+                r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+                r.raise_for_status()
+                batch = r.json()
+                if not batch:
+                    break
+                all_data.extend(batch)
+
+                last_kst = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+                last_utc = pd.to_datetime(batch[-1]["candle_date_time_utc"])
+                if last_kst <= start_cutoff:
+                    break
+                to_time = (last_utc - timedelta(seconds=1))
         except Exception:
             return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
 
@@ -468,7 +468,7 @@ def main():
             tmp_path = csv_path + ".tmp"
             df_all.to_csv(tmp_path, index=False)
             try:
-                    shutil.move(tmp_path, csv_path)
+                shutil.move(tmp_path, csv_path)
             except FileNotFoundError:
                 df_all.to_csv(csv_path, index=False)
         else:
@@ -479,20 +479,20 @@ def main():
         to_time = _KST.localize(end_dt).astimezone(_UTC).replace(tzinfo=None)
         if df_all.empty or df_all["time"].min() > start_cutoff or df_all["time"].max() < end_dt:
             try:
-                    while True:
-                        params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
-                        r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
-                        r.raise_for_status()
-                        batch = r.json()
-                        if not batch:
-                            break
-                        df_req.extend(batch)
-    
-                        last_kst = pd.to_datetime(batch[-1]["candle_date_time_kst"])
-                        last_utc = pd.to_datetime(batch[-1]["candle_date_time_utc"])
-                        if last_kst <= start_cutoff:
-                            break
-                        to_time = (last_utc - timedelta(seconds=1))
+                while True:
+                    params = {"market": market_code, "count": 200, "to": to_time.strftime("%Y-%m-%d %H:%M:%S")}
+                    r = _session.get(url, params=params, headers={"Accept": "application/json"}, timeout=10)
+                    r.raise_for_status()
+                    batch = r.json()
+                    if not batch:
+                        break
+                    df_req.extend(batch)
+
+                    last_kst = pd.to_datetime(batch[-1]["candle_date_time_kst"])
+                    last_utc = pd.to_datetime(batch[-1]["candle_date_time_utc"])
+                    if last_kst <= start_cutoff:
+                        break
+                    to_time = (last_utc - timedelta(seconds=1))
             except Exception:
                 pass
 
@@ -516,7 +516,7 @@ def main():
             tmp_path = csv_path + ".tmp"
             df_all.to_csv(tmp_path, index=False)
             try:
-                    shutil.move(tmp_path, csv_path)
+                shutil.move(tmp_path, csv_path)
             except FileNotFoundError:
                 df_all.to_csv(csv_path, index=False)
 
@@ -533,7 +533,7 @@ def main():
         out["CCI"] = cci.cci()
         # CCI 신호선(단순 이동평균)
         try:
-                n = max(int(cci_signal), 1)
+            n = max(int(cci_signal), 1)
         except Exception:
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
@@ -923,7 +923,7 @@ def main():
 
     def _safe_sleep(sec: float):
         try:
-                time.sleep(sec)
+            time.sleep(sec)
         except Exception:
             pass
 
@@ -1015,9 +1015,9 @@ def main():
         dfs = []
         for p in parts:
             try:
-                    dfp = pd.read_parquet(p)
-                    if dfp is not None and not dfp.empty:
-                        dfs.append(dfp)
+                dfp = pd.read_parquet(p)
+                if dfp is not None and not dfp.empty:
+                    dfs.append(dfp)
             except Exception:
                 pass
         if not dfs:
@@ -1033,52 +1033,52 @@ def main():
     # 실행
     # -----------------------------
     try:
-            if start_date > end_date:
-                st.error("시작 날짜가 종료 날짜보다 이후입니다.")
-                st.stop()
-    
-            KST = timezone("Asia/Seoul")
-            start_dt = datetime.combine(start_date, datetime.min.time())
-            if end_date == datetime.now(KST).date():
-                end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
-            else:
-                end_dt = datetime.combine(end_date, datetime.max.time())
-            warmup_bars = max(13, bb_window, int(cci_window)) * 5
-    
-            df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
-            if df_raw.empty:
-                st.error("데이터가 없습니다.")
-                st.stop()
-    
-            df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
-            df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
-    
-            # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
-            if sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
-                if check_maemul_auto_signal(df):
-                    st.toast("🚨 매물대 자동 신호 발생!")        # (이 위치의 실시간 감시 UI/스레드는 ⑤ 섹션으로 이동했습니다)
-    
-    
-            # 보기 요약 텍스트
-            total_min = lookahead * int(minutes_per_bar)
-            hh, mm = divmod(total_min, 60)
-            look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
-    
-            if rsi_mode == "없음":
-                rsi_txt = "없음"
-            elif rsi_mode == "현재(과매도/과매수 중 하나)":
-                rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
-            elif rsi_mode == "과매도 기준":
-                rsi_txt = f"과매도≤{int(rsi_low)}"
-            else:
-                rsi_txt = f"과매수≥{int(rsi_high)}"
-    
-            bb_txt = bb_cond if bb_cond != "없음" else "없음"
-            sec_txt = f"{sec_cond}"
-            bottom_txt = "ON" if bottom_mode else "OFF"
-            cci_txt = ("없음" if cci_mode == "없음"
-                       else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
-    
+        if start_date > end_date:
+            st.error("시작 날짜가 종료 날짜보다 이후입니다.")
+            st.stop()
+
+        KST = timezone("Asia/Seoul")
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        if end_date == datetime.now(KST).date():
+            end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
+        else:
+            end_dt = datetime.combine(end_date, datetime.max.time())
+        warmup_bars = max(13, bb_window, int(cci_window)) * 5
+
+        df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
+        if df_raw.empty:
+            st.error("데이터가 없습니다.")
+            st.stop()
+
+        df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
+        df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+
+        # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
+        if sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
+            if check_maemul_auto_signal(df):
+                st.toast("🚨 매물대 자동 신호 발생!")        # (이 위치의 실시간 감시 UI/스레드는 ⑤ 섹션으로 이동했습니다)
+
+
+        # 보기 요약 텍스트
+        total_min = lookahead * int(minutes_per_bar)
+        hh, mm = divmod(total_min, 60)
+        look_str = f"{lookahead}봉 / {hh:02d}:{mm:02d}"
+
+        if rsi_mode == "없음":
+            rsi_txt = "없음"
+        elif rsi_mode == "현재(과매도/과매수 중 하나)":
+            rsi_txt = f"현재: (과매도≤{int(rsi_low)}) 또는 (과매수≥{int(rsi_high)})"
+        elif rsi_mode == "과매도 기준":
+            rsi_txt = f"과매도≤{int(rsi_low)}"
+        else:
+            rsi_txt = f"과매수≥{int(rsi_high)}"
+
+        bb_txt = bb_cond if bb_cond != "없음" else "없음"
+        sec_txt = f"{sec_cond}"
+        bottom_txt = "ON" if bottom_mode else "OFF"
+        cci_txt = ("없음" if cci_mode == "없음"
+                   else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
+
         # -----------------------------
         # 매수가 입력 + 최적화뷰 버튼
         # -----------------------------
@@ -1382,24 +1382,24 @@ def main():
         # ===== 최적화뷰: 최근 70봉 '꽉 찬' 화면 + AutoScale (df_plot 기준) =====
         if st.session_state.get("opt_view") and len(df_plot) > 0:
             try:
-                    window_n = 70
-                    if len(df_plot) <= window_n:
-                        start_idx = 0
-                        end_idx   = len(df_plot) - 1
-                    else:
-                        end_idx   = len(df_plot) - 1
-                        start_idx = end_idx - window_n + 1
-    
-                    x_start = df_plot.iloc[start_idx]["time"]
-                    x_end   = df_plot.iloc[end_idx]["time"]
-    
-                    # X축: 보이는 데이터(df_plot)에서 최근 70봉만 딱 보이도록 지정
-                    fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
-                    fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
-    
-                    # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
-                    fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
-                    fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
+                window_n = 70
+                if len(df_plot) <= window_n:
+                    start_idx = 0
+                    end_idx   = len(df_plot) - 1
+                else:
+                    end_idx   = len(df_plot) - 1
+                    start_idx = end_idx - window_n + 1
+
+                x_start = df_plot.iloc[start_idx]["time"]
+                x_end   = df_plot.iloc[end_idx]["time"]
+
+                # X축: 보이는 데이터(df_plot)에서 최근 70봉만 딱 보이도록 지정
+                fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
+                fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
+
+                # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
+                fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
+                fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
             except Exception:
                 pass
 
@@ -1538,40 +1538,40 @@ def main():
                 edt = datetime.combine(sweep_end, datetime.max.time())
 
                 try:
-                        simulate_kwargs = dict(
-                            rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
-                            lookahead=lookahead, threshold_pct=threshold_pct,
-                            bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
-                            sec_cond=sec_cond, bottom_mode=bottom_mode,
-                            manual_supply_levels=manual_supply_levels,
-                            cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
-                        )
-    
-                        merged_df, ckpt = run_combination_scan_chunked(
-                            symbol=sweep_market,
-                            interval_key=interval_key,
-                            minutes_per_bar=minutes_per_bar,
-                            start_dt=sdt,
-                            end_dt=edt,
-                            days_per_chunk=7,
-                            checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}",
-                            max_minutes=15,
-                            on_progress=_on_progress,
-                            simulate_kwargs=simulate_kwargs,
-                        )
-    
-                        if merged_df is not None and not merged_df.empty:
-                            if "sweep_state" not in st.session_state:
-                                st.session_state["sweep_state"] = {}
-                            st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
-                            st.session_state["sweep_state"]["params"] = {
-                                "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
-                                "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
-                                "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                                "target_thr": float(threshold_pct)
-                            }
-                            st.success("✅ 긴 기간 안전 스캔(조각처리/캐시/체크포인트) 결과가 적용되었습니다.")
-                            st.session_state["use_sweep_wrapper"] = True
+                    simulate_kwargs = dict(
+                        rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
+                        lookahead=lookahead, threshold_pct=threshold_pct,
+                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+                        sec_cond=sec_cond, bottom_mode=bottom_mode,
+                        manual_supply_levels=manual_supply_levels,
+                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
+                    )
+
+                    merged_df, ckpt = run_combination_scan_chunked(
+                        symbol=sweep_market,
+                        interval_key=interval_key,
+                        minutes_per_bar=minutes_per_bar,
+                        start_dt=sdt,
+                        end_dt=edt,
+                        days_per_chunk=7,
+                        checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}",
+                        max_minutes=15,
+                        on_progress=_on_progress,
+                        simulate_kwargs=simulate_kwargs,
+                    )
+
+                    if merged_df is not None and not merged_df.empty:
+                        if "sweep_state" not in st.session_state:
+                            st.session_state["sweep_state"] = {}
+                        st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
+                        st.session_state["sweep_state"]["params"] = {
+                            "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
+                            "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
+                            "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
+                            "target_thr": float(threshold_pct)
+                        }
+                        st.success("✅ 긴 기간 안전 스캔(조각처리/캐시/체크포인트) 결과가 적용되었습니다.")
+                        st.session_state["use_sweep_wrapper"] = True
                 except Exception as _e:
                     st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
 
@@ -1781,7 +1781,7 @@ def main():
                         if pd.isna(v):
                             return ""
                         try:
-                                return f"{float(v):{digits}}%"
+                            return f"{float(v):{digits}}%"
                         except Exception:
                             return str(v)
 
@@ -1789,7 +1789,7 @@ def main():
                         if pd.isna(v):
                             return ""
                         try:
-                                return f"{float(v):{digits}}"
+                            return f"{float(v):{digits}}"
                         except Exception:
                             return str(v)
 
@@ -1899,7 +1899,7 @@ def main():
                 if pd.isna(v):
                     return ""
                 try:
-                        return format(float(v), fmt) + suffix
+                    return format(float(v), fmt) + suffix
                 except Exception:
                     return str(v)
 
@@ -1952,24 +1952,24 @@ def main():
             st.session_state["alerts"] = []
 
         try:
-                maemul = None
-                if len(df) >= 2:
-                    prev = df.iloc[-2]
-                    cur = df.iloc[-1]
-                    if prev["close"] > prev["open"]:
-                        maemul = max(prev["high"], prev["close"])
-                    else:
-                        maemul = max(prev["high"], prev["open"])
-    
-                    if (
-                        cur["low"] <= maemul * 0.999
-                        and cur["close"] >= maemul
-                        and cur["close"] > cur["open"]
-                        and maemul >= cur["bb_low"]
-                    ):
-                        st.toast("🚨 이전봉 기준 재진입 + BB하단 위 양봉 신호 발생!")
-                        st.session_state["alerts"].append("이전봉 기준 재진입 + BB하단 위 양봉 신호 감지")
-    
+            maemul = None
+            if len(df) >= 2:
+                prev = df.iloc[-2]
+                cur = df.iloc[-1]
+                if prev["close"] > prev["open"]:
+                    maemul = max(prev["high"], prev["close"])
+                else:
+                    maemul = max(prev["high"], prev["open"])
+
+                if (
+                    cur["low"] <= maemul * 0.999
+                    and cur["close"] >= maemul
+                    and cur["close"] > cur["open"]
+                    and maemul >= cur["bb_low"]
+                ):
+                    st.toast("🚨 이전봉 기준 재진입 + BB하단 위 양봉 신호 발생!")
+                    st.session_state["alerts"].append("이전봉 기준 재진입 + BB하단 위 양봉 신호 감지")
+
         except Exception as e:
             st.error(f"실시간 알람 오류: {e}")
 
@@ -1998,14 +1998,14 @@ def main():
             with c_add:
                 if st.button("➕ 구성 추가", use_container_width=True):
                     try:
-                            for (_lbl, mcode) in sel_markets:
-                                for tf_lbl in sel_tfs:
-                                    st.session_state["alarm_watchlist"].append({
-                                        "market": mcode,
-                                        "tf": tf_lbl,
-                                        "strategy": sel_strategy
-                                    })
-                            st.success("구성이 추가되었습니다.")
+                        for (_lbl, mcode) in sel_markets:
+                            for tf_lbl in sel_tfs:
+                                st.session_state["alarm_watchlist"].append({
+                                    "market": mcode,
+                                    "tf": tf_lbl,
+                                    "strategy": sel_strategy
+                                })
+                        st.success("구성이 추가되었습니다.")
                     except Exception as _e:
                         st.warning(f"구성 추가 실패: {_e}")
             with c_clear:
@@ -2023,17 +2023,17 @@ def main():
                 with b1:
                     if st.button("💾 저장(로컬)", use_container_width=True):
                         try:
-                                with open(ALARM_FILE, "w", encoding="utf-8") as f:
-                                    json.dump(st.session_state["alarm_watchlist"], f, ensure_ascii=False, indent=2)
-                                st.success("저장 완료")
+                            with open(ALARM_FILE, "w", encoding="utf-8") as f:
+                                json.dump(st.session_state["alarm_watchlist"], f, ensure_ascii=False, indent=2)
+                            st.success("저장 완료")
                         except Exception as _e:
                             st.warning(f"저장 실패: {_e}")
                 with b2:
                     if st.button("📥 불러오기", use_container_width=True):
                         try:
-                                with open(ALARM_FILE, "r", encoding="utf-8") as f:
-                                    st.session_state["alarm_watchlist"] = json.load(f)
-                                st.success("불러오기 완료")
+                            with open(ALARM_FILE, "r", encoding="utf-8") as f:
+                                st.session_state["alarm_watchlist"] = json.load(f)
+                            st.success("불러오기 완료")
                         except Exception as _e:
                             st.warning(f"불러오기 실패: {_e}")
                 with b3:
@@ -2051,39 +2051,39 @@ def main():
         count = streamlit_autorefresh.st_autorefresh(interval=30_000, key="auto_watch_refresh")
 
         try:
-                KST = _tz("Asia/Seoul")
-                now = datetime.now(KST).replace(tzinfo=None)
-                hits = []
-    
-                watchlist = st.session_state.get("alarm_watchlist", [])
-                for item in watchlist:
-                    m = item.get("market")
-                    tf_lbl = item.get("tf")
-                    strat = item.get("strategy", "")
-    
-                    if not m or not tf_lbl:
-                        continue
-    
-                    interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
-                    lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
-                    start_i = now - timedelta(minutes=int(mpb_i) * lookback_bars)
-    
-                    df_i = fetch_upbit_paged(m, interval_key_i, start_i, now, mpb_i, warmup_bars=max(13, bb_window, int(cci_window))*5)
-                    if df_i is None or df_i.empty:
-                        continue
-                    df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
-    
-                    triggered = False
-                    if "매물대 자동" in strat:
+            KST = _tz("Asia/Seoul")
+            now = datetime.now(KST).replace(tzinfo=None)
+            hits = []
+
+            watchlist = st.session_state.get("alarm_watchlist", [])
+            for item in watchlist:
+                m = item.get("market")
+                tf_lbl = item.get("tf")
+                strat = item.get("strategy", "")
+
+                if not m or not tf_lbl:
+                    continue
+
+                interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
+                lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
+                start_i = now - timedelta(minutes=int(mpb_i) * lookback_bars)
+
+                df_i = fetch_upbit_paged(m, interval_key_i, start_i, now, mpb_i, warmup_bars=max(13, bb_window, int(cci_window))*5)
+                if df_i is None or df_i.empty:
+                    continue
+                df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
+
+                triggered = False
+                if "매물대 자동" in strat:
                     try:
-                            triggered = check_maemul_auto_signal(df_i)
+                        triggered = check_maemul_auto_signal(df_i)
                     except Exception:
                         triggered = False
 
                 if triggered:
                     msg = f"🚨 {m} · {tf_lbl} · {strat} 신호 발생!"
                     try:
-                            st.toast(msg)
+                        st.toast(msg)
                     except Exception:
                         pass
                     if "alerts" not in st.session_state:
@@ -2121,14 +2121,14 @@ def main():
                     # 현재 단계: 매물대 자동 전략만 실시간 알림 지원
                     if "매물대 자동" in strat:
                         try:
-                                triggered = check_maemul_auto_signal(df_i)
+                            triggered = check_maemul_auto_signal(df_i)
                         except Exception:
                             triggered = False
 
                     if triggered:
                         msg = f"🚨 {m} · {tf_lbl} · {strat} 신호 발생!"
                         try:
-                                st.toast(msg)
+                            st.toast(msg)
                         except Exception:
                             pass
                         if "alerts" not in st.session_state:
@@ -2155,11 +2155,11 @@ def main():
 
         _notes_text = ""
         try:
-                if not os.path.exists(SHARED_NOTES_FILE):
-                    with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
-                        f.write("# 📒 공유 메모\n\n- 팀 공통 메모를 작성하세요.\n")
-                with open(SHARED_NOTES_FILE, "r", encoding="utf-8") as f:
-                    _notes_text = f.read()
+            if not os.path.exists(SHARED_NOTES_FILE):
+                with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                    f.write("# 📒 공유 메모\n\n- 팀 공통 메모를 작성하세요.\n")
+            with open(SHARED_NOTES_FILE, "r", encoding="utf-8") as f:
+                _notes_text = f.read()
         except Exception:
             _notes_text = ""
 
@@ -2176,22 +2176,22 @@ def main():
             with col_n1:
                 if st.button("💾 메모 저장(로컬)"):
                     try:
-                            with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
-                                f.write(notes_text)
-                            st.success("메모가 로컬에 저장되었습니다.")
+                        with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                            f.write(notes_text)
+                        st.success("메모가 로컬에 저장되었습니다.")
                     except Exception as _e:
                         st.warning(f"메모 저장 실패: {_e}")
 
             with col_n2:
                 if st.button("📤 메모 GitHub 업로드"):
                     try:
-                            with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
-                                f.write(notes_text)
-                            ok, msg = github_commit_csv(SHARED_NOTES_FILE)
-                            if ok:
-                                st.success("메모가 GitHub에 저장/공유되었습니다!")
-                            else:
-                                st.warning(f"메모는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+                        with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                            f.write(notes_text)
+                        ok, msg = github_commit_csv(SHARED_NOTES_FILE)
+                        if ok:
+                            st.success("메모가 GitHub에 저장/공유되었습니다!")
+                        else:
+                            st.warning(f"메모는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
                     except Exception as _e:
                         st.warning(f"GitHub 업로드 중 오류: {_e}")
 
@@ -2230,19 +2230,19 @@ if __name__ == '__main__':
 # 주의: 기존 notify_alert가 있을 경우, 파이썬 정의 우선순위에 따라 본 정의가 적용됩니다.
 # ============================================================================
 try:
-        import streamlit as st
-        import datetime as _dt
-        from queue import Queue
-    
-        def _ensure_alert_state():
-            # alerts: 알림 누적 리스트
-            if "alerts" not in st.session_state:
-                st.session_state["alerts"] = []
-            # alert_queue: 토스트 등 비동기 표시용 (선택적)
-            if "alert_queue" not in st.session_state:
-                st.session_state["alert_queue"] = Queue()
-    
-    
+    import streamlit as st
+    import datetime as _dt
+    from queue import Queue
+
+    def _ensure_alert_state():
+        # alerts: 알림 누적 리스트
+        if "alerts" not in st.session_state:
+            st.session_state["alerts"] = []
+        # alert_queue: 토스트 등 비동기 표시용 (선택적)
+        if "alert_queue" not in st.session_state:
+            st.session_state["alert_queue"] = Queue()
+
+
 except Exception as _patch_err:
     # 패치 실패 시 전체 앱이 죽지 않도록 방어
     pass
@@ -2260,16 +2260,16 @@ except Exception as _patch_err:
 # 주의: 기존 정의가 있어도 아래 재정의가 우선됩니다.
 # ============================================================================
 try:
-        import streamlit as st
-        import datetime as _dt
-    
-        # --- state 보장 ---
-        if "alerts" not in st.session_state:
-            st.session_state["alerts"] = []
-    
-        # --- st.toast 패치: 토스트 → alerts 동시 누적 ---
+    import streamlit as st
+    import datetime as _dt
+
+    # --- state 보장 ---
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- st.toast 패치: 토스트 → alerts 동시 누적 ---
     try:
-            _orig_st_toast = st.toast
+        _orig_st_toast = st.toast
     except Exception:
         _orig_st_toast = None
 
@@ -2287,7 +2287,7 @@ try:
                 st.session_state["alerts"] = st.session_state["alerts"][-2000:]
         if _orig_st_toast:
             try:
-                    return _orig_st_toast(*args, **kwargs)
+                return _orig_st_toast(*args, **kwargs)
             except Exception:
                 return None
         return None
@@ -2313,16 +2313,16 @@ except Exception:
 # 주의: 기존 정의가 있어도 아래 재정의가 우선됩니다.
 # ============================================================================
 try:
-        import streamlit as st
-        import datetime as _dt
-    
-        # --- state 보장 ---
-        if "alerts" not in st.session_state:
-            st.session_state["alerts"] = []
-    
-        # --- st.toast 패치: 토스트 → alerts 동시 누적 ---
+    import streamlit as st
+    import datetime as _dt
+
+    # --- state 보장 ---
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- st.toast 패치: 토스트 → alerts 동시 누적 ---
     try:
-            _orig_st_toast = st.toast
+        _orig_st_toast = st.toast
     except Exception:
         _orig_st_toast = None
 
@@ -2340,7 +2340,7 @@ try:
                 st.session_state["alerts"] = st.session_state["alerts"][-2000:]
         if _orig_st_toast:
             try:
-                    return _orig_st_toast(*args, **kwargs)
+                return _orig_st_toast(*args, **kwargs)
             except Exception:
                 return None
         return None
@@ -2362,15 +2362,15 @@ except Exception:
 #  - st.toast 래핑: 토스트 발생 시 st.session_state['alerts']에 함께 누적
 #  -#  -# ============================================================================
 try:
-        import streamlit as st
-        import datetime as _dt
-    
-        if "alerts" not in st.session_state:
-            st.session_state["alerts"] = []
-    
-        # --- toast wrapper ---
+    import streamlit as st
+    import datetime as _dt
+
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- toast wrapper ---
     try:
-            _orig_toast = st.toast
+        _orig_toast = st.toast
     except Exception:
         _orig_toast = None
 
@@ -2386,7 +2386,7 @@ try:
                 st.session_state["alerts"] = st.session_state["alerts"][-2000:]
         if _orig_toast:
             try:
-                    return _orig_toast(*args, **kwargs)
+                return _orig_toast(*args, **kwargs)
             except Exception:
                 return None
         return None
