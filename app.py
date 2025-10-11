@@ -2022,19 +2022,33 @@ def main():
         # 자동 감시 (1분 주기)
         from datetime import datetime, timedelta
         now_kst = datetime.utcnow() + timedelta(hours=9)
-        current_minute = now_kst.minute
-        from streamlit_autorefresh import st_autorefresh  # ← 추가
+        from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=60 * 1000, key="realtime_refresh")
 
-        if current_minute % 1 == 0 and len(sel_symbols) > 0:
-            check_test_signal(sel_symbols[0], sel_tfs[0])
-            # 추후 실제 df 데이터 연동 시 check_tgv_signal(df, symbol, tf) 호출 가능
+        # 다중 종목/분봉 루프
+        for symbol in sel_symbols:
+            for tf in sel_tfs:
+                try:
+                    # TODO: 실제 데이터 연동 시 df 전달
+                    check_test_signal(symbol, tf)
+                except Exception as e:
+                    st.warning(f"⚠️ {symbol}({tf}분) 감시 중 오류: {e}")
+
+        # 중복 제거 (최근 10개만 유지)
+        uniq = []
+        seen = set()
+        for a in st.session_state["alerts_live"]:
+            key = (a["symbol"], a["tf"], a["time"])
+            if key not in seen:
+                seen.add(key)
+                uniq.append(a)
+        st.session_state["alerts_live"] = uniq[:10]
 
         # 실시간 알람 목록
         st.markdown("### 🚨 실시간 알람 목록 (최신 순)")
         if st.session_state["alerts_live"]:
-            for i, a in enumerate(st.session_state["alerts_live"][:10]):
-                status = "✅ 확인됨" if a["checked"] else "⚠️ 미확인"
+            for i, a in enumerate(st.session_state["alerts_live"]):
+                status = "✅ 확인됨" if a.get("checked") else "⚠️ 미확인"
                 st.warning(f"{a['time']} | {a['symbol']} {a['tf']}분 | {a['strategy']} | {status}")
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
