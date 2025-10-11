@@ -1944,36 +1944,9 @@ def main():
 
         st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
 
-        # === TEST SIGNAL ===
-        def check_test_signal(symbol="KRW-BTC", tf="1"):
-            from datetime import datetime, timedelta
-            now = (datetime.utcnow() + timedelta(hours=9)).strftime("%H:%M:%S")
-            rsi_now = random.uniform(40, 60)
-            cci_now = random.uniform(-100, -50)
-            vol_ratio = random.uniform(1.2, 2.0)
-            tp, sl = 0.5, 0.2
-            msg = f"""
-🚨 TEST_SIGNAL 발생 [{symbol}, {tf}분봉]
-━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-📈 RSI: {rsi_now - 8:.1f} → {rsi_now:.1f} 상승
-📉 CCI: {cci_now - 30:.0f} → {cci_now:.0f} 회복
-💹 거래량 변화: +{vol_ratio*100:.0f}%
-💰 목표 수익: +{tp:.1f}% | 손절: -{sl:.1f}%
-━━━━━━━━━━━━━━━━━━━
-💡 테스트용 시그널입니다. 알림 시스템 동작 확인용 신호입니다.
-            """
-            alert_entry = {
-                "time": now,
-                "symbol": symbol,
-                "tf": tf,
-                "strategy": "TEST_SIGNAL",
-                "msg": msg,
-                "checked": False,
-            }
-            st.session_state["alerts_live"].insert(0, alert_entry)
-            st.session_state["alert_history"].insert(0, alert_entry)
-            st.toast(msg, icon="🚨")
+        # ✅ TEST_SIGNAL 제거
+        # (실전 감시만 남기고 테스트용 함수 완전 삭제)
+        # 필요 시 디버그 테스트는 check_tgv_signal(df, symbol, tf) 단독 호출로 대체
 
         # === TGV SIGNAL ===
         def calc_rsi(series, period=14):
@@ -2112,22 +2085,65 @@ def main():
                 uniq.append(a)
         st.session_state["alerts_live"] = uniq[:10]
 
-        # 실시간 알람 목록
+        # 실시간 알람 목록 (최신 3개만 표시, 스크롤 영역화)
         st.markdown("### 🚨 실시간 알람 목록 (최신 순)")
         if st.session_state["alerts_live"]:
-            for i, a in enumerate(st.session_state["alerts_live"]):
-                status = "✅ 확인됨" if a.get("checked") else "⚠️ 미확인"
-                st.warning(f"{a['time']} | {a['symbol']} {a['tf']}분 | {a['strategy']} | {status}")
+            st.markdown("""
+            <style>
+                div[data-testid="stVerticalBlock"] > div:has(> div.scroll-container) {
+                    max-height: 200px;
+                    overflow-y: auto;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 4px;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+            with st.container():
+                for i, a in enumerate(st.session_state["alerts_live"][:3]):
+                    status = "✅ 확인됨" if a.get("checked") else "⚠️ 미확인"
+                    st.warning(f"{a['time']} | {a['symbol']} {a['tf']}분 | {a['strategy']} | {status}")
+                st.caption("※ 최근 3건만 표시됩니다. (아래 스크롤로 이전 알람 확인 가능)")
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
 
-        # 히스토리
-        with st.expander("📜 알람 히스토리 전체 보기"):
-            if st.session_state["alert_history"]:
-                for i, a in enumerate(st.session_state["alert_history"]):
-                    st.text(a["msg"])
-            else:
-                st.info("히스토리가 없습니다.")
+        # 📜 알람 히스토리 (강화버전)
+        st.markdown("### 📜 알람 히스토리 (상세)")
+        if st.session_state["alert_history"]:
+            for h in st.session_state["alert_history"]:
+                label = h.get("label", "N/A")
+                prob = h.get("success_prob", 0.0)
+                price_hint = h.get("price_hint", "계산중...")
+                st.markdown(f"""
+                🕒 **{h['time']}**
+                - 종목: **{h['symbol']}** ({h['tf']}분)
+                - 전략: **{h['strategy']}** ({label})
+                - 예상 매수가: `{price_hint}`
+                - 성공 확률(예상): `{prob:.1f}%`
+                ---
+                """)
+        else:
+            st.info("기록된 알람이 없습니다.")
+
+
+        # -----------------------------
+        # 📘 알람 종류 안내 UI (추가)
+        # -----------------------------
+        with st.expander("📘 알람 종류별 매매기법 안내", expanded=False):
+            st.markdown("""
+            | 알람명 | 유형 | 주요 조건 | 매매성격 |
+            |---------|------|------------|-----------|
+            | **TGV** | 거래량 급등 | 거래량 +2.5배 이상, RSI>55 | 단기급등(초단타) |
+            | **RSI_과매도반등** | RSI | RSI <30 → 반등 | 단기반등 |
+            | **RSI_과매수하락** | RSI | RSI >70 → 하락 | 단기하락 |
+            | **CCI_저점반등** | CCI | CCI<-100 → 상승전환 | 단기 |
+            | **CCI_고점하락** | CCI | CCI>+100 → 하락전환 | 단기 |
+            | **BB_하단반등** | 볼밴 | 하단선 하향이탈 후 상향돌파 | 스윙 |
+            | **BB_상단하락** | 볼밴 | 상단선 상향이탈 후 재하락 | 스윙 |
+            | **매물대_하단매수** | 매물대 | 지지선 부근 반등 | 중기 |
+            | **매물대_상단매도** | 매물대 | 저항선 부근 반락 | 중기 |
+            """, unsafe_allow_html=True)
+            st.caption("각 전략은 통계 기반 매매기법이며, 감시 전략 설정에서 선택 가능.")
 
         # 알람 제어 UI 및 초기화 개선
         st.markdown("### ⚙️ 알람 제어")
