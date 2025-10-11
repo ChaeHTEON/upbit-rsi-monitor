@@ -632,7 +632,7 @@ def main():
             for j in range(start_i + 1, n):
                 o, l, c = float(df.at[j, "open"]), float(df.at[j, "low"]), float(df.at[j, "close"])
                 if not (c > o):
-                    continue
+                continue
     
                 # 참조선
                 if bb_cond == "하한선":
@@ -644,21 +644,21 @@ def main():
     
                 ref = ref_series.iloc[j]
                 if pd.isna(ref):
-                    continue
+                continue
                 rv = float(ref)
     
                 # 조건2: '아래 → 진입'
                 entered_from_below = (o < rv) or (l <= rv)
                 closes_above       = (c >= rv)
                 if not (entered_from_below and closes_above):
-                    continue
+                continue
     
                 # 조건3: 첫 진입 여부 확인
                 if j - (start_i + 1) > 0:
                     prev_close = df.loc[start_i + 1:j - 1, "close"]
                     prev_ref   = ref_series.loc[start_i + 1:j - 1]
                     if not (prev_close < prev_ref).all():
-                        continue
+                continue
     
                 return j, c
             return None, None
@@ -859,7 +859,7 @@ def main():
             while i < n:
                 if i not in base_sig_idx:
                     i += 1
-                    continue
+                continue
                 row, lock_end = process_one(i)
                 if row is not None:
                     res.append(row)
@@ -1240,7 +1240,7 @@ def main():
             for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
                 sub = plot_res[plot_res["결과"] == _label]
                 if sub.empty:
-                    continue
+                continue
                 xs, ys = [], []
                 for _, r in sub.iterrows():
                     t0 = pd.to_datetime(r["신호시간"])
@@ -1259,7 +1259,7 @@ def main():
                 t0 = pd.to_datetime(row_["신호시간"])
                 t1 = pd.to_datetime(row_["종료시간"])
                 if (t0 not in df_plot["time"].values) or (t1 not in df_plot["time"].values):
-                    continue
+                continue
     
                 y0 = float(df_plot.loc[df_plot["time"] == t0, "close"].iloc[0])
                 y1 = float(df_plot.loc[df_plot["time"] == t1, "close"].iloc[0])
@@ -1614,7 +1614,7 @@ def main():
                     interval_key_s, mpb_s = TF_MAP[tf_lbl]
                     df_s = fetch_upbit_paged(sweep_market, interval_key_s, sdt, edt, mpb_s, warmup_bars)
                     if df_s is None or df_s.empty:
-                        continue
+                continue
                     df_s = add_indicators(df_s, bb_window, bb_dev, cci_window, cci_signal)
     
                     for lookahead_s in lookahead_list:
@@ -1695,12 +1695,12 @@ def main():
                     rows = []
                     for p in presets:
                         if p["label"] not in use_presets:
-                            continue
+                continue
                         sdt_p = datetime.combine(sweep_start, datetime.min.time())
                         edt_p = datetime.combine(sweep_end,   datetime.max.time())
                         df_p  = fetch_upbit_paged(p["symbol"], p["tf"], sdt_p, edt_p, p["mpb"], warmup_bars)
                         if df_p is None or df_p.empty:
-                            continue
+                continue
                         df_p  = add_indicators(df_p, bb_window, bb_dev, cci_window, cci_signal)
                         res_p = simulate(
                             df_p, rsi_mode, rsi_low, rsi_high, p["lookahead"], threshold_pct,
@@ -2056,13 +2056,13 @@ def main():
             hits = []
 
             watchlist = st.session_state.get("alarm_watchlist", [])
-            for item in watchlist:
-                m = item.get("market")
-                tf_lbl = item.get("tf")
-                strat = item.get("strategy", "")
+                for item in watchlist:
+                    m = item.get("market")
+                    tf_lbl = item.get("tf")
+                    strat = item.get("strategy", "")
 
-                if not m or not tf_lbl:
-                    continue
+            if not m or not tf_lbl:
+                        continue
 
                 interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
                 lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
@@ -2070,7 +2070,7 @@ def main():
 
                 df_i = fetch_upbit_paged(m, interval_key_i, start_i, now, mpb_i, warmup_bars=max(13, bb_window, int(cci_window))*5)
                 if df_i is None or df_i.empty:
-                    continue
+                continue
                 df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
 
                 triggered = False
@@ -2105,7 +2105,7 @@ def main():
         except Exception as _e:
             st.warning(f"다중 감시 자동 체크 중 오류: {_e}")
 
-                    if not m or not tf_lbl:
+            if not m or not tf_lbl:
                         continue
 
                     interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
@@ -2115,7 +2115,7 @@ def main():
 
                     df_i = fetch_upbit_paged(m, interval_key_i, start_i, now, mpb_i, warmup_bars=max(13, bb_window, int(cci_window))*5)
                     if df_i is None or df_i.empty:
-                        continue
+                continue
                     df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
 
                     triggered = False
@@ -2398,4 +2398,3 @@ try:
     
 except Exception:
     pass
-
