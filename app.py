@@ -2056,13 +2056,13 @@ def main():
             hits = []
 
             watchlist = st.session_state.get("alarm_watchlist", [])
-            for item in watchlist:
-                m = item.get("market")
-                tf_lbl = item.get("tf")
-                strat = item.get("strategy", "")
+                for item in watchlist:
+                    m = item.get("market")
+                    tf_lbl = item.get("tf")
+                    strat = item.get("strategy", "")
 
-                if not m or not tf_lbl:
-                    continue
+                    if not m or not tf_lbl:
+                        continue
 
                 interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
                 lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
