@@ -859,16 +859,14 @@ try:
         fig.add_shape(type="line", xref="paper", x0=0, x1=1, yref="y3", y0=yv, y1=yv, line=dict(color=colr, width=1, dash="dot"))
 
     fig.update_layout(
-        hovermode=\"x\", hoverdistance=1, spikedistance=1,
+        hovermode="x", hoverdistance=1, spikedistance=1,
         title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
         dragmode="pan", xaxis_rangeslider_visible=False, height=680,
         legend_orientation="h", legend_y=1.02, margin=dict(l=30, r=30, t=60, b=40),
         yaxis=dict(title="가격", autorange=True,  fixedrange=False),
         yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
         yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
-        uirevision=f"opt-{int(st.session_state.get('opt_view', False))}-{np.random.randint(1_000_000_000)}",
-        
-    )
+        uirevision=f"opt-{int(st.session_state.get('opt_view', False))}-{np.random.randint(1_000_000_000)}")
 
     with chart_box:
         top_l, top_r = st.columns([4, 1])
