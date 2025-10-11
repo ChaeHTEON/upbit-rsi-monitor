@@ -2180,6 +2180,26 @@ def main():
             st.session_state["watch_active"] = True
             st.caption("✅ 실시간 감시가 항상 실행 중입니다. (중지 기능 제거됨)")
 
+        # ▶ 신규 토스트 알림 처리 (감시 스레드 → UI 표시)
+        import queue
+        if "alert_queue" not in st.session_state:
+            st.session_state["alert_queue"] = queue.Queue()
+
+        while not st.session_state["alert_queue"].empty():
+            msg = st.session_state["alert_queue"].get()
+            st.toast(msg)
+            if "alerts" not in st.session_state:
+                st.session_state["alerts"] = []
+            st.session_state["alerts"].append(msg)
+
+        # ▶ 실시간 알람 목록 UI 표시
+        st.markdown("#### 🚨 실시간 알람 목록")
+        if "alerts" in st.session_state and len(st.session_state["alerts"]) > 0:
+            for i, alert in enumerate(reversed(st.session_state["alerts"][-10:])):
+                st.warning(f"{i+1}. {alert}")
+        else:
+            st.info("현재까지 감지된 실시간 알람이 없습니다.")
+
         # ▶ 알림 중심형(1안): 백그라운드 쓰레드가 감지/알림/CSV 저장을 수행하므로, 여기서는 로그 준비만 합니다.
         import os
         import pandas as pd
