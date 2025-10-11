@@ -2029,17 +2029,17 @@ def main():
                 try:
                     exists, err = github_file_exists(os.path.basename(alert_csv))
                     if err == "no_token":
-                        st.caption("ℹ️ 알림 로그 CSV는 로컬에만 생성되었습니다. (GitHub 토큰/레포 미설정)")
+                        print("info: 알림 로그 CSV는 로컬에만 생성되었습니다. (GitHub 토큰/레포 미설정)")
                     elif exists:
                         pass
                     else:
                         ok, msg = github_commit_csv(alert_csv)
                         if ok:
-                            st.caption("✅ realtime_alerts.csv GitHub 최초 업로드 완료")
+                            print("ok: realtime_alerts.csv GitHub 최초 업로드 완료")
                         else:
-                            st.warning(f"⚠️ CSV 로컬 생성은 완료되었지만 GitHub 업로드 실패: {msg}")
+                            print(f"warn: CSV 로컬 생성은 완료되었지만 GitHub 업로드 실패: {msg}")
                 except Exception as _e:
-                    st.warning(f"⚠️ CSV 자동 생성 중 GitHub 업로드 오류: {_e}")
+                    print(f"warn: CSV 자동 생성 중 GitHub 업로드 오류: {_e}")
 
             while True:
                 try:
@@ -2051,6 +2051,11 @@ def main():
                     from pytz import timezone
                     KST = timezone("Asia/Seoul")
                     now = datetime.now(KST).replace(tzinfo=None)
+
+                    # ✅ 감시 설정을 매 루프에서 안전하게 로드 (누락/오류 방지)
+                    cfg = st.session_state.get("watch_active_config") or _persisted or {"symbols": ["KRW-BTC"], "timeframes": ["5분"]}
+                    symbols = cfg.get("symbols", ["KRW-BTC"])
+                    tfs     = cfg.get("timeframes", ["5분"])
     
                     for symbol in symbols:
                         for tf_lbl in tfs:
@@ -2122,7 +2127,7 @@ def main():
                             except Exception as e:
                                 print(f"[WARN] periodic check failed for {symbol} {tf_lbl}: {e}")
                                 continue
-                    time.sleep(60)
+                    time.sleep(30)
                 except Exception:
                     time.sleep(3)
     
