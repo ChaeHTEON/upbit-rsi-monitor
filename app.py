@@ -1942,6 +1942,28 @@ def main():
         )
         sel_tfs = st.multiselect("감시할 분봉", ["1", "5", "15"], default=["1"])
 
+        # -----------------------------
+        # 감시할 알람 종류 선택 (하루 1% 수익 전략 9종, 분봉 아래로 이동)
+        # -----------------------------
+        all_strategies = [
+            "TGV",
+            "RSI_과매도반등",
+            "RSI_과매수하락",
+            "CCI_저점반등",
+            "CCI_고점하락",
+            "BB_하단반등",
+            "BB_상단하락",
+            "매물대_하단매수",
+            "매물대_상단매도",
+        ]
+        selected_strategies = st.multiselect(
+            "감시할 알람 종류 선택 (하루 1% 수익 전략 9종)",
+            options=all_strategies,
+            default=["TGV", "RSI_과매도반등", "CCI_저점반등"],
+            help="선택한 전략의 신호만 감시/표시됩니다."
+        )
+        st.session_state["selected_strategies"] = selected_strategies
+
         st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
 
         # ✅ TEST_SIGNAL 제거
@@ -2077,105 +2099,28 @@ def main():
                                 _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "RSI_과매도반등", "msg": msg, "checked": False}
                                 st.session_state["alerts_live"].insert(0, _entry)
                                 st.session_state["alert_history"].insert(0, _entry)
-                                st.toast(msg, icon="📊")
-                        if "RSI" in st.session_state.get("selected_strategies", []):
+                        if "RSI_과매도반등" in st.session_state.get("selected_strategies", []):
                             check_rsi_oversold_rebound_signal(df_watch, s_code, tf)
 
-                        # === RSI 과매수 하락 ===
-                        def check_rsi_overbought_drop_signal(df, symbol, tf):
-                            if len(df) < 5: return
-                            rsi = calc_rsi(df["close"])
-                            if rsi.iloc[-2] > 70 >= rsi.iloc[-1]:
-                                msg = f"📉 RSI 과매수 하락 [{symbol}, {tf}분] → RSI {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
-                                _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "RSI_과매수하락", "msg": msg, "checked": False}
-                                st.session_state["alerts_live"].insert(0, _entry)
-                                st.session_state["alert_history"].insert(0, _entry)
-                                st.toast(msg, icon="📉")
-                        if "RSI" in st.session_state.get("selected_strategies", []):
+                        if "RSI_과매수하락" in st.session_state.get("selected_strategies", []):
                             check_rsi_overbought_drop_signal(df_watch, s_code, tf)
 
-                        # === CCI 저점반등 ===
-                        def check_cci_low_rebound_signal(df, symbol, tf):
-                            if len(df) < 5: return
-                            cci = calc_cci(df)
-                            if cci.iloc[-2] < -100 <= cci.iloc[-1]:
-                                msg = f"📈 CCI 저점반등 [{symbol}, {tf}분] → CCI {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}"
-                                _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "CCI_저점반등", "msg": msg, "checked": False}
-                                st.session_state["alerts_live"].insert(0, _entry)
-                                st.session_state["alert_history"].insert(0, _entry)
-                                st.toast(msg, icon="📈")
-                        if "CCI" in st.session_state.get("selected_strategies", []):
+                        if "CCI_저점반등" in st.session_state.get("selected_strategies", []):
                             check_cci_low_rebound_signal(df_watch, s_code, tf)
 
-                        # === CCI 고점하락 ===
-                        def check_cci_high_drop_signal(df, symbol, tf):
-                            if len(df) < 5: return
-                            cci = calc_cci(df)
-                            if cci.iloc[-2] > 100 >= cci.iloc[-1]:
-                                msg = f"📉 CCI 고점하락 [{symbol}, {tf}분] → CCI {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}"
-                                _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "CCI_고점하락", "msg": msg, "checked": False}
-                                st.session_state["alerts_live"].insert(0, _entry)
-                                st.session_state["alert_history"].insert(0, _entry)
-                                st.toast(msg, icon="📉")
-                        if "CCI" in st.session_state.get("selected_strategies", []):
+                        if "CCI_고점하락" in st.session_state.get("selected_strategies", []):
                             check_cci_high_drop_signal(df_watch, s_code, tf)
 
-                        # === 볼린저밴드 하단반등 ===
-                        def check_bb_lower_rebound_signal(df, symbol, tf):
-                            if len(df) < 5: return
-                            low_prev, low_now = df.iloc[-2]["BB_low"], df.iloc[-1]["BB_low"]
-                            close_prev, close_now = df.iloc[-2]["close"], df.iloc[-1]["close"]
-                            if close_prev < low_prev and close_now > low_now:
-                                msg = f"📈 BB 하단 반등 [{symbol}, {tf}분]"
-                                _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "BB_하단반등", "msg": msg, "checked": False}
-                                st.session_state["alerts_live"].insert(0, _entry)
-                                st.session_state["alert_history"].insert(0, _entry)
-                                st.toast(msg, icon="📈")
-                        if "BB" in st.session_state.get("selected_strategies", []):
+                        if "BB_하단반등" in st.session_state.get("selected_strategies", []):
                             check_bb_lower_rebound_signal(df_watch, s_code, tf)
 
-                        # === 볼린저밴드 상단하락 ===
-                        def check_bb_upper_drop_signal(df, symbol, tf):
-                            if len(df) < 5: return
-                            up_prev, up_now = df.iloc[-2]["BB_up"], df.iloc[-1]["BB_up"]
-                            close_prev, close_now = df.iloc[-2]["close"], df.iloc[-1]["close"]
-                            if close_prev > up_prev and close_now < up_now:
-                                msg = f"📉 BB 상단 하락 [{symbol}, {tf}분]"
-                                _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "BB_상단하락", "msg": msg, "checked": False}
-                                st.session_state["alerts_live"].insert(0, _entry)
-                                st.session_state["alert_history"].insert(0, _entry)
-                                st.toast(msg, icon="📉")
-                        if "BB" in st.session_state.get("selected_strategies", []):
+                        if "BB_상단하락" in st.session_state.get("selected_strategies", []):
                             check_bb_upper_drop_signal(df_watch, s_code, tf)
 
-                        # === 매물대 하단매수 ===
-                        def check_maemul_lower_buy_signal(df, symbol, tf):
-                            if len(df) < 5: return
-                            low_now = float(df.iloc[-1]["low"])
-                            for L in manual_supply_levels:
-                                if low_now <= L * 1.002:
-                                    msg = f"💰 매물대 하단 매수 [{symbol}, {tf}분] — {L:.0f} 근처"
-                                    _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "매물대_하단매수", "msg": msg, "checked": False}
-                                    st.session_state["alerts_live"].insert(0, _entry)
-                                    st.session_state["alert_history"].insert(0, _entry)
-                                    st.toast(msg, icon="💰")
-                                    break
-                        if "매물대" in st.session_state.get("selected_strategies", []):
+                        if "매물대_하단매수" in st.session_state.get("selected_strategies", []):
                             check_maemul_lower_buy_signal(df_watch, s_code, tf)
 
-                        # === 매물대 상단매도 ===
-                        def check_maemul_upper_sell_signal(df, symbol, tf):
-                            if len(df) < 5: return
-                            high_now = float(df.iloc[-1]["high"])
-                            for L in manual_supply_levels:
-                                if high_now >= L * 0.998:
-                                    msg = f"💸 매물대 상단 매도 [{symbol}, {tf}분] — {L:.0f} 근처"
-                                    _entry = {"time": datetime.datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf, "strategy": "매물대_상단매도", "msg": msg, "checked": False}
-                                    st.session_state["alerts_live"].insert(0, _entry)
-                                    st.session_state["alert_history"].insert(0, _entry)
-                                    st.toast(msg, icon="💸")
-                                    break
-                        if "매물대" in st.session_state.get("selected_strategies", []):
+                        if "매물대_상단매도" in st.session_state.get("selected_strategies", []):
                             check_maemul_upper_sell_signal(df_watch, s_code, tf)
                     except Exception as e:
                         st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
@@ -2253,16 +2198,7 @@ def main():
 
         # 알람 제어 UI 및 초기화 개선
         st.markdown("### ⚙️ 알람 제어")
-
-        # 감시 전략 선택 (추가)
-        all_strategies = ["TGV", "RSI", "CCI", "매물대", "기타"]
-        selected_strategies = st.multiselect(
-            "감시할 알람 종류 선택",
-            options=all_strategies,
-            default=["TGV"],
-            help="선택된 전략의 알람만 감시/표시됩니다."
-        )
-        st.session_state["selected_strategies"] = selected_strategies
+        # (여기서 '감시할 알람 종류 선택' 블록은 삭제되었습니다. 이제 분봉 아래로 이동합니다.)
 
         # 개별 알람 제어 (확인/삭제)
         st.markdown("### 🚨 실시간 알람 목록 (수동 관리)")
