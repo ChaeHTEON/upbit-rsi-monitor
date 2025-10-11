@@ -685,7 +685,7 @@ def main():
             if anchor_idx >= n:
                 return None, None
             signal_time = df.at[anchor_idx, "time"]
-            base_price = float(df.at[anchor_idx, "open"])
+            base_price = float(df.at[anchor_idx, "close"])
     
             if sec_cond == "양봉 2개 연속 상승":
                 if i0 + 2 >= n:
@@ -698,7 +698,7 @@ def main():
                 if anchor_idx >= n:
                     return None, None
                 signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "open"])
+                base_price  = float(df.at[anchor_idx, "close"])
     
             elif sec_cond == "양봉 2개 (범위 내)":
                 found, T_idx = 0, None
@@ -729,7 +729,7 @@ def main():
                 if anchor_idx >= n:
                     return None, None
                 signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "open"])
+                base_price  = float(df.at[anchor_idx, "close"])
     
             elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
                 rebound_idx = None
@@ -759,7 +759,7 @@ def main():
                 if anchor_idx >= n:
                     return None, None
                 signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "open"])
+                base_price  = float(df.at[anchor_idx, "close"])
     
             # === 신규 매물대 자동 조건 ===
             elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
@@ -796,7 +796,7 @@ def main():
                 if anchor_idx is None or anchor_idx >= n:
                     return None, None
                 signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "open"])
+                base_price  = float(df.at[anchor_idx, "close"])
     
             # --- 성과 측정 ---
             eval_start = anchor_idx + 1
@@ -2527,6 +2527,74 @@ try:
         return False
 
     # --- 내부 알림 전용 API ---
+    def notify_alert(message: str, *, toast: bool = True, store: bool = True):
+        ts = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"[{ts}] {message}"
+        if store:
+            st.session_state["alerts"].append(msg)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        if toast:
+            try:
+                st.toast(msg)
+            except Exception:
+                pass
+        try:
+            st.rerun()
+        except Exception:
+            pass
+
+except Exception:
+    pass
+
+
+
+# ============================================================================
+# PATCH: 실시간 알람 단일화 보강 (카카오 비활성 · 내부 토스트/목록 동기화)
+# 적용일: 2025-10-11 09:17:21
+# 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
+# 내용:
+#  - st.toast 래핑: 토스트 발생 시 st.session_state['alerts']에 함께 누적
+#  - notify_alert(): 내부 알림용 API (토스트 + 목록 + rerun 시도)
+#  - send_kakao_alert(): 현 단계 비활성화(외부 전송 차단)
+# ============================================================================
+try:
+    import streamlit as st
+    import datetime as _dt
+
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- toast wrapper ---
+    try:
+        _orig_toast = st.toast
+    except Exception:
+        _orig_toast = None
+
+    def _toast_sync(*args, **kwargs):
+        msg = None
+        if args and isinstance(args[0], str):
+            msg = args[0]
+        else:
+            msg = kwargs.get("body") or kwargs.get("text")
+        if msg:
+            st.session_state["alerts"].append(msg)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        if _orig_toast:
+            try:
+                return _orig_toast(*args, **kwargs)
+            except Exception:
+                return None
+        return None
+
+    st.toast = _toast_sync
+
+    # --- kakao disabled ---
+    def send_kakao_alert(msg: str):
+        return False
+
+    # --- internal notify ---
     def notify_alert(message: str, *, toast: bool = True, store: bool = True):
         ts = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         msg = f"[{ts}] {message}"
