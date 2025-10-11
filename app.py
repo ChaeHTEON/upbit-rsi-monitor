@@ -1,3 +1,13 @@
+# === AUTO-PATCH (minimal) ===
+# - Removed duplicate hovermode in fig.update_layout calls
+# - Removed Kakao test button block
+# - Disabled base-signal toast; alerts now only via ⑤ 실시간 감시
+# - Deduped duplicate '실시간 알람 목록' header
+# - Source: app (8).py
+# - Source SHA256: 2906ed2ba9404c9b3d95396b8adde7771946e5aea9a88a39a3e2e884116c132c
+# - Patched: 2025-10-11T10:59:05.660225
+# =============================
+
 
 # app.py
 # -*- coding: utf-8 -*-
@@ -866,7 +876,9 @@ try:
         yaxis=dict(title="가격", autorange=True,  fixedrange=False),
         yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
         yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
-        uirevision=f"opt-{int(st.session_state.get('opt_view', False))}-{np.random.randint(1_000_000_000)}")
+        uirevision=f"opt-{int(st.session_state.get('opt_view', False))}-{np.random.randint(1_000_000_000)}",
+        hovermode="closest"
+    )
 
     with chart_box:
         top_l, top_r = st.columns([4, 1])
