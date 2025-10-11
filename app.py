@@ -1941,6 +1941,37 @@ def main():
     
             styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
             st.dataframe(styled_tbl, width="stretch")
+
+        # -----------------------------
+        # ⑤ 실시간 알람
+        # -----------------------------
+        st.markdown("### ⑤ 실시간 알람")
+
+        # ▶ 조건: 이전봉 기준 재진입 + BB하단 위 양봉
+        if "alerts" not in st.session_state:
+            st.session_state["alerts"] = []
+
+        try:
+            maemul = None
+            if len(df) >= 2:
+                prev = df.iloc[-2]
+                cur = df.iloc[-1]
+                if prev["close"] > prev["open"]:
+                    maemul = max(prev["high"], prev["close"])
+                else:
+                    maemul = max(prev["high"], prev["open"])
+
+                if (
+                    cur["low"] <= maemul * 0.999
+                    and cur["close"] >= maemul
+                    and cur["close"] > cur["open"]
+                    and maemul >= cur["bb_low"]
+                ):
+                    st.toast("🚨 이전봉 기준 재진입 + BB하단 위 양봉 신호 발생!")
+                    st.session_state["alerts"].append("이전봉 기준 재진입 + BB하단 위 양봉 신호 감지")
+
+        except Exception as e:
+            st.error(f"실시간 알람 오류: {e}")
         # -----------------------------
 # 📒 공유 메모 (GitHub 연동, 전체 공통)
         # -----------------------------
