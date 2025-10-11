@@ -2199,9 +2199,16 @@ def main():
             st.session_state["toast_queue"] = []
         if len(st.session_state["toast_queue"]) > 0:
             for tmsg in st.session_state["toast_queue"]:
+                # ✅ UI 즉시 토스트 + 실시간 알람 목록 동기 반영
                 st.toast(tmsg)
+                if "alerts" not in st.session_state:
+                    st.session_state["alerts"] = []
+                if tmsg not in st.session_state["alerts"]:
+                    st.session_state["alerts"].append(tmsg)
             st.session_state["toast_queue"].clear()
-
+        else:
+            # 백그라운드 감시 스레드가 메시지를 넣지 못한 경우 (UI 루프 재활성화를 위해)
+            time.sleep(0.5)
         # ▶ 알람 목록 출력
         if "alerts" not in st.session_state:
             st.session_state["alerts"] = []
