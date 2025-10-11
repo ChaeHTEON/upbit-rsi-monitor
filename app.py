@@ -1909,14 +1909,26 @@ def main():
             st.session_state["alert_history"] = []
 
         # 감시 설정 UI
-        sel_symbols = st.multiselect("감시할 종목", ["KRW-BTC", "KRW-XRP"], default=["KRW-BTC"])
+        import requests
+        def get_upbit_markets():
+            try:
+                url = "https://api.upbit.com/v1/market/all"
+                res = requests.get(url).json()
+                krw_list = [m["market"] for m in res if m["market"].startswith("KRW-")]
+                return sorted(krw_list)
+            except:
+                return ["KRW-BTC", "KRW-XRP"]
+
+        MARKET_LIST = get_upbit_markets()
+        sel_symbols = st.multiselect("감시할 종목", MARKET_LIST, default=["KRW-BTC"])
         sel_tfs = st.multiselect("감시할 분봉", ["1", "5", "15"], default=["1"])
 
-        st.markdown("🕐 1분 주기 자동 감시 중입니다.")
+        st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
 
         # === TEST SIGNAL ===
         def check_test_signal(symbol="KRW-BTC", tf="1"):
-            now = datetime.datetime.now().strftime("%H:%M:%S")
+            from datetime import datetime, timedelta
+            now = (datetime.utcnow() + timedelta(hours=9)).strftime("%H:%M:%S")
             rsi_now = random.uniform(40, 60)
             cci_now = random.uniform(-100, -50)
             vol_ratio = random.uniform(1.2, 2.0)
@@ -1977,7 +1989,8 @@ def main():
             )
             if not cond:
                 return
-            now = datetime.datetime.now().strftime("%H:%M:%S")
+            from datetime import datetime, timedelta
+            now = (datetime.utcnow() + timedelta(hours=9)).strftime("%H:%M:%S")
             tp, sl = 0.7, 0.4
             msg = f"""
 🚨 TGV 신호 발생 [{symbol}, {tf}분봉]
@@ -2007,7 +2020,11 @@ def main():
             check_test_signal("KRW-BTC", "1")
 
         # 자동 감시 (1분 주기)
-        current_minute = datetime.datetime.now().minute
+        from datetime import datetime, timedelta
+        now_kst = datetime.utcnow() + timedelta(hours=9)
+        current_minute = now_kst.minute
+        st_autorefresh(interval=60 * 1000, key="realtime_refresh")
+
         if current_minute % 1 == 0 and len(sel_symbols) > 0:
             check_test_signal(sel_symbols[0], sel_tfs[0])
             # 추후 실제 df 데이터 연동 시 check_tgv_signal(df, symbol, tf) 호출 가능
