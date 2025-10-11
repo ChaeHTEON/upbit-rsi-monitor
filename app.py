@@ -2061,6 +2061,15 @@ def main():
                                 df_w = fetch_upbit_paged(symbol, interval_key_s, start_dt, end_dt, mpb_s)
                                 if df_w is None or df_w.empty:
                                     continue
+
+                                # ✅ '시간' 컬럼 안전 변환 (float → datetime 보정)
+                                if "time" in df_w.columns:
+                                    try:
+                                        df_w["time"] = pd.to_datetime(df_w["time"], errors="coerce")
+                                    except Exception as _e:
+                                        print("[WARN] time column parse failed:", _e)
+                                        df_w["time"] = pd.to_datetime(df_w["time"].astype(str), errors="coerce")
+
                                 df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
                                 if check_maemul_auto_signal(df_w):
                                     key = f"{symbol}_{tf_lbl}"
