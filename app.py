@@ -876,8 +876,7 @@ try:
         yaxis=dict(title="가격", autorange=True,  fixedrange=False),
         yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
         yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
-        uirevision=f"opt-{int(st.session_state.get('opt_view', False))}-{np.random.randint(1_000_000_000)}",
-        hovermode="closest"
+        uirevision=f"opt-{int(st.session_state.get('opt_view', False))}-{np.random.randint(1_000_000_000)}"
     )
 
     with chart_box:
