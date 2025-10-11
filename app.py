@@ -2019,12 +2019,27 @@ def main():
                 "일봉": ("days", 1440)
             }
 
-            # ▶ CSV 경로 및 초기 생성 (존재하지 않을 경우)
+            # ▶ CSV 폴더/파일 자동 생성 + GitHub 업로드 보장
             import os, pandas as pd
             os.makedirs("data_cache", exist_ok=True)
             alert_csv = "data_cache/realtime_alerts.csv"
             if not os.path.exists(alert_csv):
-                pd.DataFrame(columns=["시간","코인","분봉","신호","현재가"]).to_csv(alert_csv, index=False)
+                df_init = pd.DataFrame(columns=["시간","코인","분봉","신호","현재가"])
+                df_init.to_csv(alert_csv, index=False)
+                try:
+                    exists, err = github_file_exists(os.path.basename(alert_csv))
+                    if err == "no_token":
+                        st.caption("ℹ️ 알림 로그 CSV는 로컬에만 생성되었습니다. (GitHub 토큰/레포 미설정)")
+                    elif exists:
+                        pass
+                    else:
+                        ok, msg = github_commit_csv(alert_csv)
+                        if ok:
+                            st.caption("✅ realtime_alerts.csv GitHub 최초 업로드 완료")
+                        else:
+                            st.warning(f"⚠️ CSV 로컬 생성은 완료되었지만 GitHub 업로드 실패: {msg}")
+                except Exception as _e:
+                    st.warning(f"⚠️ CSV 자동 생성 중 GitHub 업로드 오류: {_e}")
 
             while True:
                 try:
