@@ -2016,18 +2016,26 @@ def main():
                 "15분": ("minutes/15", 15),
                 "30분": ("minutes/30", 30),
                 "60분": ("minutes/60", 60),
-                "일봉": ("days", 24*60),
+                "일봉": ("days", 1440)
             }
+
+            # ▶ CSV 경로 및 초기 생성 (존재하지 않을 경우)
+            import os, pandas as pd
+            os.makedirs("data_cache", exist_ok=True)
+            alert_csv = "data_cache/realtime_alerts.csv"
+            if not os.path.exists(alert_csv):
+                pd.DataFrame(columns=["시간","코인","분봉","신호","현재가"]).to_csv(alert_csv, index=False)
+
             while True:
                 try:
                     if not st.session_state.get("watch_active"):
                         time.sleep(1)
                         continue
-    
-                    cfg = st.session_state.get("watch_active_config", _persisted)
-                    symbols = cfg.get("symbols", ["KRW-BTC"])
-                    tfs     = cfg.get("timeframes", ["5분"])
-                    now = datetime.now()
+
+                    # ▶ 시간대: 한국표준시(KST) 기준으로 변경
+                    from pytz import timezone
+                    KST = timezone("Asia/Seoul")
+                    now = datetime.now(KST).replace(tzinfo=None)
     
                     for symbol in symbols:
                         for tf_lbl in tfs:
