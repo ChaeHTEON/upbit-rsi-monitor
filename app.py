@@ -1890,6 +1890,14 @@ def main():
         # ④ 신호 결과 (테이블)
         # -----------------------------
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+
+        # ✅ format_dict 미정의 오류 방지용 기본 포맷 정의
+        format_dict = {
+            "수익률(%)": "{:.2f}",
+            "TP(%)": "{:.2f}",
+            "SL(%)": "{:.2f}",
+        }
+
         if res is None or res.empty:
             st.info("현재 표시할 신호 결과가 없습니다.")
         else:
@@ -1919,8 +1927,19 @@ def main():
             except:
                 return ["KRW-BTC", "KRW-XRP"]
 
-        MARKET_LIST = get_upbit_markets()
-        sel_symbols = st.multiselect("감시할 종목", MARKET_LIST, default=["KRW-BTC"])
+        # 감시 설정 UI (기본 종목 선택과 동일하게 거래량순, 한글/영문 병기)
+        # 상단 ① 기본 설정에서 MARKET_LIST = [(label, code), ...] 형태로 정의됨
+        # 예: ("비트코인 (BTC) — KRW-BTC", "KRW-BTC")
+        if not isinstance(MARKET_LIST, list) or not MARKET_LIST or not isinstance(MARKET_LIST[0], (list, tuple)):
+            st.warning("MARKET_LIST 형식이 예상과 다릅니다. 기본 목록으로 대체합니다.")
+            MARKET_LIST = [("비트코인 (BTC) — KRW-BTC", "KRW-BTC"), ("리플 (XRP) — KRW-XRP", "KRW-XRP")]
+
+        sel_symbols = st.multiselect(
+            "감시할 종목 (거래량 순)",
+            MARKET_LIST,
+            default=[MARKET_LIST[0]],
+            format_func=lambda x: x[0]
+        )
         sel_tfs = st.multiselect("감시할 분봉", ["1", "5", "15"], default=["1"])
 
         st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
@@ -2015,16 +2034,43 @@ def main():
             st.session_state["alert_history"].insert(0, alert_entry)
             st.toast(msg, icon="📈")
 
-        # 테스트용 버튼
-        if st.button("🧪 테스트 알람 발생시키기"):
-            check_test_signal("KRW-BTC", "1")
+        # ▶ 자동 감시 토글 + 즉시 갱신 버튼 (TEST_SIGNAL 제거, 실전 감시만 유지)
+        if "auto_watch_enabled" not in st.session_state:
+            st.session_state["auto_watch_enabled"] = True
 
-        # 자동 감시 (1분 주기)
-        from datetime import datetime, timedelta
-        now_kst = datetime.utcnow() + timedelta(hours=9)
+        col_auto = st.columns([1, 1])
+        with col_auto[0]:
+            toggle_label = "⏸ 감시 일시중지" if st.session_state["auto_watch_enabled"] else "▶ 감시 재개"
+            if st.button(toggle_label, use_container_width=True):
+                st.session_state["auto_watch_enabled"] = not st.session_state["auto_watch_enabled"]
+                st.rerun()
+        with col_auto[1]:
+            if st.button("🔁 즉시 감시 갱신", use_container_width=True):
+                st.rerun()
+
+        # 자동 감시 안내 및 주기적 실행
         from streamlit_autorefresh import st_autorefresh
-        st_autorefresh(interval=60 * 1000, key="realtime_refresh")
+        if st.session_state["auto_watch_enabled"]:
+            st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
+            st_autorefresh(interval=60 * 1000, key="realtime_refresh")
+        else:
+            st.markdown("⏸ 자동 감시가 일시중지되었습니다.")
 
+        # 실전 감시 루프 (선택된 모든 종목×분봉)
+        def _to_code(opt):
+            # 멀티셀렉트가 (label, code) 또는 "KRW-XXX" 혼재 가능 → 방어 처리
+            if isinstance(opt, (list, tuple)) and len(opt) >= 2:
+                return opt[1]
+            return str(opt)
+
+        if sel_symbols and sel_tfs:
+            for s in sel_symbols:
+                s_code = _to_code(s)
+                for tf in sel_tfs:
+                    try:
+                        check_tgv_signal(None, s_code, tf)
+                    except Exception as e:
+                        st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
         # 다중 종목/분봉 루프
         for symbol in sel_symbols:
             for tf in sel_tfs:
