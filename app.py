@@ -2384,7 +2384,7 @@ try:
 
     def render_alert_list(max_items: int = 50, title: str = "🚨 실시간 알람 목록"):
         _ensure_alert_state()
-        import streamlit as st as _st  # alias to avoid shadowing in notebooks
+        import streamlit as _st  # alias to avoid shadowing in notebooks
         _st.markdown(f"#### {title}")
         alerts = _st.session_state.get("alerts", [])
         if alerts:
@@ -2404,6 +2404,80 @@ except Exception as _patch_err:
 # ============================================================================
 # PATCH: 내부 알림 시스템 보강 (다중 종목 감시 대응 · Kakao 비활성)
 # 적용일: 2025-10-11 08:42:51
+# 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
+# 내용:
+#  - st.toast 패치: 토스트 발생 시 st.session_state['alerts']에도 자동 누적
+#  - notify_alert 재정의: 내부 알림(토스트+목록 누적) 전용, st.rerun() 시도
+#  - send_kakao_alert 재정의: 현재 단계에서는 전송 무효화(비활성)
+#  - 어떤 UI도 새로 출력하지 않음 (디자인/레이아웃 불변)
+# 주의: 기존 정의가 있어도 아래 재정의가 우선됩니다.
+# ============================================================================
+try:
+    import streamlit as st
+    import datetime as _dt
+
+    # --- state 보장 ---
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- st.toast 패치: 토스트 → alerts 동시 누적 ---
+    try:
+        _orig_st_toast = st.toast
+    except Exception:
+        _orig_st_toast = None
+
+    def _toast_patched(*args, **kwargs):
+        msg = None
+        if args and isinstance(args[0], str):
+            msg = args[0]
+        else:
+            msg = kwargs.get("body") or kwargs.get("text")
+        if msg:
+            if "alerts" not in st.session_state:
+                st.session_state["alerts"] = []
+            st.session_state["alerts"].append(msg)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        if _orig_st_toast:
+            try:
+                return _orig_st_toast(*args, **kwargs)
+            except Exception:
+                return None
+        return None
+
+    st.toast = _toast_patched
+
+    # --- Kakao 비활성: 기존 호출이 있더라도 실제 전송은 막음 ---
+    def send_kakao_alert(msg: str):
+        # 현 단계에서는 외부 전송 비활성 (내부 알림 안정화 우선)
+        return False
+
+    # --- 내부 알림 전용 API ---
+    def notify_alert(message: str, *, toast: bool = True, store: bool = True):
+        ts = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"[{ts}] {message}"
+        if store:
+            st.session_state["alerts"].append(msg)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        if toast:
+            try:
+                st.toast(msg)
+            except Exception:
+                pass
+        try:
+            st.rerun()
+        except Exception:
+            pass
+
+except Exception:
+    pass
+
+
+
+# ============================================================================
+# PATCH: 내부 알림 시스템 보강 (다중 종목 감시 대응 · Kakao 비활성)
+# 적용일: 2025-10-11 09:07:35
 # 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
 # 내용:
 #  - st.toast 패치: 토스트 발생 시 st.session_state['alerts']에도 자동 누적
