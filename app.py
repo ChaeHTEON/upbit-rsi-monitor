@@ -2066,10 +2066,20 @@ def main():
                                     key = f"{symbol}_{tf_lbl}"
                                     last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
                                     if (now - last_time).seconds >= 600:
+                                        # 🚨 내부 알림(UI)만 표시 — 카카오톡 전송은 임시 비활성화
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
-                                        send_kakao_alert(msg)
                                         st.session_state["last_alert_time"][key] = now
+                                        print("[ALERT]", msg)
+
+                                        # ✅ 실시간 캔들 미마감 문제 해결: 마지막-1 캔들 기준 검사
+                                        try:
+                                            if len(df_w) > 2 and not check_maemul_auto_signal(df_w):
+                                                if check_maemul_auto_signal(df_w.iloc[:-1]):
+                                                    _add_alert(f"🚨 (보정) [{symbol}] 이전 캔들 기준 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})")
+                                                    print("[ALERT-FIX]", symbol, tf_lbl)
+                                        except Exception as _e:
+                                            print("[WARN] iloc[-2] check failed:", _e)
 
                                         # CSV 로깅
                                         try:
@@ -2144,13 +2154,9 @@ def main():
         bcols = st.columns([1, 1, 1])
 
         with bcols[0]:
-            toggle_label = "⏸ 감시 일시중지" if st.session_state.get("watch_active") else "▶ 감시 시작"
-            if st.button(toggle_label, use_container_width=True, key="btn_watch_toggle"):
-                st.session_state["watch_active"] = not st.session_state.get("watch_active")
-                if st.session_state["watch_active"]:
-                    st.success("실시간 감시를 시작했습니다.")
-                else:
-                    st.info("실시간 감시가 일시중지되었습니다.")
+            # ▶ 감시 시작/중지 버튼 제거 → 항상 동작 상태로 변경
+            st.session_state["watch_active"] = True
+            st.caption("✅ 실시간 감시가 항상 실행 중입니다. (중지 기능 제거됨)")
 
         # ▶ 알림 중심형(1안): 백그라운드 쓰레드가 감지/알림/CSV 저장을 수행하므로, 여기서는 로그 준비만 합니다.
         import os
