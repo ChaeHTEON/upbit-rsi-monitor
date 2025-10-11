@@ -2180,10 +2180,19 @@ def main():
             st.session_state["watch_auto_started"] = True
             st.session_state["watch_active_config"] = _persisted.copy()
 
-        # 🚨 실시간 알람 목록 표시
+        # 🚨 실시간 알람 목록 (자동 새로고침 + 세션 기반 표시)
+        from streamlit_autorefresh import st_autorefresh
+
+        # ▶ 10초마다 자동 새로고침 (감시 스레드가 추가한 알림 반영)
+        st_autorefresh(interval=10000, key="refresh_alerts")
+
         st.markdown("#### 🚨 실시간 알람 목록")
-        if st.session_state["alerts"]:
-            for i, alert in enumerate(st.session_state["alerts"]):
+        if "alerts" not in st.session_state:
+            st.session_state["alerts"] = []
+
+        alerts_list = st.session_state["alerts"]
+        if len(alerts_list) > 0:
+            for i, alert in enumerate(reversed(alerts_list[-10:])):
                 st.warning(f"{i+1}. {alert}")
         else:
             st.info("현재까지 감지된 실시간 알람이 없습니다.")
