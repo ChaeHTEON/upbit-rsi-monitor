@@ -2027,8 +2027,8 @@ def main():
                 "checked": False,
             }
             st.session_state["alerts_live"].insert(0, alert_entry)
-        st.session_state["alert_history"].insert(0, alert_entry)
-        st.toast(msg, icon="📈")
+            st.session_state["alert_history"].insert(0, alert_entry)
+            st.toast(msg, icon="📈")
 
         # === [MAIN STRATEGY 9] ============================================
         from datetime import datetime, timedelta, timezone
