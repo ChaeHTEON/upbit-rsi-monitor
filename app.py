@@ -2067,10 +2067,18 @@ def main():
                                     last_time = st.session_state["last_alert_time"].get(key, datetime(2000,1,1))
                                     if (now - last_time).seconds >= 600:
                                         # 🚨 내부 알림(UI)만 표시 — 카카오톡 전송은 임시 비활성화
+                                        # 🚨 매물대 자동 신호 감지 시 UI 토스트 & 알람 목록 추가
                                         msg = f"🚨 [{symbol}] 매물대 자동 신호 발생! ({tf_lbl}, {now:%H:%M})"
                                         _add_alert(msg)
                                         st.session_state["last_alert_time"][key] = now
-                                        print("[ALERT]", msg)
+
+                                        # ▶ 토스트 큐에 추가 (메인 루프가 즉시 화면에 표시)
+                                        if "toast_queue" not in st.session_state:
+                                            st.session_state["toast_queue"] = []
+                                        st.session_state["toast_queue"].append(msg)
+
+                                        # ⚠️ 카카오톡 알림은 현재 비활성화 (테스트 전용)
+                                        # send_kakao_alert(msg)
 
                                         # ✅ 실시간 캔들 미마감 문제 해결: 마지막-1 캔들 기준 검사
                                         try:
@@ -2186,7 +2194,18 @@ def main():
         # ▶ 10초마다 자동 새로고침 (감시 스레드가 추가한 알림 반영)
         st_autorefresh(interval=10000, key="refresh_alerts")
 
+        # 🚨 실시간 알람 목록 + 토스트 즉시 표시
         st.markdown("#### 🚨 실시간 알람 목록")
+
+        # ▶ 신규 토스트 알림 처리 (감시 스레드가 큐에 넣은 알림을 화면에 즉시 표시)
+        if "toast_queue" not in st.session_state:
+            st.session_state["toast_queue"] = []
+        if len(st.session_state["toast_queue"]) > 0:
+            for tmsg in st.session_state["toast_queue"]:
+                st.toast(tmsg)
+            st.session_state["toast_queue"].clear()
+
+        # ▶ 알람 목록 출력
         if "alerts" not in st.session_state:
             st.session_state["alerts"] = []
 
