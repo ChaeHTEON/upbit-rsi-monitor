@@ -2027,8 +2027,157 @@ def main():
                 "checked": False,
             }
             st.session_state["alerts_live"].insert(0, alert_entry)
-            st.session_state["alert_history"].insert(0, alert_entry)
+        st.session_state["alert_history"].insert(0, alert_entry)
+        st.toast(msg, icon="📈")
+
+        # === [MAIN STRATEGY 9] ============================================
+        from datetime import datetime, timedelta, timezone
+
+        def _kst_now_str():
+            return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M:%S")
+
+        def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
+            entry = {
+                "time": _kst_now_str(),
+                "symbol": symbol,
+                "tf": tf,
+                "strategy": strategy,
+                "msg": msg,
+                "checked": False,
+            }
+            if tp is not None:
+                entry["tp"] = tp
+            if sl is not None:
+                entry["sl"] = sl
+            st.session_state["alerts_live"].insert(0, entry)
+            st.session_state["alert_history"].insert(0, entry)
             st.toast(msg, icon="📈")
+
+        def check_rvb_signal(df, symbol, tf):
+            if len(df) < 5:
+                return
+            rsi_series = calc_rsi(df["close"])
+            cci_series = calc_cci(df)
+            cond_rsi = rsi_series.iloc[-1] < 35
+            cond_cci = cci_series.iloc[-1] < -80
+            cond_candle = df["close"].iloc[-2] > df["open"].iloc[-2] and df["close"].iloc[-1] > df["open"].iloc[-1]
+            if cond_rsi and cond_cci and cond_candle:
+                msg = f"""
+🚨 RVB 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+📈 RSI: {rsi_series.iloc[-2]:.1f} → {rsi_series.iloc[-1]:.1f}
+📉 CCI: {cci_series.iloc[-2]:.0f} → {cci_series.iloc[-1]:.0f}
+💹 거래량 변화: +{df['volume'].iloc[-1] / df['volume'].iloc[-2] * 100:.0f}%
+💰 목표 수익: +1.2% | 손절: -0.5%
+━━━━━━━━━━━━━━━━━━━
+💡 매물대 지지 + 과매도 반등 패턴 (RVB)
+"""
+                _push_alert(symbol, tf, "RVB", msg, tp="+1.2%", sl="-0.5%")
+
+        def check_pr_signal(df, symbol, tf):
+            if len(df) < 5:
+                return
+            drop = df["close"].iloc[-2] / df["close"].iloc[-3] - 1.0
+            cond_drop = drop < -0.015
+            cond_rebound = df["close"].iloc[-1] > df["close"].iloc[-2]
+            cond_vol = df["volume"].iloc[-1] > df["volume"].iloc[-2] * 1.3
+            if cond_drop and cond_rebound and cond_vol:
+                msg = f"""
+🚨 PR 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+📉 직전봉 하락폭: {drop * 100:.1f}%
+💹 반등 거래량: +{df['volume'].iloc[-1] / df['volume'].iloc[-2] * 100:.0f}%
+💰 목표 수익: +1.0% | 손절: -0.5%
+━━━━━━━━━━━━━━━━━━━
+💡 급락 후 반등 감지 (Pulse Rebound)
+"""
+                _push_alert(symbol, tf, "PR", msg, tp="+1.0%", sl="-0.5%")
+
+        def check_lct_signal(df, symbol, tf):
+            if len(df) < 200:
+                return
+            ema50 = df["close"].ewm(span=50).mean()
+            ema200 = df["close"].ewm(span=200).mean()
+            cci_series = calc_cci(df)
+            cond_trend = ema50.iloc[-1] > ema200.iloc[-1]
+            cond_cci = cci_series.iloc[-1] > -100
+            if cond_trend and cond_cci:
+                msg = f"""
+🚨 LCT 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+📈 EMA50/200 골든크로스 감지
+💰 목표 수익: +4~8% | 손절: -2%
+━━━━━━━━━━━━━━━━━━━
+💡 장기 추세 전환 감지 (Long CCI Trend)
+"""
+                _push_alert(symbol, tf, "LCT", msg, tp="+4~8%", sl="-2%")
+
+        def check_4d_sync_signal(df, symbol, tf):
+            msg = f"""
+🚨 4D Sync 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+💡 다중 타임프레임 상승 동조 감지
+💰 목표 수익: +1.5% | 손절: -0.4%
+━━━━━━━━━━━━━━━━━━━
+"""
+            _push_alert(symbol, tf, "4D_Sync", msg, tp="+1.5%", sl="-0.4%")
+
+        def check_240m_sync_signal(df, symbol, tf):
+            cci_series = calc_cci(df)
+            if cci_series.iloc[-1] < -200:
+                msg = f"""
+🚨 240m Sync 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+📉 CCI: {cci_series.iloc[-1]:.0f}
+💰 목표 수익: +2.5% | 손절: -0.6%
+━━━━━━━━━━━━━━━━━━━
+💡 중기 대세 반전 감지
+"""
+                _push_alert(symbol, tf, "240m_Sync", msg, tp="+2.5%", sl="-0.6%")
+
+        def check_composite_confirm_signal(df, symbol, tf):
+            msg = f"""
+🚨 Composite Confirm 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+💡 BTC·ETH·SOL 동시 신호 검증
+💰 목표 수익: +1.5% | 손절: -0.4%
+━━━━━━━━━━━━━━━━━━━
+"""
+            _push_alert(symbol, tf, "Composite_Confirm", msg, tp="+1.5%", sl="-0.4%")
+
+        def check_divergence_rvb_signal(df, symbol, tf):
+            rsi_series = calc_rsi(df["close"])
+            cond_div = rsi_series.iloc[-1] > rsi_series.iloc[-2] and df["close"].iloc[-1] < df["close"].iloc[-2]
+            if cond_div:
+                msg = f"""
+🚨 Divergence+RVB 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+📈 RSI 다이버전스 감지
+💰 목표 수익: +1.7% | 손절: -0.5%
+━━━━━━━━━━━━━━━━━━━
+"""
+                _push_alert(symbol, tf, "Divergence_RVB", msg, tp="+1.7%", sl="-0.5%")
+
+        def check_market_divergence_signal(df, symbol, tf):
+            msg = f"""
+🚨 Market Divergence 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+💡 BTC RSI 하락 멈춤 + 알트 RSI 상승 전환
+💰 목표 수익: +1.4% | 손절: -0.5%
+━━━━━━━━━━━━━━━━━━━
+"""
+            _push_alert(symbol, tf, "Market_Divergence", msg, tp="+1.4%", sl="-0.5%")
+
+        # ---- [보조 전략 영역 (기존 유지)] ----
+        # ▶ 자동 감시 토글 + 즉시 갱신 버튼 (TEST_SIGNAL 제거, 실전 감시만 유지)
 
         # ✅ [여기 추가 블록 시작 — 아래 함수 8개 전체 삽입]
         def _bb_ready(df):
@@ -2286,30 +2435,29 @@ def main():
         # (여기서 '감시할 알람 종류 선택' 블록은 삭제되었습니다. 이제 분봉 아래로 이동합니다.)
 
         # 개별 알람 제어 (확인/삭제)
-        st.markdown("### 🚨 실시간 알람 목록 (수동 관리)")
+        st.markdown("### 📊 실시간 알람 통합 관리 (최신 순)")
+
+        def _delete_alert(idx):
+            if 0 <= idx < len(st.session_state["alerts_live"]):
+                st.session_state["alerts_live"].pop(idx)
 
         if st.session_state["alerts_live"]:
+            st.markdown('<div style="max-height:360px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px; padding:8px;">', unsafe_allow_html=True)
             for i, a in enumerate(list(st.session_state["alerts_live"])):
-                if a["strategy"] not in st.session_state["selected_strategies"]:
+                if "selected_strategies" in st.session_state and a.get("strategy") not in st.session_state["selected_strategies"]:
                     continue
-                cols = st.columns([4, 1, 1])
-                with cols[0]:
-                    st.warning(f"{a['time']} | {a['symbol']} {a['tf']}분 | {a['strategy']}")
-                with cols[1]:
-                    if st.button("✅ 확인", key=f"check_{i}"):
-                        st.session_state["alerts_live"][i]["checked"] = True
-                        st.success(f"{a['strategy']} 신호 확인됨")
-                with cols[2]:
-                    if st.button("🗑 삭제", key=f"del_{i}"):
-                        st.session_state["alerts_live"].pop(i)
-                        st.session_state["alert_history"] = [
-                            h for h in st.session_state["alert_history"] if h != a
-                        ]
-                        st.warning(f"{a['strategy']} 알람 삭제됨")
-                        st.rerun()
+                with st.container():
+                    st.markdown(f"🕒 **{a.get('time','')}**  ")
+                    st.markdown(f"• 전략: **{a.get('strategy','')}**  ")
+                    st.markdown(f"• 종목: {a.get('symbol','')} ({a.get('tf','')}분)  ")
+                    st.markdown(f"💰 목표수익 / 손절폭: {a.get('tp','-')} / {a.get('sl','-')}  ")
+                    st.markdown("━━━━━━━━━━━━━━━━━━━")
+                    st.markdown(a.get("msg", ""))
+                    st.button("🗑 삭제", key=f"del_{i}", on_click=_delete_alert, args=(i,))
+                    st.markdown("---")
+            st.markdown("</div>", unsafe_allow_html=True)
         else:
-            st.info("현재까지 감지된 실시간 알람이 없습니다.")
-
+            st.info("현재 감지된 실시간 알람이 없습니다.")
         # 전체 초기화 버튼 → 즉시 신호 재갱신 포함
         if st.button("🗑️ 전체 알람 초기화 및 새로고침"):
             st.session_state["alerts_live"].clear()
