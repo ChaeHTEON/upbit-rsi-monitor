@@ -2068,7 +2068,21 @@ def main():
                 s_code = _to_code(s)
                 for tf in sel_tfs:
                     try:
-                        check_tgv_signal(None, s_code, tf)
+                        # ✅ 업비트 캔들 데이터 로드 후 전달 (NoneType 방지)
+                        from datetime import datetime, timedelta
+                        tf_key = f"minutes/{tf}"
+                        df_watch = fetch_upbit_paged(
+                            s_code,
+                            tf_key,
+                            datetime.now() - timedelta(hours=3),
+                            datetime.now(),
+                            int(tf),
+                            warmup_bars=0
+                        )
+                        if df_watch is None or df_watch.empty:
+                            continue
+                        df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
+                        check_tgv_signal(df_watch, s_code, tf)
                     except Exception as e:
                         st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
         # 다중 종목/분봉 루프
