@@ -1972,6 +1972,135 @@ def main():
 
         except Exception as e:
             st.error(f"실시간 알람 오류: {e}")
+
+        # ⑤-1 다중 종목/분봉 감시 설정 (독립 UI)
+        with st.expander("🛠 ⑤-1 다중 종목/분봉 감시 설정", expanded=False):
+            if "alarm_watchlist" not in st.session_state:
+                st.session_state["alarm_watchlist"] = []
+            # 다중 종목/분봉 선택
+            sel_markets = st.multiselect(
+                "감시 종목 선택 (여러 개)",
+                MARKET_LIST,
+                default=[(market_label, market_code)],
+                format_func=lambda x: x[0]
+            )
+            sel_tfs = st.multiselect(
+                "감시 분봉 선택 (여러 개)",
+                list(TF_MAP.keys()),
+                default=["3분","5분","15분"]
+            )
+            sel_strategy = st.selectbox(
+                "전략 선택",
+                ["매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"],
+                index=0
+            )
+            c_add, c_clear = st.columns(2)
+            with c_add:
+                if st.button("➕ 구성 추가", use_container_width=True):
+                    try:
+                        for (_lbl, mcode) in sel_markets:
+                            for tf_lbl in sel_tfs:
+                                st.session_state["alarm_watchlist"].append({
+                                    "market": mcode,
+                                    "tf": tf_lbl,
+                                    "strategy": sel_strategy
+                                })
+                        st.success("구성이 추가되었습니다.")
+                    except Exception as _e:
+                        st.warning(f"구성 추가 실패: {_e}")
+            with c_clear:
+                if st.button("🗑 선택 초기화", use_container_width=True):
+                    st.session_state["alarm_watchlist"] = []
+                    st.info("감시 구성이 초기화되었습니다.")
+
+            if st.session_state["alarm_watchlist"]:
+                st.dataframe(pd.DataFrame(st.session_state["alarm_watchlist"]), use_container_width=True, height=220)
+
+                # 로컬 저장/불러오기
+                import json, os
+                ALARM_FILE = os.path.join(os.path.dirname(__file__), "alarm_watchlist.json")
+                b1, b2, b3 = st.columns(3)
+                with b1:
+                    if st.button("💾 저장(로컬)", use_container_width=True):
+                        try:
+                            with open(ALARM_FILE, "w", encoding="utf-8") as f:
+                                json.dump(st.session_state["alarm_watchlist"], f, ensure_ascii=False, indent=2)
+                            st.success("저장 완료")
+                        except Exception as _e:
+                            st.warning(f"저장 실패: {_e}")
+                with b2:
+                    if st.button("📥 불러오기", use_container_width=True):
+                        try:
+                            with open(ALARM_FILE, "r", encoding="utf-8") as f:
+                                st.session_state["alarm_watchlist"] = json.load(f)
+                            st.success("불러오기 완료")
+                        except Exception as _e:
+                            st.warning(f"불러오기 실패: {_e}")
+                with b3:
+                    if st.button("🗑 전체 비우기", use_container_width=True):
+                        st.session_state["alarm_watchlist"] = []
+                        st.info("감시 구성이 비워졌습니다.")
+            else:
+                st.info("감시 구성이 없습니다. 종목/분봉을 선택 후 '구성 추가'를 눌러주세요.")
+
+        # ⑤-2 다중 감시 즉시 체크(수동)
+        if st.button("▶ ⑤ 다중 감시 즉시 체크", use_container_width=True):
+            try:
+                from pytz import timezone as _tz
+                KST = _tz("Asia/Seoul")
+                now = datetime.now(KST).replace(tzinfo=None)
+                hits = []
+
+                watchlist = st.session_state.get("alarm_watchlist", [])
+                for item in watchlist:
+                    m = item.get("market")
+                    tf_lbl = item.get("tf")
+                    strat = item.get("strategy", "")
+
+                    if not m or not tf_lbl:
+                        continue
+
+                    interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
+                    # 최근 구간만 빠르게 조회 (지표 안정 위해 워밍업 포함)
+                    lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
+                    start_i = now - timedelta(minutes=int(mpb_i) * lookback_bars)
+
+                    df_i = fetch_upbit_paged(m, interval_key_i, start_i, now, mpb_i, warmup_bars=max(13, bb_window, int(cci_window))*5)
+                    if df_i is None or df_i.empty:
+                        continue
+                    df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
+
+                    triggered = False
+                    # 현재 단계: 매물대 자동 전략만 실시간 알림 지원
+                    if "매물대 자동" in strat:
+                        try:
+                            triggered = check_maemul_auto_signal(df_i)
+                        except Exception:
+                            triggered = False
+
+                    if triggered:
+                        msg = f"🚨 {m} · {tf_lbl} · {strat} 신호 발생!"
+                        try:
+                            st.toast(msg)
+                        except Exception:
+                            pass
+                        if "alerts" not in st.session_state:
+                            st.session_state["alerts"] = []
+                        st.session_state["alerts"].append(msg)
+                        hits.append({
+                            "market": m,
+                            "tf": tf_lbl,
+                            "strategy": strat,
+                            "time": df_i.iloc[-1]["time"]
+                        })
+
+                if hits:
+                    st.success(f"총 {len(hits)}건의 신호가 감지되었습니다.")
+                    st.dataframe(pd.DataFrame(hits), use_container_width=True)
+                else:
+                    st.info("감지된 신호가 없습니다.")
+            except Exception as _e:
+                st.warning(f"다중 감시 체크 중 오류: {_e}")
         # -----------------------------
 # 📒 공유 메모 (GitHub 연동, 전체 공통)
         # -----------------------------
