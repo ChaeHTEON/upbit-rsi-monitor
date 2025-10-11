@@ -2051,20 +2051,64 @@ def main():
         count = streamlit_autorefresh.st_autorefresh(interval=30_000, key="auto_watch_refresh")
 
         try:
-            KST = _tz("Asia/Seoul")
-            now = datetime.now(KST).replace(tzinfo=None)
-            hits = []
+        KST = _tz("Asia/Seoul")
+        now = datetime.now(KST).replace(tzinfo=None)
+        hits = []
 
-            watchlist = st.session_state.get("alarm_watchlist", [])
-            for item in watchlist:
-                m = item.get("market")
-                tf_lbl = item.get("tf")
-                strat = item.get("strategy", "")
+        watchlist = st.session_state.get("alarm_watchlist", [])
+        for item in watchlist:
+            m = item.get("market")
+            tf_lbl = item.get("tf")
+            strat = item.get("strategy", "")
+
+            if not m or not tf_lbl:
+                continue
+
+            interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
+            lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
+            start_i = now - timedelta(minutes=int(mpb_i) * lookback_bars)
+
+            df_i = fetch_upbit_paged(m, interval_key_i, start_i, now, mpb_i, warmup_bars=max(13, bb_window, int(cci_window))*5)
+            if df_i is None or df_i.empty:
+                continue
+            df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
+
+            triggered = False
+            if "매물대 자동" in strat:
+                try:
+                    triggered = check_maemul_auto_signal(df_i)
+                except Exception:
+                    triggered = False
+
+            if triggered:
+                msg = f"🚨 {m} · {tf_lbl} · {strat} 신호 발생!"
+                try:
+                    st.toast(msg)
+                except Exception:
+                    pass
+                if "alerts" not in st.session_state:
+                    st.session_state["alerts"] = []
+                st.session_state["alerts"].append(msg)
+                hits.append({
+                    "market": m,
+                    "tf": tf_lbl,
+                    "strategy": strat,
+                    "time": df_i.iloc[-1]["time"]
+                })
+        if hits:
+            st.success(f"총 {len(hits)}건의 신호가 감지되었습니다. (30초마다 자동 업데이트)")
+            st.dataframe(pd.DataFrame(hits), width="stretch")
+        else:
+            st.info("현재 감지된 신호가 없습니다. (30초마다 자동 갱신 중)")
+
+        except Exception as _e:
+        st.warning(f"다중 감시 자동 체크 중 오류: {_e}")
 
                 if not m or not tf_lbl:
                     continue
 
                 interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
+                # 최근 구간만 빠르게 조회 (지표 안정 위해 워밍업 포함)
                 lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
                 start_i = now - timedelta(minutes=int(mpb_i) * lookback_bars)
 
@@ -2074,6 +2118,7 @@ def main():
                 df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
 
                 triggered = False
+                # 현재 단계: 매물대 자동 전략만 실시간 알림 지원
                 if "매물대 자동" in strat:
                     try:
                         triggered = check_maemul_auto_signal(df_i)
@@ -2095,59 +2140,14 @@ def main():
                         "strategy": strat,
                         "time": df_i.iloc[-1]["time"]
                     })
+
             if hits:
-                st.success(f"총 {len(hits)}건의 신호가 감지되었습니다. (30초마다 자동 업데이트)")
-                st.dataframe(pd.DataFrame(hits), width="stretch")
+                st.success(f"총 {len(hits)}건의 신호가 감지되었습니다.")
+                st.dataframe(pd.DataFrame(hits), use_container_width=True)
             else:
-                st.info("현재 감지된 신호가 없습니다. (30초마다 자동 갱신 중)")
-
+                st.info("감지된 신호가 없습니다.")
         except Exception as _e:
-            st.warning(f"다중 감시 자동 체크 중 오류: {_e}")
-
-                    if not m or not tf_lbl:
-                        continue
-
-                    interval_key_i, mpb_i = TF_MAP.get(tf_lbl, ("minutes/5", 5))
-                    # 최근 구간만 빠르게 조회 (지표 안정 위해 워밍업 포함)
-                    lookback_bars = max(300, int(max(13, int(cci_window), int(bb_window))) * 5)
-                    start_i = now - timedelta(minutes=int(mpb_i) * lookback_bars)
-
-                    df_i = fetch_upbit_paged(m, interval_key_i, start_i, now, mpb_i, warmup_bars=max(13, bb_window, int(cci_window))*5)
-                    if df_i is None or df_i.empty:
-                        continue
-                    df_i = add_indicators(df_i, bb_window, bb_dev, cci_window, cci_signal)
-
-                    triggered = False
-                    # 현재 단계: 매물대 자동 전략만 실시간 알림 지원
-                    if "매물대 자동" in strat:
-                        try:
-                            triggered = check_maemul_auto_signal(df_i)
-                        except Exception:
-                            triggered = False
-
-                    if triggered:
-                        msg = f"🚨 {m} · {tf_lbl} · {strat} 신호 발생!"
-                        try:
-                            st.toast(msg)
-                        except Exception:
-                            pass
-                        if "alerts" not in st.session_state:
-                            st.session_state["alerts"] = []
-                        st.session_state["alerts"].append(msg)
-                        hits.append({
-                            "market": m,
-                            "tf": tf_lbl,
-                            "strategy": strat,
-                            "time": df_i.iloc[-1]["time"]
-                        })
-
-                if hits:
-                    st.success(f"총 {len(hits)}건의 신호가 감지되었습니다.")
-                    st.dataframe(pd.DataFrame(hits), use_container_width=True)
-                else:
-                    st.info("감지된 신호가 없습니다.")
-            except Exception as _e:
-                st.warning(f"다중 감시 체크 중 오류: {_e}")
+            st.warning(f"다중 감시 체크 중 오류: {_e}")
         # -----------------------------
 # 📒 공유 메모 (GitHub 연동, 전체 공통)
         # -----------------------------
