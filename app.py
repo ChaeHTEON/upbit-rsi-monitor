@@ -1751,7 +1751,14 @@ def main():
                 st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
             else:
                 df_all = pd.DataFrame(sweep_rows_saved)
-    
+
+                # ✅ KeyError 방지: '승률(%)' 누락 시 자동 생성
+                if "승률(%)" not in df_all.columns:
+                    if "성공률(%)" in df_all.columns:
+                        df_all["승률(%)"] = df_all["성공률(%)"]
+                    else:
+                        df_all["승률(%)"] = 0.0
+
                 wr_num = float(winrate_thr)
                 mask_success = (df_all["결과"] == "성공") & (df_all["승률(%)"] >= wr_num) & (df_all["합계수익률(%)"] > 0)
                 mask_neutral = (df_all["결과"] == "중립") & (df_all["합계수익률(%)"] > 0)
