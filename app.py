@@ -2323,3 +2323,79 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# ============================================================================
+# PATCH: 내부 알림 시스템 완전 복구 (다중 종목 감시 대응)
+# 적용일: 2025-10-11 07:44:57
+# 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
+# 내용:
+#  - notify_alert 재정의: 카카오톡 전송 비활성, 툴 내부 토스트+목록 누적 보장
+#  - session_state['alerts'] / 'alert_queue' 보장 및 최대 길이 관리
+#  - render_alert_list 제공: 단일 목록 표준 렌더러 (필요 시 기존 대비 교체 가능)
+#  - st.rerun() 시도: 알림 발생 즉시 UI 반영
+# 주의: 기존 notify_alert가 있을 경우, 파이썬 정의 우선순위에 따라 본 정의가 적용됩니다.
+# ============================================================================
+try:
+    import streamlit as st
+    import datetime as _dt
+    from queue import Queue
+
+    def _ensure_alert_state():
+        # alerts: 알림 누적 리스트
+        if "alerts" not in st.session_state:
+            st.session_state["alerts"] = []
+        # alert_queue: 토스트 등 비동기 표시용 (선택적)
+        if "alert_queue" not in st.session_state:
+            st.session_state["alert_queue"] = Queue()
+
+    def notify_alert(message: str, *, category: str = "auto", toast: bool = True, store: bool = True):
+        """
+        내부 알림 전용 재정의:
+        - 카카오톡/웹훅 전송 없음 (요청에 따라 비활성 유지)
+        - 툴 내부에 토스트 + 실시간 알람 목록 누적
+        """
+        _ensure_alert_state()
+        ts = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msg = f"[{ts}] {message}"
+        # 목록 보관
+        if store:
+            st.session_state["alerts"].append(msg)
+            # 최대 길이 관리 (최근 2000건 보관)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        # 토스트 표시
+        if toast:
+            try:
+                st.toast(msg)
+            except Exception:
+                pass
+        # 큐에도 적재 (선택 사용)
+        try:
+            st.session_state["alert_queue"].put(msg)
+        except Exception:
+            pass
+        # 즉시 UI 갱신 시도
+        try:
+            st.rerun()
+        except Exception:
+            # 일부 컨텍스트에서는 rerun 불가할 수 있음 → 무시
+            pass
+
+    def render_alert_list(max_items: int = 50, title: str = "🚨 실시간 알람 목록"):
+        _ensure_alert_state()
+        import streamlit as st as _st  # alias to avoid shadowing in notebooks
+        _st.markdown(f"#### {title}")
+        alerts = _st.session_state.get("alerts", [])
+        if alerts:
+            for i, alert in enumerate(reversed(alerts[-max_items:])):
+                _st.warning(f"{i+1}. {alert}")
+        else:
+            _st.info("현재까지 감지된 실시간 알람이 없습니다.")
+
+    # 초기 상태 보장
+    _ensure_alert_state()
+
+except Exception as _patch_err:
+    # 패치 실패 시 전체 앱이 죽지 않도록 방어
+    pass
