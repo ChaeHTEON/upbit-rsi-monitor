@@ -1957,11 +1957,30 @@ def main():
             "매물대_하단매수",
             "매물대_상단매도",
         ]
-        selected_strategies = st.multiselect(
+        sel_strategies = st.multiselect(
             "감시할 알람 종류 선택 (하루 1% 수익 전략 9종)",
-            options=all_strategies,
-            default=["TGV", "RSI_과매도반등", "CCI_저점반등"],
-            help="선택한 전략의 신호만 감시/표시됩니다."
+            [
+                # === [MAIN STRATEGY 9] ===
+                "TGV",
+                "RVB",
+                "PR",
+                "LCT",
+                "4D_Sync",
+                "240m_Sync",
+                "Composite_Confirm",
+                "Divergence_RVB",
+                "Market_Divergence",
+                # ---- [보조 전략 영역 (기존 유지)] ----
+                "RSI_과매도반등",
+                "RSI_과매수하락",
+                "CCI_저점반등",
+                "CCI_고점하락",
+                "BB_하단반등",
+                "BB_상단하락",
+                "매물대_하단매수",
+                "매물대_상단매도",
+            ],
+            default=["TGV", "RVB", "PR", "RSI_과매도반등"],
         )
         st.session_state["selected_strategies"] = selected_strategies
 
