@@ -2056,10 +2056,10 @@ def main():
             hits = []
 
             watchlist = st.session_state.get("alarm_watchlist", [])
-                for item in watchlist:
-                    m = item.get("market")
-                    tf_lbl = item.get("tf")
-                    strat = item.get("strategy", "")
+            for item in watchlist:
+                m = item.get("market")
+                tf_lbl = item.get("tf")
+                strat = item.get("strategy", "")
 
                     if not m or not tf_lbl:
                         continue
