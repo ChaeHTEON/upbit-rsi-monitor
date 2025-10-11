@@ -2329,10 +2329,27 @@ def main():
                             continue
                         df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
 
-                        # --- 전략별 감시 함수 (선택된 항목만 실행) ---
+                        # === [MAIN STRATEGY 9] 하루 1% 수익 전략 ====================
                         if "TGV" in st.session_state.get("selected_strategies", []):
                             check_tgv_signal(df_watch, s_code, tf)
-                        
+                        if "RVB" in st.session_state.get("selected_strategies", []):
+                            check_rvb_signal(df_watch, s_code, tf)
+                        if "PR" in st.session_state.get("selected_strategies", []):
+                            check_pr_signal(df_watch, s_code, tf)
+                        if "LCT" in st.session_state.get("selected_strategies", []):
+                            check_lct_signal(df_watch, s_code, tf)
+                        if "4D_Sync" in st.session_state.get("selected_strategies", []):
+                            check_4d_sync_signal(df_watch, s_code, tf)
+                        if "240m_Sync" in st.session_state.get("selected_strategies", []):
+                            check_240m_sync_signal(df_watch, s_code, tf)
+                        if "Composite_Confirm" in st.session_state.get("selected_strategies", []):
+                            check_composite_confirm_signal(df_watch, s_code, tf)
+                        if "Divergence_RVB" in st.session_state.get("selected_strategies", []):
+                            check_divergence_rvb_signal(df_watch, s_code, tf)
+                        if "Market_Divergence" in st.session_state.get("selected_strategies", []):
+                            check_market_divergence_signal(df_watch, s_code, tf)
+
+                        # ---- [보조 전략 영역 (기존 유지)] ---------------------------
                         if "RSI_과매도반등" in st.session_state.get("selected_strategies", []):
                             check_rsi_oversold_rebound_signal(df_watch, s_code, tf)
 
