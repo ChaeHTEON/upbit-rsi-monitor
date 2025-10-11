@@ -1891,9 +1891,149 @@ def main():
         # -----------------------------
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
         if res is None or res.empty:
-            st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
+            st.info("현재 표시할 신호 결과가 없습니다.")
         else:
-            tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+            st.dataframe(res.style.format(format_dict), use_container_width=True)
+
+        # -----------------------------
+        # ⑤ 실시간 감시 및 알람
+        # -----------------------------
+        st.markdown('<div class="section-title">⑤ 실시간 감시 및 알람</div>', unsafe_allow_html=True)
+
+        import pandas as pd, numpy as np, random, datetime, streamlit as st
+
+        # 상태 초기화
+        if "alerts_live" not in st.session_state:
+            st.session_state["alerts_live"] = []
+        if "alert_history" not in st.session_state:
+            st.session_state["alert_history"] = []
+
+        # 감시 설정 UI
+        sel_symbols = st.multiselect("감시할 종목", ["KRW-BTC", "KRW-XRP"], default=["KRW-BTC"])
+        sel_tfs = st.multiselect("감시할 분봉", ["1", "5", "15"], default=["1"])
+
+        st.markdown("🕐 1분 주기 자동 감시 중입니다.")
+
+        # === TEST SIGNAL ===
+        def check_test_signal(symbol="KRW-BTC", tf="1"):
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            rsi_now = random.uniform(40, 60)
+            cci_now = random.uniform(-100, -50)
+            vol_ratio = random.uniform(1.2, 2.0)
+            tp, sl = 0.5, 0.2
+            msg = f"""
+🚨 TEST_SIGNAL 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+📈 RSI: {rsi_now - 8:.1f} → {rsi_now:.1f} 상승
+📉 CCI: {cci_now - 30:.0f} → {cci_now:.0f} 회복
+💹 거래량 변화: +{vol_ratio*100:.0f}%
+💰 목표 수익: +{tp:.1f}% | 손절: -{sl:.1f}%
+━━━━━━━━━━━━━━━━━━━
+💡 테스트용 시그널입니다. 알림 시스템 동작 확인용 신호입니다.
+            """
+            alert_entry = {
+                "time": now,
+                "symbol": symbol,
+                "tf": tf,
+                "strategy": "TEST_SIGNAL",
+                "msg": msg,
+                "checked": False,
+            }
+            st.session_state["alerts_live"].insert(0, alert_entry)
+            st.session_state["alert_history"].insert(0, alert_entry)
+            st.toast(msg, icon="🚨")
+
+        # === TGV SIGNAL ===
+        def calc_rsi(series, period=14):
+            delta = series.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
+            rs = gain / (loss + 1e-12)
+            return 100 - (100 / (1 + rs))
+
+        def calc_cci(df, period=20):
+            tp = (df["high"] + df["low"] + df["close"]) / 3
+            ma = tp.rolling(period).mean()
+            md = (tp - ma).abs().rolling(period).mean()
+            return (tp - ma) / (0.015 * (md + 1e-12))
+
+        def check_tgv_signal(df, symbol="KRW-BTC", tf="1"):
+            if len(df) < 25:
+                return
+            df["rsi"] = calc_rsi(df["close"])
+            df["cci"] = calc_cci(df)
+            df["ema5"] = df["close"].ewm(span=5).mean()
+            df["ema20"] = df["close"].ewm(span=20).mean()
+            df["vol_mean"] = df["volume"].rolling(20).mean()
+
+            latest = df.iloc[-1]
+            prev = df.iloc[-2]
+            cond = (
+                (latest["volume"] > latest["vol_mean"] * 2.5)
+                and (latest["close"] > prev["high"])
+                and (latest["ema5"] > latest["ema20"])
+                and (latest["rsi"] > 55)
+            )
+            if not cond:
+                return
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            tp, sl = 0.7, 0.4
+            msg = f"""
+🚨 TGV 신호 발생 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 (Entry)
+📈 RSI: {prev['rsi']:.1f} → {latest['rsi']:.1f}
+📉 CCI: {prev['cci']:.0f} → {latest['cci']:.0f}
+💹 거래량 변화: +{latest['volume']/latest['vol_mean']*100:.0f}%
+💰 목표 수익: +{tp:.1f}% | 손절: -{sl:.1f}%
+━━━━━━━━━━━━━━━━━━━
+💡 거래량 급등 + 전 고점 돌파 감지. 단기 반등 시그널입니다.
+            """
+            alert_entry = {
+                "time": now,
+                "symbol": symbol,
+                "tf": tf,
+                "strategy": "TGV",
+                "msg": msg,
+                "checked": False,
+            }
+            st.session_state["alerts_live"].insert(0, alert_entry)
+            st.session_state["alert_history"].insert(0, alert_entry)
+            st.toast(msg, icon="📈")
+
+        # 테스트용 버튼
+        if st.button("🧪 테스트 알람 발생시키기"):
+            check_test_signal("KRW-BTC", "1")
+
+        # 자동 감시 (1분 주기)
+        current_minute = datetime.datetime.now().minute
+        if current_minute % 1 == 0 and len(sel_symbols) > 0:
+            check_test_signal(sel_symbols[0], sel_tfs[0])
+            # 추후 실제 df 데이터 연동 시 check_tgv_signal(df, symbol, tf) 호출 가능
+
+        # 실시간 알람 목록
+        st.markdown("### 🚨 실시간 알람 목록 (최신 순)")
+        if st.session_state["alerts_live"]:
+            for i, a in enumerate(st.session_state["alerts_live"][:10]):
+                status = "✅ 확인됨" if a["checked"] else "⚠️ 미확인"
+                st.warning(f"{a['time']} | {a['symbol']} {a['tf']}분 | {a['strategy']} | {status}")
+        else:
+            st.info("현재까지 감지된 실시간 알람이 없습니다.")
+
+        # 히스토리
+        with st.expander("📜 알람 히스토리 전체 보기"):
+            if st.session_state["alert_history"]:
+                for i, a in enumerate(st.session_state["alert_history"]):
+                    st.text(a["msg"])
+            else:
+                st.info("히스토리가 없습니다.")
+
+        # 초기화
+        if st.button("🗑️ 알림 초기화"):
+            st.session_state["alerts_live"].clear()
+            st.session_state["alert_history"].clear()
+            st.success("모든 알람이 초기화되었습니다.")
             # ✅ 안전 포맷 유틸 (숫자만 포맷, 문자열/NaN 그대로 유지)
             def _safe_fmt(v, fmt=":.2f", suffix=""):
                 if pd.isna(v):
