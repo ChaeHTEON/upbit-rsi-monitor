@@ -408,8 +408,19 @@ def main():
     
         # CSV 경로 설정
         data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
-        os.makedirs(data_dir, exist_ok=True)
-        csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+        cache_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+    
+        # ✅ CSV 파일 파싱 오류 자동 복구 추가
+        if os.path.exists(cache_path):
+            try:
+                df_cache_test = pd.read_csv(cache_path, nrows=5)
+            except Exception as e:
+                st.warning(f"⚠️ 캐시 파일 파싱 오류: {e}")
+                try:
+                    os.remove(cache_path)
+                    st.info(f"🧹 손상된 캐시 파일 삭제 완료 → 새로 다운로드 예정 ({os.path.basename(cache_path)})")
+                except Exception as e2:
+                    st.warning(f"⚠️ 캐시 파일 삭제 실패: {e2}")
     
         # CSV 로드
         if os.path.exists(csv_path):
