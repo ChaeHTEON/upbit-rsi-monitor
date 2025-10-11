@@ -2188,14 +2188,11 @@ def main():
             st.session_state["watch_auto_started"] = True
             st.session_state["watch_active_config"] = _persisted.copy()
 
-        # 🚨 실시간 알람 목록 (자동 새로고침 + 세션 기반 표시)
-        from streamlit_autorefresh import st_autorefresh
-
-        # ▶ 10초마다 자동 새로고침 (감시 스레드가 추가한 알림 반영)
-        st_autorefresh(interval=10000, key="refresh_alerts")
-
-        # 🚨 실시간 알람 목록 + 토스트 즉시 표시
+        # 🚨 실시간 알람 목록 (실시간 쓰레드 기반, 새로고침 제거)
         st.markdown("#### 🚨 실시간 알람 목록")
+
+        # 💡 자동 새로고침(st_autorefresh) 제거: 전체 앱 재실행 방지
+        #    → 감시 쓰레드에서 st.toast()와 _add_alert()를 직접 호출하도록 유지
 
         # ▶ 신규 토스트 알림 처리 (감시 스레드가 큐에 넣은 알림을 화면에 즉시 표시)
         if "toast_queue" not in st.session_state:
