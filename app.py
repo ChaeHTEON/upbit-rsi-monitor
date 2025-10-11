@@ -2048,11 +2048,19 @@ def main():
             if st.button("🔁 즉시 감시 갱신", use_container_width=True):
                 st.rerun()
 
-        # 자동 감시 안내 및 주기적 실행
-        from streamlit_autorefresh import st_autorefresh
+        # 자동 감시 안내 및 주기적 실행 (Python 타이머 기반으로 변경)
+        import time
+        if "last_refresh" not in st.session_state:
+            st.session_state["last_refresh"] = time.time()
+
         if st.session_state["auto_watch_enabled"]:
             st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
-            st_autorefresh(interval=60 * 1000, key="realtime_refresh")
+
+            # 60초 경과 시 rerun() 호출 (프론트엔드 의존 제거)
+            now_ts = time.time()
+            if now_ts - st.session_state["last_refresh"] > 60:
+                st.session_state["last_refresh"] = now_ts
+                st.rerun()
         else:
             st.markdown("⏸ 자동 감시가 일시중지되었습니다.")
 
