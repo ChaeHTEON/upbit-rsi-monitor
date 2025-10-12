@@ -2034,51 +2034,6 @@ def main():
             md = (tp - ma).abs().rolling(period).mean()
             return (tp - ma) / (0.015 * (md + 1e-12))
 
-        def check_tgv_signal(df, symbol="KRW-BTC", tf="1"):
-            if len(df) < 25:
-                return
-            df["rsi"] = calc_rsi(df["close"])
-            df["cci"] = calc_cci(df)
-            df["ema5"] = df["close"].ewm(span=5).mean()
-            df["ema20"] = df["close"].ewm(span=20).mean()
-            df["vol_mean"] = df["volume"].rolling(20).mean()
-
-            latest = df.iloc[-1]
-            prev = df.iloc[-2]
-            cond = (
-                (latest["volume"] > latest["vol_mean"] * 2.5)
-                and (latest["close"] > prev["high"])
-                and (latest["ema5"] > latest["ema20"])
-                and (latest["rsi"] > 55)
-            )
-            if not cond:
-                return
-            from datetime import datetime, timedelta
-            now = (datetime.utcnow() + timedelta(hours=9)).strftime("%H:%M:%S")
-            tp, sl = 0.7, 0.4
-            msg = f"""
-🚨 TGV 신호 발생 [{symbol}, {tf}분봉]
-━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-📈 RSI: {prev['rsi']:.1f} → {latest['rsi']:.1f}
-📉 CCI: {prev['cci']:.0f} → {latest['cci']:.0f}
-💹 거래량 변화: +{latest['volume']/latest['vol_mean']*100:.0f}%
-💰 목표 수익: +{tp:.1f}% | 손절: -{sl:.1f}%
-━━━━━━━━━━━━━━━━━━━
-💡 거래량 급등 + 전 고점 돌파 감지. 단기 반등 시그널입니다.
-            """
-            alert_entry = {
-                "time": now,
-                "symbol": symbol,
-                "tf": tf,
-                "strategy": "TGV",
-                "msg": msg,
-                "checked": False,
-            }
-            st.session_state["alerts_live"].insert(0, alert_entry)
-            st.session_state["alert_history"].insert(0, alert_entry)
-            st.toast(msg, icon="📈")
-
         # === [MAIN STRATEGY 9] ============================================
         from datetime import datetime, timedelta, timezone
 
@@ -2102,156 +2057,223 @@ def main():
             st.session_state["alert_history"].insert(0, entry)
             st.toast(msg, icon="📈")
 
-        def check_rvb_signal(df, symbol, tf):
-            if len(df) < 5:
-                return
-            rsi_series = calc_rsi(df["close"])
-            cci_series = calc_cci(df)
-            cond_rsi = rsi_series.iloc[-1] < 35
-            cond_cci = cci_series.iloc[-1] < -80
-            cond_candle = df["close"].iloc[-2] > df["open"].iloc[-2] and df["close"].iloc[-1] > df["open"].iloc[-1]
+        # --- TGV ---
+        def check_tgv_signal(df, symbol="KRW-BTC", tf="1"):
+            if len(df) < 25: return
+            df["rsi"] = calc_rsi(df["close"]); df["cci"] = calc_cci(df)
+            df["ema5"] = df["close"].ewm(span=5).mean(); df["ema20"] = df["close"].ewm(span=20).mean()
+            df["vol_mean"] = df["volume"].rolling(20).mean()
+            latest, prev = df.iloc[-1], df.iloc[-2]
+            cond_vol = latest["volume"] > latest["vol_mean"] * 2.5
+            cond_cross = latest["ema5"] > latest["ema20"]
+            cond_break = latest["close"] > prev["high"]
+            cond_rsi = latest["rsi"] > 55
 
             if "active_alerts" not in st.session_state:
                 st.session_state["active_alerts"] = {}
-            active_alerts = st.session_state["active_alerts"]
-            alert_key = f"RVB|{symbol}|{tf}"
+            active = st.session_state["active_alerts"]; key = f"TGV|{symbol}|{tf}"
 
-            # ⚡ 최초 신호: 조건 처음 충족 시 1회만 발생
-            if cond_rsi and cond_cci and cond_candle:
-                if alert_key not in active_alerts:
-                    active_alerts[alert_key] = {"stage": "initial"}
-                    st.session_state["active_alerts"] = active_alerts
-                    msg = f"""
-⚡ RVB 최초 신호 [{symbol}, {tf}분봉]
+            if cond_vol and cond_cross and cond_break and cond_rsi:
+                if key not in active:
+                    active[key] = {"stage":"initial"}
+                    msg=f"""
+⚡ TGV 최초 신호 [{symbol}, {tf}분봉]
 ━━━━━━━━━━━━━━━━━━━
 📊 현재 단계: ① 최초 포착
-📈 RSI: {rsi_series.iloc[-2]:.1f} → {rsi_series.iloc[-1]:.1f}
-📉 CCI: {cci_series.iloc[-2]:.0f} → {cci_series.iloc[-1]:.0f}
-💹 거래량 변화: +{df['volume'].iloc[-1] / max(df['volume'].iloc[-2], 1e-9) * 100:.0f}%
-💰 목표 수익: +1.2% | 손절: -0.5%
+📈 RSI: {prev['rsi']:.1f}→{latest['rsi']:.1f}
+📉 CCI: {prev['cci']:.0f}→{latest['cci']:.0f}
+💹 거래량: +{latest['volume']/max(latest['vol_mean'],1e-9)*100:.0f}%
+💰 목표 +0.7% | 손절 -0.4%
 ━━━━━━━━━━━━━━━━━━━
-💡 매물대 지지 + 과매도 반등 패턴 (RVB)
+💡 거래량 급등 + 전고점 돌파 포착
 """
-                    _push_alert(symbol, tf, "RVB", msg, tp="+1.2%", sl="-0.5%")
+                    _push_alert(symbol, tf, "TGV", msg, tp="+0.7%", sl="-0.4%")
+            elif key in active and active[key].get("stage")=="initial":
+                if latest["rsi"]>60 and latest["ema5"]>latest["ema20"]:
+                    msg=f"""
+✅ TGV 유효 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 확정
+📈 RSI: {prev['rsi']:.1f}→{latest['rsi']:.1f}
+📉 EMA5/20: {latest['ema5']:.1f}/{latest['ema20']:.1f}
+━━━━━━━━━━━━━━━━━━━
+💡 추세 유지 확인
+"""
+                    _push_alert(symbol, tf, "TGV", msg, tp="+0.7%", sl="-0.4%")
+                    del active[key]
 
-            # ✅ 유효 신호: 최초 이후 RSI·CCI 회복 등 확인 시
-            elif alert_key in active_alerts and active_alerts[alert_key].get("stage") == "initial":
-                cond_confirm = (rsi_series.iloc[-1] > 40) or (cci_series.iloc[-1] > -50)
-                if cond_confirm:
-                    msg = f"""
-✅ RVB 유효 신호 확인 [{symbol}, {tf}분봉]
+        # --- RVB ---
+        def check_rvb_signal(df, symbol, tf):
+            if len(df)<5: return
+            rsi,cci=calc_rsi(df["close"]),calc_cci(df)
+            cond_rsi=rsi.iloc[-1]<35; cond_cci=cci.iloc[-1]<-80
+            cond_candle=df["close"].iloc[-1]>df["open"].iloc[-1]
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"RVB|{symbol}|{tf}"
+            if cond_rsi and cond_cci and cond_candle and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ RVB 최초 신호 [{symbol}, {tf}분봉]
 ━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 확정 (Validation)
-📈 RSI(회복): {rsi_series.iloc[-2]:.1f} → {rsi_series.iloc[-1]:.1f}
-📉 CCI(회복): {cci_series.iloc[-2]:.0f} → {cci_series.iloc[-1]:.0f}
-💰 목표 수익: +1.2% | 손절: -0.5%
+📈 RSI: {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}
+📉 CCI: {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}
+💹 거래량 +{df['volume'].iloc[-1]/max(df['volume'].iloc[-2],1e-9)*100:.0f}%
 ━━━━━━━━━━━━━━━━━━━
-💡 최초 포착 후 회복 확인 → 진입 신뢰도 상승
+💡 매물대 지지 + 과매도 반등 포착
 """
-                    _push_alert(symbol, tf, "RVB", msg, tp="+1.2%", sl="-0.5%")
-                    del active_alerts[alert_key]
-                    st.session_state["active_alerts"] = active_alerts
+                _push_alert(symbol,tf,"RVB",msg,tp="+1.2%",sl="-0.5%")
+            elif k in a and a[k].get("stage")=="initial":
+                if rsi.iloc[-1]>40 or cci.iloc[-1]>-50:
+                    msg=f"""
+✅ RVB 유효 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 RSI: {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}
+📉 CCI: {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}
+━━━━━━━━━━━━━━━━━━━
+💡 회복 확인 → 진입 확정
+"""
+                    _push_alert(symbol,tf,"RVB",msg,tp="+1.2%",sl="-0.5%")
+                    del a[k]
 
-        def check_pr_signal(df, symbol, tf):
-            if len(df) < 5:
-                return
-            drop = df["close"].iloc[-2] / df["close"].iloc[-3] - 1.0
-            cond_drop = drop < -0.015
-            cond_rebound = df["close"].iloc[-1] > df["close"].iloc[-2]
-            cond_vol = df["volume"].iloc[-1] > df["volume"].iloc[-2] * 1.3
-            if cond_drop and cond_rebound and cond_vol:
-                msg = f"""
-🚨 PR 신호 발생 [{symbol}, {tf}분봉]
+        # --- PR ---
+        def check_pr_signal(df,symbol,tf):
+            if len(df)<5: return
+            latest,prev=df.iloc[-1],df.iloc[-2]
+            drop=(prev["close"]/df.iloc[-3]["close"]-1.0)
+            cond_drop=drop<-0.015; cond_rsi=calc_rsi(df["close"]).iloc[-1]<25
+            cond_vol=latest["volume"]>latest["volume"].mean()*1.6
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"PR|{symbol}|{tf}"
+            if cond_drop and cond_rsi and cond_vol and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ PR 최초 신호 [{symbol}, {tf}분봉]
 ━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-📉 직전봉 하락폭: {drop * 100:.1f}%
-💹 반등 거래량: +{df['volume'].iloc[-1] / df['volume'].iloc[-2] * 100:.0f}%
-💰 목표 수익: +1.0% | 손절: -0.5%
+📉 급락 감지
+📈 RSI {calc_rsi(df['close']).iloc[-2]:.1f}→{calc_rsi(df['close']).iloc[-1]:.1f}
+💹 거래량 급증
 ━━━━━━━━━━━━━━━━━━━
-💡 급락 후 반등 감지 (Pulse Rebound)
+💡 급락 후 과매도 반등
 """
-                _push_alert(symbol, tf, "PR", msg, tp="+1.0%", sl="-0.5%")
+                _push_alert(symbol,tf,"PR",msg,tp="+1.2%",sl="-0.5%")
+            elif k in a and a[k].get("stage")=="initial":
+                if calc_rsi(df["close"]).iloc[-1]>35:
+                    msg=f"""
+✅ PR 유효 신호 [{symbol},{tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 RSI 회복 확인
+💹 거래량 유지
+━━━━━━━━━━━━━━━━━━━
+💡 반등 확정
+"""
+                    _push_alert(symbol,tf,"PR",msg,tp="+1.2%",sl="-0.5%")
+                    del a[k]
 
-        def check_lct_signal(df, symbol, tf):
-            if len(df) < 200:
-                return
-            ema50 = df["close"].ewm(span=50).mean()
-            ema200 = df["close"].ewm(span=200).mean()
-            cci_series = calc_cci(df)
-            cond_trend = ema50.iloc[-1] > ema200.iloc[-1]
-            cond_cci = cci_series.iloc[-1] > -100
-            if cond_trend and cond_cci:
-                msg = f"""
-🚨 LCT 신호 발생 [{symbol}, {tf}분봉]
+        # --- LCT ---
+        def check_lct_signal(df,symbol,tf):
+            if len(df)<200: return
+            ema50=df["close"].ewm(span=50).mean(); ema200=df["close"].ewm(span=200).mean()
+            cci=calc_cci(df)
+            cond1=ema50.iloc[-1]>ema200.iloc[-1]; cond2=cci.iloc[-1]>-100
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"LCT|{symbol}|{tf}"
+            if cond1 and cond2 and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ LCT 최초 신호 [{symbol}, {tf}분봉]
 ━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-📈 EMA50/200 골든크로스 감지
-💰 목표 수익: +4~8% | 손절: -2%
+📈 EMA50/200 크로스 감지
+📉 CCI 회복
 ━━━━━━━━━━━━━━━━━━━
-💡 장기 추세 전환 감지 (Long CCI Trend)
+💡 장기 추세 전환 초기 징후
 """
-                _push_alert(symbol, tf, "LCT", msg, tp="+4~8%", sl="-2%")
+                _push_alert(symbol,tf,"LCT",msg,tp="+8%",sl="-2%")
+            elif k in a and a[k].get("stage")=="initial":
+                if ema50.iloc[-1]>ema200.iloc[-1]*1.01:
+                    msg=f"""
+✅ LCT 유효 신호 [{symbol},{tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 골든크로스 유지
+━━━━━━━━━━━━━━━━━━━
+💡 추세 전환 확정
+"""
+                    _push_alert(symbol,tf,"LCT",msg,tp="+8%",sl="-2%")
+                    del a[k]
 
-        def check_4d_sync_signal(df, symbol, tf):
-            msg = f"""
-🚨 4D Sync 신호 발생 [{symbol}, {tf}분봉]
+        # --- 4D_Sync ---
+        def check_4d_sync_signal(df,symbol,tf):
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"4D|{symbol}|{tf}"
+            if k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ 4D_Sync 최초 [{symbol},{tf}분봉]
 ━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-💡 다중 타임프레임 상승 동조 감지
-💰 목표 수익: +1.5% | 손절: -0.4%
-━━━━━━━━━━━━━━━━━━━
+💡 다중 타임프레임 상승 시작
 """
-            _push_alert(symbol, tf, "4D_Sync", msg, tp="+1.5%", sl="-0.4%")
+                _push_alert(symbol,tf,"4D_Sync",msg,tp="+1.5%",sl="-0.4%")
+            elif a[k].get("stage")=="initial":
+                msg=f"""
+✅ 4D_Sync 유효 [{symbol},{tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+💡 상승 동조 지속
+"""
+                _push_alert(symbol,tf,"4D_Sync",msg,tp="+1.5%",sl="-0.4%")
+                del a[k]
 
-        def check_240m_sync_signal(df, symbol, tf):
-            cci_series = calc_cci(df)
-            if cci_series.iloc[-1] < -200:
-                msg = f"""
-🚨 240m Sync 신호 발생 [{symbol}, {tf}분봉]
-━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-📉 CCI: {cci_series.iloc[-1]:.0f}
-💰 목표 수익: +2.5% | 손절: -0.6%
-━━━━━━━━━━━━━━━━━━━
-💡 중기 대세 반전 감지
-"""
-                _push_alert(symbol, tf, "240m_Sync", msg, tp="+2.5%", sl="-0.6%")
+        # --- 240m_Sync ---
+        def check_240m_sync_signal(df,symbol,tf):
+            cci=calc_cci(df)
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"240m|{symbol}|{tf}"
+            if cci.iloc[-1]<-200 and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ 240m 최초 신호 [{symbol}] CCI={cci.iloc[-1]:.0f}"
+                _push_alert(symbol,tf,"240m_Sync",msg,tp="+2.5%",sl="-0.6%")
+            elif k in a and a[k].get("stage")=="initial" and cci.iloc[-1]>-150:
+                msg=f"✅ 240m 유효 신호 [{symbol}]"
+                _push_alert(symbol,tf,"240m_Sync",msg,tp="+2.5%",sl="-0.6%")
+                del a[k]
 
-        def check_composite_confirm_signal(df, symbol, tf):
-            msg = f"""
-🚨 Composite Confirm 신호 발생 [{symbol}, {tf}분봉]
-━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-💡 BTC·ETH·SOL 동시 신호 검증
-💰 목표 수익: +1.5% | 손절: -0.4%
-━━━━━━━━━━━━━━━━━━━
-"""
-            _push_alert(symbol, tf, "Composite_Confirm", msg, tp="+1.5%", sl="-0.4%")
+        # --- Composite Confirm ---
+        def check_composite_confirm_signal(df,symbol,tf):
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"COMP|{symbol}|{tf}"
+            if k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ Composite 최초 [{symbol}] BTC·ETH·SOL 동시 포착"
+                _push_alert(symbol,tf,"Composite_Confirm",msg,tp="+1.5%",sl="-0.4%")
+            elif a[k].get("stage")=="initial":
+                msg=f"✅ Composite 유효 [{symbol}] 동조 지속"
+                _push_alert(symbol,tf,"Composite_Confirm",msg,tp="+1.5%",sl="-0.4%")
+                del a[k]
 
-        def check_divergence_rvb_signal(df, symbol, tf):
-            rsi_series = calc_rsi(df["close"])
-            cond_div = rsi_series.iloc[-1] > rsi_series.iloc[-2] and df["close"].iloc[-1] < df["close"].iloc[-2]
-            if cond_div:
-                msg = f"""
-🚨 Divergence+RVB 신호 발생 [{symbol}, {tf}분봉]
-━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-📈 RSI 다이버전스 감지
-💰 목표 수익: +1.7% | 손절: -0.5%
-━━━━━━━━━━━━━━━━━━━
-"""
-                _push_alert(symbol, tf, "Divergence_RVB", msg, tp="+1.7%", sl="-0.5%")
+        # --- Divergence RVB ---
+        def check_divergence_rvb_signal(df,symbol,tf):
+            rsi=calc_rsi(df["close"])
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"DIVRVB|{symbol}|{tf}"
+            if rsi.iloc[-1]>rsi.iloc[-2] and df["close"].iloc[-1]<df["close"].iloc[-2] and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ Divergence 최초 [{symbol}] RSI 상승/가격하락"
+                _push_alert(symbol,tf,"Divergence_RVB",msg,tp="+1.7%",sl="-0.5%")
+            elif k in a and a[k].get("stage")=="initial":
+                msg=f"✅ Divergence 유효 [{symbol}] 반전 확정"
+                _push_alert(symbol,tf,"Divergence_RVB",msg,tp="+1.7%",sl="-0.5%")
+                del a[k]
 
-        def check_market_divergence_signal(df, symbol, tf):
-            msg = f"""
-🚨 Market Divergence 신호 발생 [{symbol}, {tf}분봉]
-━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
-💡 BTC RSI 하락 멈춤 + 알트 RSI 상승 전환
-💰 목표 수익: +1.4% | 손절: -0.5%
-━━━━━━━━━━━━━━━━━━━
-"""
-            _push_alert(symbol, tf, "Market_Divergence", msg, tp="+1.4%", sl="-0.5%")
+        # --- Market Divergence ---
+        def check_market_divergence_signal(df,symbol,tf):
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"MKDIV|{symbol}|{tf}"
+            if k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ Market Divergence 최초 [{symbol}] BTC RSI 하락멈춤"
+                _push_alert(symbol,tf,"Market_Divergence",msg,tp="+1.4%",sl="-0.5%")
+            elif a[k].get("stage")=="initial":
+                msg=f"✅ Market Divergence 유효 [{symbol}] 알트 상승 확인"
+                _push_alert(symbol,tf,"Market_Divergence",msg,tp="+1.4%",sl="-0.5%")
+                del a[k]
 
         # ---- [보조 전략 영역 (기존 유지)] ----
         # ▶ 자동 감시 토글 + 즉시 갱신 버튼 (TEST_SIGNAL 제거, 실전 감시만 유지)
