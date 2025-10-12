@@ -2043,25 +2043,23 @@ def main():
         def _kst_now_str():
             return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M:%S")
 
-        def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
-            """실시간 알림 등록 함수 (중복 방지 + 재진입형 대응)"""
+                def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
             # 🔁 중복 허용 옵션(사이드바에서 체크)
             if "allow_duplicates" not in st.session_state:
                 st.session_state["allow_duplicates"] = False
 
-            # 히스토리/상태 초기화
+            # 히스토리/상태 초기화 (모두 함수 안으로!)
             if "alert_history" not in st.session_state:
                 st.session_state["alert_history"] = []
             if "alerts_live" not in st.session_state:
                 st.session_state["alerts_live"] = []
             if "last_alert_at" not in st.session_state:
-                st.session_state["last_alert_at"] = {}
+                st.session_state["last_alert_at"] = {}  # key -> datetime
 
             now_kst = (datetime.utcnow() + timedelta(hours=9))
             now_str = now_kst.strftime("%H:%M:%S")
-            key = f"{strategy}|{symbol}|{tf}"
 
-            # ✅ 재진입형(조건 해제→재충족): 3분 내 동일 신호 무시
+            key = f"{strategy}|{symbol}|{tf}"
             if not st.session_state.get("allow_duplicates", False):
                 last_at = st.session_state["last_alert_at"].get(key)
                 if last_at and (now_kst - last_at).total_seconds() < 180:
@@ -2075,48 +2073,16 @@ def main():
                 "msg": msg,
                 "checked": False,
             }
-            if tp is not None: entry["tp"] = tp
-            if sl is not None: entry["sl"] = sl
+            if tp is not None:
+                entry["tp"] = tp
+            if sl is not None:
+                entry["sl"] = sl
 
             st.session_state["alerts_live"].insert(0, entry)
             st.session_state["alert_history"].insert(0, entry)
             st.session_state["last_alert_at"][key] = now_kst
-            st.toast(msg, icon="📈")
-    if "alerts_live" not in st.session_state:
-        st.session_state["alerts_live"] = []
-    if "last_alert_at" not in st.session_state:
-        st.session_state["last_alert_at"] = {}  # key -> datetime
 
-    now_kst = (datetime.utcnow() + timedelta(hours=9))
-    now_str = now_kst.strftime("%H:%M:%S")
-
-    # 고유키(전략|심볼|분봉)로 중복 필터
-    key = f"{strategy}|{symbol}|{tf}"
-
-    # 중복 알림 허용 안 할 때: 최근 180초 이내 동일키면 무시
-    if not st.session_state["allow_duplicates"]:
-        last_at = st.session_state["last_alert_at"].get(key)
-        if last_at is not None and (now_kst - last_at).total_seconds() < 180:
-            return  # ⛔ 최근 3분 내 동일 신호 → 무시
-
-    entry = {
-        "time": now_str,
-        "symbol": symbol,
-        "tf": tf,
-        "strategy": strategy,
-        "msg": msg,
-        "checked": False,
-    }
-    if tp is not None:
-        entry["tp"] = tp
-    if sl is not None:
-        entry["sl"] = sl
-
-    st.session_state["alerts_live"].insert(0, entry)
-    st.session_state["alert_history"].insert(0, entry)
-    st.session_state["last_alert_at"][key] = now_kst
-
-    st.toast(msg, icon="📈")
+            st.toast(msg, icon="📈"
 
         # --- TGV ---
         def check_tgv_signal(df, symbol="KRW-BTC", tf="1"):
