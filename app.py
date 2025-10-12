@@ -2082,7 +2082,7 @@ def main():
             st.session_state["alert_history"].insert(0, entry)
             st.session_state["last_alert_at"][key] = now_kst
 
-            st.toast(msg, icon="📈"
+            st.toast(msg, icon="📈")
 
         # --- TGV ---
         def check_tgv_signal(df, symbol="KRW-BTC", tf="1"):
