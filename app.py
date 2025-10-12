@@ -2435,72 +2435,88 @@ def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
                 return opt[1]
             return str(opt)
 
-        if sel_symbols and sel_tfs:
+        # ✅ 전략별 기본 분봉 매핑 (하루 1% 메인 9개는 자동 분봉 적용)
+        STRATEGY_TF_MAP = {
+            "TGV": ["5"],
+            "RVB": ["15"],
+            "PR": ["15"],
+            "LCT": ["240"],
+            "4D_Sync": ["60"],
+            "240m_Sync": ["240"],
+            "Composite_Confirm": ["15"],
+            "Divergence_RVB": ["15"],
+            "Market_Divergence": ["15"],
+        }
+
+        # ✅ 재진입 판정(조건 해제→재충족) 대비 상태 저장소(키: 전략|심볼|분봉)
+        if "signal_state" not in st.session_state:
+            st.session_state["signal_state"] = {}  # { key: bool }  ← 각 check_함수에서 필요시 활용 가능
+
+        # ✅ 선택 전략/종목 기준으로 분봉을 자동 확장
+        if sel_symbols and st.session_state.get("selected_strategies"):
             for s in sel_symbols:
                 s_code = _to_code(s)
-                for tf in sel_tfs:
-                    try:
-                        # ✅ 업비트 캔들 데이터 로드 후 전달 (NoneType 방지)
-                        from datetime import datetime, timedelta
-                        tf_key = f"minutes/{tf}"
-                        df_watch = fetch_upbit_paged(
-                            s_code,
-                            tf_key,
-                            datetime.now() - timedelta(hours=3),
-                            datetime.now(),
-                            int(tf),
-                            warmup_bars=0
-                        )
-                        if df_watch is None or df_watch.empty:
-                            continue
-                        df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
 
-                        # === [MAIN STRATEGY 9] 하루 1% 수익 전략 ====================
-                        if "TGV" in st.session_state.get("selected_strategies", []):
-                            check_tgv_signal(df_watch, s_code, tf)
-                        if "RVB" in st.session_state.get("selected_strategies", []):
-                            check_rvb_signal(df_watch, s_code, tf)
-                        if "PR" in st.session_state.get("selected_strategies", []):
-                            check_pr_signal(df_watch, s_code, tf)
-                        if "LCT" in st.session_state.get("selected_strategies", []):
-                            check_lct_signal(df_watch, s_code, tf)
-                        if "4D_Sync" in st.session_state.get("selected_strategies", []):
-                            check_4d_sync_signal(df_watch, s_code, tf)
-                        if "240m_Sync" in st.session_state.get("selected_strategies", []):
-                            check_240m_sync_signal(df_watch, s_code, tf)
-                        if "Composite_Confirm" in st.session_state.get("selected_strategies", []):
-                            check_composite_confirm_signal(df_watch, s_code, tf)
-                        if "Divergence_RVB" in st.session_state.get("selected_strategies", []):
-                            check_divergence_rvb_signal(df_watch, s_code, tf)
-                        if "Market_Divergence" in st.session_state.get("selected_strategies", []):
-                            check_market_divergence_signal(df_watch, s_code, tf)
+                for strategy_name in st.session_state["selected_strategies"]:
+                    # 메인 9전략은 자동 분봉, 보조 전략은 사용자가 선택한 분봉(sel_tfs) 사용
+                    use_tfs = STRATEGY_TF_MAP.get(strategy_name, (sel_tfs if sel_tfs else ["1"]))
 
-                        # ---- [보조 전략 영역 (기존 유지)] ---------------------------
-                        if "RSI_과매도반등" in st.session_state.get("selected_strategies", []):
-                            check_rsi_oversold_rebound_signal(df_watch, s_code, tf)
+                    for tf in use_tfs:
+                        try:
+                            # ✅ 업비트 캔들 데이터 로드 후 전달 (NoneType 방지)
+                            from datetime import datetime, timedelta
+                            tf_key = f"minutes/{tf}"
+                            df_watch = fetch_upbit_paged(
+                                s_code,
+                                tf_key,
+                                datetime.now() - timedelta(hours=3),
+                                datetime.now(),
+                                int(tf),
+                                warmup_bars=0
+                            )
+                            if df_watch is None or df_watch.empty:
+                                continue
+                            df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
 
-                        if "RSI_과매수하락" in st.session_state.get("selected_strategies", []):
-                            check_rsi_overbought_drop_signal(df_watch, s_code, tf)
+                            # === [MAIN STRATEGY 9] 하루 1% 수익 전략 ====================
+                            if strategy_name == "TGV":
+                                check_tgv_signal(df_watch, s_code, tf)
+                            elif strategy_name == "RVB":
+                                check_rvb_signal(df_watch, s_code, tf)
+                            elif strategy_name == "PR":
+                                check_pr_signal(df_watch, s_code, tf)
+                            elif strategy_name == "LCT":
+                                check_lct_signal(df_watch, s_code, tf)
+                            elif strategy_name == "4D_Sync":
+                                check_4d_sync_signal(df_watch, s_code, tf)
+                            elif strategy_name == "240m_Sync":
+                                check_240m_sync_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Composite_Confirm":
+                                check_composite_confirm_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Divergence_RVB":
+                                check_divergence_rvb_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Market_Divergence":
+                                check_market_divergence_signal(df_watch, s_code, tf)
 
-                        if "CCI_저점반등" in st.session_state.get("selected_strategies", []):
-                            check_cci_low_rebound_signal(df_watch, s_code, tf)
-
-                        if "CCI_고점하락" in st.session_state.get("selected_strategies", []):
-                            check_cci_high_drop_signal(df_watch, s_code, tf)
-
-                        if "BB_하단반등" in st.session_state.get("selected_strategies", []):
-                            check_bb_lower_rebound_signal(df_watch, s_code, tf)
-
-                        if "BB_상단하락" in st.session_state.get("selected_strategies", []):
-                            check_bb_upper_drop_signal(df_watch, s_code, tf)
-
-                        if "매물대_하단매수" in st.session_state.get("selected_strategies", []):
-                            check_maemul_lower_buy_signal(df_watch, s_code, tf)
-
-                        if "매물대_상단매도" in st.session_state.get("selected_strategies", []):
-                            check_maemul_upper_sell_signal(df_watch, s_code, tf)
-                    except Exception as e:
-                        st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
+                            # ---- [보조 전략 영역 (기존 유지)] ---------------------------
+                            elif strategy_name == "RSI_과매도반등":
+                                check_rsi_oversold_rebound_signal(df_watch, s_code, tf)
+                            elif strategy_name == "RSI_과매수하락":
+                                check_rsi_overbought_drop_signal(df_watch, s_code, tf)
+                            elif strategy_name == "CCI_저점반등":
+                                check_cci_low_rebound_signal(df_watch, s_code, tf)
+                            elif strategy_name == "CCI_고점하락":
+                                check_cci_high_drop_signal(df_watch, s_code, tf)
+                            elif strategy_name == "BB_하단반등":
+                                check_bb_lower_rebound_signal(df_watch, s_code, tf)
+                            elif strategy_name == "BB_상단하락":
+                                check_bb_upper_drop_signal(df_watch, s_code, tf)
+                            elif strategy_name == "매물대_하단매수":
+                                check_maemul_lower_buy_signal(df_watch, s_code, tf)
+                            elif strategy_name == "매물대_상단매도":
+                                check_maemul_upper_sell_signal(df_watch, s_code, tf)
+                        except Exception as e:
+                            st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
         # (삭제) TEST_SIGNAL 호출 루프 제거
         # 실전 감시는 위의 fetch_upbit_paged → add_indicators → check_tgv_signal 루프에서 수행합니다.
         # 중복 제거 (최근 10개만 유지)
