@@ -2110,19 +2110,47 @@ def main():
             cond_rsi = rsi_series.iloc[-1] < 35
             cond_cci = cci_series.iloc[-1] < -80
             cond_candle = df["close"].iloc[-2] > df["open"].iloc[-2] and df["close"].iloc[-1] > df["open"].iloc[-1]
+
+            if "active_alerts" not in st.session_state:
+                st.session_state["active_alerts"] = {}
+            active_alerts = st.session_state["active_alerts"]
+            alert_key = f"RVB|{symbol}|{tf}"
+
+            # ⚡ 최초 신호: 조건 처음 충족 시 1회만 발생
             if cond_rsi and cond_cci and cond_candle:
-                msg = f"""
-🚨 RVB 신호 발생 [{symbol}, {tf}분봉]
+                if alert_key not in active_alerts:
+                    active_alerts[alert_key] = {"stage": "initial"}
+                    st.session_state["active_alerts"] = active_alerts
+                    msg = f"""
+⚡ RVB 최초 신호 [{symbol}, {tf}분봉]
 ━━━━━━━━━━━━━━━━━━━
-📊 현재 단계: ② 진입 (Entry)
+📊 현재 단계: ① 최초 포착
 📈 RSI: {rsi_series.iloc[-2]:.1f} → {rsi_series.iloc[-1]:.1f}
 📉 CCI: {cci_series.iloc[-2]:.0f} → {cci_series.iloc[-1]:.0f}
-💹 거래량 변화: +{df['volume'].iloc[-1] / df['volume'].iloc[-2] * 100:.0f}%
+💹 거래량 변화: +{df['volume'].iloc[-1] / max(df['volume'].iloc[-2], 1e-9) * 100:.0f}%
 💰 목표 수익: +1.2% | 손절: -0.5%
 ━━━━━━━━━━━━━━━━━━━
 💡 매물대 지지 + 과매도 반등 패턴 (RVB)
 """
-                _push_alert(symbol, tf, "RVB", msg, tp="+1.2%", sl="-0.5%")
+                    _push_alert(symbol, tf, "RVB", msg, tp="+1.2%", sl="-0.5%")
+
+            # ✅ 유효 신호: 최초 이후 RSI·CCI 회복 등 확인 시
+            elif alert_key in active_alerts and active_alerts[alert_key].get("stage") == "initial":
+                cond_confirm = (rsi_series.iloc[-1] > 40) or (cci_series.iloc[-1] > -50)
+                if cond_confirm:
+                    msg = f"""
+✅ RVB 유효 신호 확인 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 확정 (Validation)
+📈 RSI(회복): {rsi_series.iloc[-2]:.1f} → {rsi_series.iloc[-1]:.1f}
+📉 CCI(회복): {cci_series.iloc[-2]:.0f} → {cci_series.iloc[-1]:.0f}
+💰 목표 수익: +1.2% | 손절: -0.5%
+━━━━━━━━━━━━━━━━━━━
+💡 최초 포착 후 회복 확인 → 진입 신뢰도 상승
+"""
+                    _push_alert(symbol, tf, "RVB", msg, tp="+1.2%", sl="-0.5%")
+                    del active_alerts[alert_key]
+                    st.session_state["active_alerts"] = active_alerts
 
         def check_pr_signal(df, symbol, tf):
             if len(df) < 5:
