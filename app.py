@@ -474,14 +474,14 @@ def main():
             df_all = pd.concat([df_cache, df_new], ignore_index=True)
             df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
     
-            data_dir = os.path.dirname(csv_path)
+            data_dir = os.path.dirname(cache_path)
             os.makedirs(data_dir, exist_ok=True)
-            tmp_path = csv_path + ".tmp"
+            tmp_path = cache_path + ".tmp"
             df_all.to_csv(tmp_path, index=False)
             try:
-                shutil.move(tmp_path, csv_path)
+                shutil.move(tmp_path, cache_path)
             except FileNotFoundError:
-                df_all.to_csv(csv_path, index=False)
+                df_all.to_csv(cache_path, index=False)
         else:
             df_all = df_cache
     
@@ -522,14 +522,14 @@ def main():
             df_all = df_all[(df_all["time"] < start_cutoff) | (df_all["time"] > end_dt)]
             df_all = pd.concat([df_all, df_req], ignore_index=True).drop_duplicates(subset=["time"]).sort_values("time")
     
-            data_dir = os.path.dirname(csv_path)
+            data_dir = os.path.dirname(cache_path)
             os.makedirs(data_dir, exist_ok=True)
-            tmp_path = csv_path + ".tmp"
+            tmp_path = cache_path + ".tmp"
             df_all.to_csv(tmp_path, index=False)
             try:
-                shutil.move(tmp_path, csv_path)
+                shutil.move(tmp_path, cache_path)
             except FileNotFoundError:
-                df_all.to_csv(csv_path, index=False)
+                df_all.to_csv(cache_path, index=False)
     
         return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].reset_index(drop=True)
     
