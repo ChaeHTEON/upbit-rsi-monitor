@@ -2043,7 +2043,7 @@ def main():
         def _kst_now_str():
             return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M:%S")
 
-                def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
+        def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
             # 🔁 중복 허용 옵션(사이드바에서 체크)
             if "allow_duplicates" not in st.session_state:
                 st.session_state["allow_duplicates"] = False
