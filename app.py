@@ -2161,9 +2161,61 @@ def main():
 
         st.sidebar.checkbox("🔁 중복 알림 허용", key="allow_duplicates", value=False)
 
-        # ✅ TEST_SIGNAL 제거
-        # (실전 감시만 남기고 테스트용 함수 완전 삭제)
-        # 필요 시 디버그 테스트는 check_tgv_signal(df, symbol, tf) 단독 호출로 대체
+        # ✅ 실전 감시 루프
+        from datetime import datetime, timedelta
+
+        def _to_code(opt):
+            if isinstance(opt, (list, tuple)) and len(opt) >= 2:
+                return opt[1]
+            return str(opt)
+
+        STRATEGY_TF_MAP = {
+            "TGV": ["5"], "RVB": ["15"], "PR": ["15"], "LCT": ["240"],
+            "4D_Sync": ["60"], "240m_Sync": ["240"], "Composite_Confirm": ["15"],
+            "Divergence_RVB": ["15"], "Market_Divergence": ["15"],
+        }
+
+        if "signal_state" not in st.session_state:
+            st.session_state["signal_state"] = {}
+
+        if sel_symbols and st.session_state.get("selected_strategies"):
+            for s in sel_symbols:
+                s_code = _to_code(s)
+                for strategy_name in st.session_state["selected_strategies"]:
+                    use_tfs = STRATEGY_TF_MAP.get(strategy_name, (sel_tfs if sel_tfs else ["1"]))
+                    for tf in use_tfs:
+                        tf_key = f"minutes/{tf}"
+                        try:
+                            df_watch = fetch_upbit_paged(
+                                s_code, tf_key,
+                                datetime.now() - timedelta(hours=3),
+                                datetime.now(),
+                                int(tf), warmup_bars=0
+                            )
+                            if df_watch is None or df_watch.empty:
+                                continue
+                            df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
+
+                            if strategy_name == "TGV":
+                                check_tgv_signal(df_watch, s_code, tf)
+                            elif strategy_name == "RVB":
+                                check_rvb_signal(df_watch, s_code, tf)
+                            elif strategy_name == "PR":
+                                check_pr_signal(df_watch, s_code, tf)
+                            elif strategy_name == "LCT":
+                                check_lct_signal(df_watch, s_code, tf)
+                            elif strategy_name == "4D_Sync":
+                                check_4d_sync_signal(df_watch, s_code, tf)
+                            elif strategy_name == "240m_Sync":
+                                check_240m_sync_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Composite_Confirm":
+                                check_composite_confirm_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Divergence_RVB":
+                                check_divergence_rvb_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Market_Divergence":
+                                check_market_divergence_signal(df_watch, s_code, tf)
+                        except Exception as e:
+                            st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
 
         # === TGV SIGNAL ===
         def calc_rsi(series, period=14):
@@ -2223,10 +2275,19 @@ def main():
             if sl is not None:
                 entry["sl"] = sl
 
+            # ✅ 간단한 중복 억제: 같은 전략·종목·분봉은 3분 이내 중복 차단
+            if "last_alert_at" not in st.session_state:
+                st.session_state["last_alert_at"] = {}
+            key = f"{strategy}|{symbol}|{tf}"
+            if not st.session_state.get("allow_duplicates", False):
+                last_at = st.session_state["last_alert_at"].get(key)
+                now_kst = datetime.utcnow() + timedelta(hours=9)
+                if last_at and (now_kst - last_at).total_seconds() < 180:
+                    return
+        
             st.session_state["alerts_live"].insert(0, entry)
             st.session_state["alert_history"].insert(0, entry)
-            st.session_state["last_alert_at"][key] = now_kst
-
+            st.session_state["last_alert_at"][key] = datetime.utcnow() + timedelta(hours=9)
             st.toast(msg, icon="📈")
 
         # --- TGV ---
