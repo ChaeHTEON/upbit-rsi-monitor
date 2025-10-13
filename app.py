@@ -1897,45 +1897,22 @@ def main():
                                 styled_detail = res_detail.head(50).style.applymap(style_result, subset=["결과"])
                                 st.dataframe(styled_detail, use_container_width=True)
     
-    # -----------------------------
-    # ④ 신호 결과 (최신 순)
-    # -----------------------------
-    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    if res is None or res.empty:
-        st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
-    else:
-        res_tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True)
-        res_tbl["신호시간"] = pd.to_datetime(res_tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+        # -----------------------------
+        # ④ 신호 결과 (테이블)
+        # -----------------------------
+        st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
 
-        if "RSI(13)" in res_tbl:
-            res_tbl["RSI(13)"] = res_tbl["RSI(13)"].map(lambda v: f"{v:.2f}" if pd.notna(v) else "")
-        if "성공기준(%)" in res_tbl:
-            res_tbl["성공기준(%)"] = res_tbl["성공기준(%)"].map(lambda v: f"{v:.1f}%" if pd.notna(v) else "")
+        # ✅ format_dict 미정의 오류 방지용 기본 포맷 정의
+        format_dict = {
+            "수익률(%)": "{:.2f}",
+            "TP(%)": "{:.2f}",
+            "SL(%)": "{:.2f}",
+        }
 
-        for col in ["최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
-            if col in res_tbl:
-                res_tbl[col] = res_tbl[col].map(lambda v: f"{v:.2f}%" if pd.notna(v) else "")
-
-        if "도달캔들(bars)" in res_tbl.columns:
-            res_tbl["도달캔들"] = res_tbl["도달캔들(bars)"].astype(int)
-            def _fmt_from_bars(b):
-                total_min = int(b) * int(minutes_per_bar)
-                hh, mm = divmod(total_min, 60)
-                return f"{hh:02d}:{mm:02d}"
-            res_tbl["도달시간"] = res_tbl["도달캔들"].map(_fmt_from_bars)
-
-        keep_cols = ["신호시간","기준시가","RSI(13)","성공기준(%)","결과",
-                     "최종수익률(%)","최저수익률(%)","최고수익률(%)","도달캔들","도달시간"]
-        keep_cols = [c for c in keep_cols if c in res_tbl.columns]
-        res_tbl = res_tbl[keep_cols]
-
-        def style_result(val):
-            if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
-            if val == "실패": return "color:#1E40AF; font-weight:600;"
-            if val == "중립": return "color:#FF9800; font-weight:600;"
-            return ""
-        styled_tbl = res_tbl.style.applymap(style_result, subset=["결과"])
-        st.dataframe(styled_tbl, use_container_width=True)
+        if res is None or res.empty:
+            st.info("현재 표시할 신호 결과가 없습니다.")
+        else:
+            st.dataframe(res.style.format(format_dict), use_container_width=True)
 
 
         # -----------------------------
