@@ -197,11 +197,6 @@ def main():
     # ② 조건 설정
     # -----------------------------
     st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
-
-    # ✅ 세션 초기화 (UI 표시 중단 방지)
-    if "primary_strategy" not in st.session_state:
-        st.session_state["primary_strategy"] = "없음"
-
     c4, c5, c6 = st.columns(3)
     with c4:
         lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
@@ -210,6 +205,7 @@ def main():
         winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1)
         hit_basis = "종가 기준"   # ✅ 고정
     with c6:
+        # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
         st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
         primary_strategy = st.selectbox(
             "매매기법 선택",
@@ -227,31 +223,15 @@ def main():
             ],
             index=0
         )
+
+        # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
 
+        # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
         if primary_strategy != "없음":
             st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
     r1, r2, r3 = st.columns(3)
-
-    # -----------------------------
-    # ③ 요약·차트
-    # -----------------------------
-    st.markdown('<div class="section-title">③ 요약·차트</div>', unsafe_allow_html=True)
-    st.info("차트·요약 영역 렌더링 테스트 — 데이터 연결 전입니다.")
-
-    # -----------------------------
-    # ④ 신호 결과 (테이블)
-    # -----------------------------
-    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
-    st.info("신호 결과 테이블 영역 렌더링 테스트 — 데이터 연결 전입니다.")
-
-    # -----------------------------
-    # ⑤ 실시간 감시
-    # -----------------------------
-    st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
-    st.info("실시간 감시 영역 렌더링 테스트 — 데이터 연결 전입니다.")
-
     with r1:
         rsi_mode = st.selectbox(
             "RSI 조건",
@@ -595,60 +575,6 @@ def main():
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
         return out
-
-        out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
-        return out
-
-
-# ---------------------------------
-# 📊 매매기법 감지 보조 함수
-# ---------------------------------
-
-def detect_double_bottom(df):
-    """RSI와 종가 기준 이중바닥 패턴 탐지"""
-    idx_list = []
-    if "RSI13" not in df or "close" not in df:
-        return idx_list
-    rsi = df["RSI13"].values
-    close = df["close"].values
-    for i in range(2, len(rsi) - 1):
-        if rsi[i - 2] > rsi[i - 1] < rsi[i] and close[i - 1] < close[i]:
-            idx_list.append(df.index[i])
-    return idx_list
-
-
-def detect_candle_pattern(df, pattern="음양양"):
-    """캔들 패턴 감지: 음양양 / 양음음"""
-    idx_list = []
-    if "open" not in df or "close" not in df:
-        return idx_list
-
-    for i in range(2, len(df)):
-        c1, c2, c3 = df.iloc[i - 2], df.iloc[i - 1], df.iloc[i]
-        if pattern == "음양양":
-            if (c1["close"] < c1["open"]) and (c2["close"] > c2["open"]) and (c3["close"] > c3["open"]):
-                idx_list.append(df.index[i])
-        elif pattern == "양음음":
-            if (c1["close"] > c1["open"]) and (c2["close"] < c2["open"]) and (c3["close"] < c3["open"]):
-                idx_list.append(df.index[i])
-    return idx_list
-
-
-def detect_bband_expand(df):
-    """볼밴 수축 후 확장 구간 탐지"""
-    idx_list = []
-    if "BB_up" not in df or "BB_low" not in df:
-        return idx_list
-
-    bb_width = df["BB_up"] - df["BB_low"]
-    if len(bb_width) < 20:
-        return idx_list
-
-    for i in range(20, len(bb_width)):
-        prev_mean = bb_width[i - 10:i].mean()
-        if bb_width[i - 1] > prev_mean * 1.2:
-            idx_list.append(df.index[i])
-    return idx_list
     
     def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dedup_mode,
                  minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
@@ -661,49 +587,24 @@ def detect_bband_expand(df):
         n = len(df)
         thr = float(threshold_pct)
     
-        # --- 1) 1차 조건 인덱스 (매매기법 > RSI/BB/CCI/바닥탐지) ---
-        primary_strategy = st.session_state.get("primary_strategy", "없음")
-
-        if primary_strategy != "없음":
-            if primary_strategy == "과매도반전(4H)":
-                base_sig_idx = df.index[(df["RSI13"] <= 30) & (df["BB_low"] > df["low"])].tolist()
-            elif primary_strategy == "이중바닥":
-                base_sig_idx = detect_double_bottom(df)
-            elif primary_strategy == "음양양":
-                base_sig_idx = detect_candle_pattern(df, pattern="음양양")
-            elif primary_strategy == "양음음":
-                base_sig_idx = detect_candle_pattern(df, pattern="양음음")
-            elif primary_strategy == "하단반등":
-                base_sig_idx = df.index[(df["close"] > df["BB_low"]) & (df["RSI13"] > 30)].tolist()
-            elif primary_strategy == "거래량급등":
-                base_sig_idx = df.index[df["volume"] > df["volume"].rolling(10).mean() * 1.6].tolist()
-            elif primary_strategy == "돌파형":
-                base_sig_idx = df.index[df["close"] > df["BB_up"]].tolist()
-            elif primary_strategy == "이탈형":
-                base_sig_idx = df.index[df["close"] < df["BB_low"]].tolist()
-            elif primary_strategy == "수축확장":
-                base_sig_idx = detect_bband_expand(df)
-            else:
-                base_sig_idx = []
+        # --- 1) 1차 조건 인덱스 (RSI/BB/CCI/바닥탐지) ---
+        if bottom_mode:
+            base_sig_idx = df.index[
+                (df["RSI13"] <= float(rsi_low)) &
+                (df["close"] <= df["BB_low"]) &
+                (df["CCI"] <= -100)
+            ].tolist()
         else:
-            if bottom_mode:
-                base_sig_idx = df.index[
-                    (df["RSI13"] <= float(rsi_low)) &
-                    (df["close"] <= df["BB_low"]) &
-                    (df["CCI"] <= -100)
-                ].tolist()
+            # RSI
+            if rsi_mode == "없음":
+                rsi_idx = []
+            elif rsi_mode == "현재(과매도/과매수 중 하나)":
+                rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
+                                 set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
+            elif rsi_mode == "과매도 기준":
+                rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
             else:
-                # RSI
-                if rsi_mode == "없음":
-                    rsi_idx = []
-                elif rsi_mode == "현재(과매도/과매수 중 하나)":
-                    rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
-                                     set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
-                elif rsi_mode == "과매도 기준":
-                    rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
-                else:
-                    rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-                base_sig_idx = rsi_idx
+                rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
     
             # BB
             def bb_ok(i):
@@ -2027,12 +1928,7 @@ def detect_bband_expand(df):
         # -----------------------------
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
 
-        # ✅ 렌더 중단 방지용 기본 초기화
-        if "res" not in locals() or res is None:
-            import pandas as pd
-            res = pd.DataFrame()
-
-        if res.empty:
+        if res is None or res.empty:
             st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
         else:
             tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
