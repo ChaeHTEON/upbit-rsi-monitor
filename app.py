@@ -1939,6 +1939,34 @@ def main():
         if "alert_history" not in st.session_state:
             st.session_state["alert_history"] = []
 
+        # 🚨 실시간 알람 및 히스토리 (통합)
+        with st.expander("🚨 실시간 알람 및 히스토리 (통합)", expanded=True):
+            st.markdown("#### 🔴 실시간 알람 (최신 30건)")
+            if st.session_state["alerts_live"]:
+                for i, alert in enumerate(st.session_state["alerts_live"][-30:]):
+                    st.warning(f"{i+1}. {alert}")
+            else:
+                st.info("현재까지 감지된 실시간 알람이 없습니다.")
+
+            st.divider()
+            st.markdown("#### 📜 알람 히스토리")
+            if st.session_state["alert_history"]:
+                for i, hist in enumerate(st.session_state["alert_history"][:200]):
+                    st.text(hist if isinstance(hist, str) else str(hist))
+                    st.markdown("---")
+            else:
+                st.info("기록된 알람이 없습니다.")
+
+            col_clear, col_refresh = st.columns(2)
+            with col_clear:
+                if st.button("🗑️ 전체 알람 초기화"):
+                    st.session_state["alerts_live"].clear()
+                    st.session_state["alert_history"].clear()
+                    st.success("알람이 초기화되었습니다.")
+            with col_refresh:
+                if st.button("🔄 새로고침"):
+                    st.rerun()
+
         # 감시 설정 UI
         import requests
         def get_upbit_markets():
