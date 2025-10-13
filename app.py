@@ -178,7 +178,23 @@ def main():
     with c1:
         market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
     with c2:
-        tf_label = st.selectbox("봉 종류 선택", list(TF_MAP.keys()), index=2)
+        FIXED_STRATEGY_LIST = [
+            "TGV", "RVB", "PR", "LCT", "4D_SYNC", "240m_SYNC",
+            "COMPOSITE_CONFIRM", "DIVERGENCE_RVB", "MARKET_DIVERGENCE"
+        ]
+        FIXED_TF_MAP = {
+            "TGV": "15분봉", "RVB": "15분봉", "PR": "30분봉",
+            "LCT": "60분봉", "4D_SYNC": "60분봉", "240m_SYNC": "4시간봉",
+            "COMPOSITE_CONFIRM": "60분봉", "DIVERGENCE_RVB": "30분봉",
+            "MARKET_DIVERGENCE": "60분봉"
+        }
+
+        selected_strategy = st.session_state.get("sel_strategy", "")
+        if selected_strategy in FIXED_STRATEGY_LIST:
+            tf_label = FIXED_TF_MAP[selected_strategy]
+            st.info(f"📊 '{selected_strategy}' 전략은 분봉 변경이 불가능합니다. (참고용 표시: {tf_label})")
+        else:
+            tf_label = st.selectbox("봉 종류 선택 (참고용, 시뮬레이션에는 영향 없음)", list(TF_MAP.keys()), index=2)
     with c3:
         KST = timezone("Asia/Seoul")
         today_kst = datetime.now(KST).date()
@@ -211,15 +227,15 @@ def main():
             "매매기법 선택",
             [
                 "없음",
-                "과매도반전(4H)",
-                "이중바닥",
-                "음양양",
-                "양음음",
-                "하단반등",
-                "거래량급등",
-                "돌파형",
-                "이탈형",
-                "수축확장"
+                "TGV",
+                "RVB",
+                "PR",
+                "LCT",
+                "4D_Sync",
+                "240m_Sync",
+                "Composite_Confirm",
+                "Divergence_RVB",
+                "Market_Divergence"
             ],
             index=0
         )
