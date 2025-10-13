@@ -232,8 +232,25 @@ def main():
         if primary_strategy != "없음":
             st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
-    # ✅ with c6 블록 밖으로 복원 (렌더링 중단 해결)
     r1, r2, r3 = st.columns(3)
+
+    # -----------------------------
+    # ③ 요약·차트
+    # -----------------------------
+    st.markdown('<div class="section-title">③ 요약·차트</div>', unsafe_allow_html=True)
+    st.info("차트·요약 영역 렌더링 테스트 — 데이터 연결 전입니다.")
+
+    # -----------------------------
+    # ④ 신호 결과 (테이블)
+    # -----------------------------
+    st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
+    st.info("신호 결과 테이블 영역 렌더링 테스트 — 데이터 연결 전입니다.")
+
+    # -----------------------------
+    # ⑤ 실시간 감시
+    # -----------------------------
+    st.markdown('<div class="section-title">⑤ 실시간 감시</div>', unsafe_allow_html=True)
+    st.info("실시간 감시 영역 렌더링 테스트 — 데이터 연결 전입니다.")
 
     with r1:
         rsi_mode = st.selectbox(
