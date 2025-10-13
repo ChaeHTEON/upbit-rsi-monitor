@@ -575,6 +575,60 @@ def main():
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
         return out
+
+        out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
+        return out
+
+
+# ---------------------------------
+# 📊 매매기법 감지 보조 함수
+# ---------------------------------
+
+def detect_double_bottom(df):
+    """RSI와 종가 기준 이중바닥 패턴 탐지"""
+    idx_list = []
+    if "RSI13" not in df or "close" not in df:
+        return idx_list
+    rsi = df["RSI13"].values
+    close = df["close"].values
+    for i in range(2, len(rsi) - 1):
+        if rsi[i - 2] > rsi[i - 1] < rsi[i] and close[i - 1] < close[i]:
+            idx_list.append(df.index[i])
+    return idx_list
+
+
+def detect_candle_pattern(df, pattern="음양양"):
+    """캔들 패턴 감지: 음양양 / 양음음"""
+    idx_list = []
+    if "open" not in df or "close" not in df:
+        return idx_list
+
+    for i in range(2, len(df)):
+        c1, c2, c3 = df.iloc[i - 2], df.iloc[i - 1], df.iloc[i]
+        if pattern == "음양양":
+            if (c1["close"] < c1["open"]) and (c2["close"] > c2["open"]) and (c3["close"] > c3["open"]):
+                idx_list.append(df.index[i])
+        elif pattern == "양음음":
+            if (c1["close"] > c1["open"]) and (c2["close"] < c2["open"]) and (c3["close"] < c3["open"]):
+                idx_list.append(df.index[i])
+    return idx_list
+
+
+def detect_bband_expand(df):
+    """볼밴 수축 후 확장 구간 탐지"""
+    idx_list = []
+    if "BB_up" not in df or "BB_low" not in df:
+        return idx_list
+
+    bb_width = df["BB_up"] - df["BB_low"]
+    if len(bb_width) < 20:
+        return idx_list
+
+    for i in range(20, len(bb_width)):
+        prev_mean = bb_width[i - 10:i].mean()
+        if bb_width[i - 1] > prev_mean * 1.2:
+            idx_list.append(df.index[i])
+    return idx_list
     
     def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dedup_mode,
                  minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
