@@ -2261,6 +2261,9 @@ def main():
             df["ema5"] = df["close"].ewm(span=5).mean(); df["ema20"] = df["close"].ewm(span=20).mean()
             df["vol_mean"] = df["volume"].rolling(20).mean()
             latest, prev = df.iloc[-1], df.iloc[-2]
+
+            # TGV 거래량 임계치(20봉 평균 × 2.5) 계산 — 시각화/알람에서 공용 사용
+            df["vol_threshold"] = df["vol_mean"] * 2.5
             cond_vol = latest["volume"] > latest["vol_mean"] * 2.5
             cond_cross = latest["ema5"] > latest["ema20"]
             cond_break = latest["close"] > prev["high"]
