@@ -2234,8 +2234,8 @@ def main():
         # === [MAIN STRATEGY 9] ============================================
         from datetime import datetime, timedelta, timezone
 
-        # ✅ 사이드바에 중복 알림 허용 옵션 추가
-        st.sidebar.checkbox("🔁 중복 알림 허용", key="allow_duplicates", value=False)
+        # ✅ (중복 위젯 제거) 사이드바 상태만 참조
+        _ = st.session_state.get("allow_duplicates", False)
 
         def _kst_now_str():
             return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M:%S")
