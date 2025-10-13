@@ -1,12 +1,3 @@
-# === 일괄 패치 반영 내역 ===
-# ① 라벨 색상 구분
-# ② 1분 주기 자동 감시 복구
-# ③ 알람 메시지 포맷 개선
-# ④ 매물대 자동 명칭 변경
-# ⑤ 실시간 알람 UI 통합
-# ⑥ 신호 결과 UI 복구 (컬럼 순서 및 스타일)
-# ===========================
-
 # =============================================================
 # 복구 완료된 app.py (@완성본)
 # - 기준: app (4).py
@@ -1626,8 +1617,7 @@ def main():
                     "양봉 2개 연속 상승",
                     "BB 기반 첫 양봉 50% 진입",
                     "매물대 터치 후 반등(위→아래→반등)",
-                    "매물대 자동 반전 (이전 캔들 기준)",
-
+                    "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
                 ]
                 lookahead_list = [5, 10, 15, 20, 30]
     
@@ -1939,34 +1929,6 @@ def main():
         if "alert_history" not in st.session_state:
             st.session_state["alert_history"] = []
 
-        # 🚨 실시간 알람 및 히스토리 (통합)
-        with st.expander("🚨 실시간 알람 및 히스토리 (통합)", expanded=True):
-            st.markdown("#### 🔴 실시간 알람 (최신 30건)")
-            if st.session_state["alerts_live"]:
-                for i, alert in enumerate(st.session_state["alerts_live"][-30:]):
-                    st.warning(f"{i+1}. {alert}")
-            else:
-                st.info("현재까지 감지된 실시간 알람이 없습니다.")
-
-            st.divider()
-            st.markdown("#### 📜 알람 히스토리")
-            if st.session_state["alert_history"]:
-                for i, hist in enumerate(st.session_state["alert_history"][:200]):
-                    st.text(hist if isinstance(hist, str) else str(hist))
-                    st.markdown("---")
-            else:
-                st.info("기록된 알람이 없습니다.")
-
-            col_clear, col_refresh = st.columns(2)
-            with col_clear:
-                if st.button("🗑️ 전체 알람 초기화"):
-                    st.session_state["alerts_live"].clear()
-                    st.session_state["alert_history"].clear()
-                    st.success("알람이 초기화되었습니다.")
-            with col_refresh:
-                if st.button("🔄 새로고침"):
-                    st.rerun()
-
         # 감시 설정 UI
         import requests
         def get_upbit_markets():
@@ -2081,62 +2043,10 @@ def main():
         def _kst_now_str():
             return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M:%S")
 
-        def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None, stage=None, accuracy=None, pattern=None, rsi=None, cci=None, vol=None):
-            from datetime import datetime, timedelta
-    
+        def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
+            # 🔁 중복 허용 옵션(사이드바에서 체크)
             if "allow_duplicates" not in st.session_state:
                 st.session_state["allow_duplicates"] = False
-            if "alert_history" not in st.session_state:
-                st.session_state["alert_history"] = []
-            if "alerts_live" not in st.session_state:
-                st.session_state["alerts_live"] = []
-            if "last_alert_at" not in st.session_state:
-                st.session_state["last_alert_at"] = {}
-    
-            now_kst = (datetime.utcnow() + timedelta(hours=9))
-            now_str = now_kst.strftime("%H:%M:%S")
-    
-            key = f"{strategy}|{symbol}|{tf}"
-            if not st.session_state.get("allow_duplicates", False):
-                last_at = st.session_state["last_alert_at"].get(key)
-                if last_at and (now_kst - last_at).total_seconds() < 180:
-                    return
-    
-            header = f"🚨 {strategy} 신호 [{symbol}, {tf}분봉]"
-            phase = "⚡ 최초 포착" if stage == "initial" else ("✅ 유효 신호" if stage == "valid" else "")
-            rate = f"적중률: {accuracy}%" if accuracy is not None else ""
-            detail = (
-                "━━━━━━━━━━━━━━━━━━━\n"
-                f"🕒 {now_str} #신호 최초 발견 시간 기재\n"
-                f"단계: {phase}\n"
-                f"{rate}\n"
-                "━━━━━━━━━━━━━━━━━━━\n"
-                f"📊 패턴: {pattern or '-'}\n"
-                f"📈 거래량: {vol if vol is not None else '-'}\n"
-                f"📉 RSI: {rsi if rsi is not None else '-'}\n"
-                f"💹 CCI: {cci if cci is not None else '-'}\n"
-                "💡 단기 반전 구간 감지. 매수세 강화 및 하락세 종료 신호.\n"
-                "━━━━━━━━━━━━━━━━━━━\n"
-            )
-            full_msg = f"{header}\n{detail}{(msg or '').strip()}"
-    
-            entry = {
-                "time": now_str,
-                "symbol": symbol,
-                "tf": tf,
-                "strategy": strategy,
-                "msg": full_msg,
-                "checked": False,
-            }
-            if tp is not None:
-                entry["tp"] = tp
-            if sl is not None:
-                entry["sl"] = sl
-    
-            st.session_state["alerts_live"].insert(0, entry)
-            st.session_state["alert_history"].insert(0, entry)
-            st.session_state["last_alert_at"][key] = now_kst
-            st.toast(full_msg, icon="📈")
 
             # 히스토리/상태 초기화 (모두 함수 안으로!)
             if "alert_history" not in st.session_state:
@@ -2510,12 +2420,11 @@ def main():
         if st.session_state["auto_watch_enabled"]:
             st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
 
-            import streamlit.components.v1 as components
-            # 60초마다 자동 새로고침 → Streamlit 재실행
-            components.html(
-                "<script>setTimeout(function(){ window.parent.location.reload(); }, 60000);</script>",
-                height=0
-            )
+            # 60초 경과 시 rerun() 호출 (프론트엔드 의존 제거)
+            now_ts = time.time()
+            if now_ts - st.session_state["last_refresh"] > 60:
+                st.session_state["last_refresh"] = now_ts
+                st.rerun()
         else:
             st.markdown("⏸ 자동 감시가 일시중지되었습니다.")
 
