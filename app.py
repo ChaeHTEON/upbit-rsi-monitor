@@ -2120,7 +2120,19 @@ def main():
         )
         full_msg = f"{header}\n{detail}{(msg or '').strip()}"
 
-        entry = {"time": now_str, "symbol": symbol, "tf": tf, "strategy": strategy, "msg": full_msg, "checked": False}
+        entry = {
+            "time": now_str,
+            "symbol": symbol,
+            "tf": tf,
+            "strategy": strategy,
+            "msg": full_msg,
+            "checked": False,
+        }
+        if tp is not None:
+            entry["tp"] = tp
+        if sl is not None:
+            entry["sl"] = sl
+
         st.session_state["alerts_live"].insert(0, entry)
         st.session_state["alert_history"].insert(0, entry)
         st.session_state["last_alert_at"][key] = now_kst
