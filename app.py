@@ -210,7 +210,6 @@ def main():
         winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1)
         hit_basis = "종가 기준"   # ✅ 고정
     with c6:
-        # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
         st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
         primary_strategy = st.selectbox(
             "매매기법 선택",
@@ -228,16 +227,13 @@ def main():
             ],
             index=0
         )
-
-        # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
 
-        # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
         if primary_strategy != "없음":
             st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
-    # ✅ 블록 정상 종료용 빈 줄 추가 (Streamlit 렌더 중단 방지)
-    pass
+        # ✅ with 블록 종료용 (렌더링 중단 방지)
+        pass
 
     r1, r2, r3 = st.columns(3)
     with r1:
