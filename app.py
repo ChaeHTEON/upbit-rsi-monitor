@@ -2081,7 +2081,7 @@ def main():
         def _kst_now_str():
             return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M:%S")
 
-def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None, stage=None, accuracy=None, pattern=None, rsi=None, cci=None, vol=None):
+    def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None, stage=None, accuracy=None, pattern=None, rsi=None, cci=None, vol=None):
     from datetime import datetime, timedelta
 
     if "allow_duplicates" not in st.session_state:
