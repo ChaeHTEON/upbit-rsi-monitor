@@ -2159,7 +2159,7 @@ def main():
         )
         st.session_state["selected_strategies"] = sel_strategies
 
-        st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
+        st.sidebar.checkbox("🔁 중복 알림 허용", key="allow_duplicates", value=False)
 
         # ✅ TEST_SIGNAL 제거
         # (실전 감시만 남기고 테스트용 함수 완전 삭제)
