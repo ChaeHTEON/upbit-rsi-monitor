@@ -238,19 +238,8 @@ def main():
     # ③ 요약·차트
     # -----------------------------
     st.markdown('<div class="section-title">③ 요약·차트</div>', unsafe_allow_html=True)
+    st.info("차트·요약 영역 렌더링 테스트 — 데이터 연결 전입니다.")
 
-    # ✅ 데이터 비어 있을 경우 기본 표시 (렌더링 테스트용)
-    import pandas as pd
-    import plotly.express as px
-
-    if "summary_df" not in locals() or summary_df is None or summary_df.empty:
-        summary_df = pd.DataFrame({
-            "날짜": pd.date_range(end=pd.Timestamp.today(), periods=10),
-            "RSI": [30 + i for i in range(10)],
-            "CCI": [50 + i * 2 for i in range(10)],
-        })
-
-    st.line_chart(summary_df.set_index("날짜"))
     # -----------------------------
     # ④ 신호 결과 (테이블)
     # -----------------------------
