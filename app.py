@@ -236,6 +236,9 @@ def main():
         if primary_strategy != "없음":
             st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
+    # ✅ 블록 정상 종료용 빈 줄 추가 (Streamlit 렌더 중단 방지)
+    pass
+
     r1, r2, r3 = st.columns(3)
     with r1:
         rsi_mode = st.selectbox(
