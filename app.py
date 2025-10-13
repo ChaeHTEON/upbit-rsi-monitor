@@ -2011,7 +2011,12 @@ def detect_bband_expand(df):
         # -----------------------------
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
 
-        if res is None or res.empty:
+        # ✅ 렌더 중단 방지용 기본 초기화
+        if "res" not in locals() or res is None:
+            import pandas as pd
+            res = pd.DataFrame()
+
+        if res.empty:
             st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
         else:
             tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
