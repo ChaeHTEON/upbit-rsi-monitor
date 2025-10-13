@@ -205,17 +205,43 @@ def main():
         winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1)
         hit_basis = "종가 기준"   # ✅ 고정
     with c6:
-        r1, r2, r3 = st.columns(3)
-        with r1:
-            rsi_mode = st.selectbox(
-                "RSI 조건",
-                ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
-                index=0
-            )
-        with r2:
-            rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
-        with r3:
-            rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
+        # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
+        st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+        primary_strategy = st.selectbox(
+            "매매기법 선택",
+            [
+                "없음",
+                "과매도반전(4H)",
+                "이중바닥",
+                "음양양",
+                "양음음",
+                "하단반등",
+                "거래량급등",
+                "돌파형",
+                "이탈형",
+                "수축확장"
+            ],
+            index=0
+        )
+
+        # 선택한 전략명 저장 (전역에서 활용 가능)
+        st.session_state["primary_strategy"] = primary_strategy
+
+        # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
+        if primary_strategy != "없음":
+            st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
+
+    r1, r2, r3 = st.columns(3)
+    with r1:
+        rsi_mode = st.selectbox(
+            "RSI 조건",
+            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
+            index=0
+        )
+    with r2:
+        rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
+    with r3:
+        rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
     
     c7, c8, c9 = st.columns(3)
     with c7:
