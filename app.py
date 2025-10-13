@@ -2159,7 +2159,8 @@ def main():
         )
         st.session_state["selected_strategies"] = sel_strategies
 
-        st.sidebar.checkbox("🔁 중복 알림 허용", key="allow_duplicates", value=False)
+        # ✅ (중복 위젯 제거) 사이드바 상태만 참조
+        _ = st.session_state.get("allow_duplicates", False)
 
         # ✅ 실전 감시 루프
         from datetime import datetime, timedelta
