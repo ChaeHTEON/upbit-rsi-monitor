@@ -1902,17 +1902,57 @@ def main():
         # -----------------------------
         st.markdown('<div class="section-title">④ 신호 결과 (최신 순)</div>', unsafe_allow_html=True)
 
-        # ✅ format_dict 미정의 오류 방지용 기본 포맷 정의
-        format_dict = {
-            "수익률(%)": "{:.2f}",
-            "TP(%)": "{:.2f}",
-            "SL(%)": "{:.2f}",
-        }
-
         if res is None or res.empty:
-            st.info("현재 표시할 신호 결과가 없습니다.")
+            st.info("조건을 만족하는 신호가 없습니다. (데이터는 정상 처리됨)")
         else:
-            st.dataframe(res.style.format(format_dict), use_container_width=True)
+            tbl = res.sort_values("신호시간", ascending=False).reset_index(drop=True).copy()
+
+            def _safe_fmt(v, fmt=":.2f", suffix=""):
+                if pd.isna(v):
+                    return ""
+                try:
+                    return format(float(v), fmt) + suffix
+                except Exception:
+                    return str(v)
+
+            tbl["신호시간"] = pd.to_datetime(tbl["신호시간"]).dt.strftime("%Y-%m-%d %H:%M")
+            tbl["기준시가"] = tbl["기준시가"].map(lambda v: f"{int(float(v)):,}" if pd.notna(v) else "")
+            if "RSI(13)" in tbl:
+                tbl["RSI(13)"] = tbl["RSI(13)"].map(lambda v: _safe_fmt(v, ":.2f"))
+            if "성공기준(%)" in tbl:
+                tbl["성공기준(%)"] = tbl["성공기준(%)"].map(lambda v: _safe_fmt(v, ":.1f", "%"))
+            for col in ["최종수익률(%)", "최저수익률(%)", "최고수익률(%)"]:
+                if col in tbl:
+                    tbl[col] = tbl[col].map(lambda v: _safe_fmt(v, ":.2f", "%"))
+
+            if "도달캔들(bars)" in tbl.columns:
+                tbl["도달캔들"] = tbl["도달캔들(bars)"].astype(int)
+                def _fmt_from_bars(b):
+                    total_min = int(b) * int(minutes_per_bar)
+                    hh, mm = divmod(total_min, 60)
+                    return f"{hh:02d}:{mm:02d}"
+                tbl["도달시간"] = tbl["도달캔들"].map(_fmt_from_bars)
+            else:
+                tbl["도달캔들"] = 0
+                tbl["도달시간"] = "-"
+
+            drop_cols = [c for c in ["BB값", "도달분", "도달캔들(bars)"] if c in tbl.columns]
+            if drop_cols:
+                tbl = tbl.drop(columns=drop_cols)
+
+            keep_cols = ["신호시간", "기준시가", "RSI(13)", "성공기준(%)", "결과",
+                         "최종수익률(%)", "최저수익률(%)", "최고수익률(%)", "도달캔들", "도달시간"]
+            keep_cols = [c for c in keep_cols if c in tbl.columns]
+            tbl = tbl[keep_cols]
+
+            def style_result(val):
+                if val == "성공": return "background-color: #FFF59D; color:#E53935; font-weight:600;"
+                if val == "실패": return "color:#1E40AF; font-weight:600;"
+                if val == "중립": return "color:#FF9800; font-weight:600;"
+                return ""
+
+            styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
+            st.dataframe(styled_tbl, use_container_width=True)
 
 
         # -----------------------------
