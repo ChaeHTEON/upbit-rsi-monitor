@@ -595,65 +595,128 @@ def main():
                 (df["CCI"] <= -100)
             ].tolist()
         else:
-            # RSI
-            if rsi_mode == "없음":
-                rsi_idx = []
-            elif rsi_mode == "현재(과매도/과매수 중 하나)":
-                rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
-                                 set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
-            elif rsi_mode == "과매도 기준":
-                rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+            # ✅ primary_strategy 기반 1차 매매기법 조건 추가
+            strategy = st.session_state.get("primary_strategy", "없음")
+            base_sig_idx = []
+
+            if strategy == "과매도반전(4H)":
+                base_sig_idx = df.index[
+                    (df["RSI13"] <= float(rsi_low)) &
+                    (df["CCI"] <= -100) &
+                    (df["close"] <= df["BB_low"])
+                ].tolist()
+
+            elif strategy == "이중바닥":
+                lows = df["low"].rolling(5, center=True).min()
+                base_sig_idx = df.index[
+                    (df["low"] <= lows * 1.01) &
+                    (df["RSI13"] >= df["RSI13"].shift(1))
+                ].tolist()
+
+            elif strategy == "음양양":
+                base_sig_idx = df.index[
+                    (df["close"].shift(2) < df["open"].shift(2)) &
+                    (df["close"].shift(1) > df["open"].shift(1)) &
+                    (df["close"] > df["open"])
+                ].tolist()
+
+            elif strategy == "양음음":
+                base_sig_idx = df.index[
+                    (df["close"].shift(2) > df["open"].shift(2)) &
+                    (df["close"].shift(1) < df["open"].shift(1)) &
+                    (df["close"] < df["open"])
+                ].tolist()
+
+            elif strategy == "하단반등":
+                base_sig_idx = df.index[
+                    (df["low"] <= df["BB_low"]) &
+                    (df["close"] > df["open"])
+                ].tolist()
+
+            elif strategy == "거래량급등":
+                vol_mean = df["volume"].rolling(20).mean()
+                base_sig_idx = df.index[
+                    (df["volume"] > vol_mean * 2)
+                ].tolist()
+
+            elif strategy == "돌파형":
+                base_sig_idx = df.index[
+                    (df["close"] > df["high"].shift(1)) &
+                    (df["RSI13"] > 50)
+                ].tolist()
+
+            elif strategy == "이탈형":
+                base_sig_idx = df.index[
+                    (df["close"] < df["low"].shift(1)) &
+                    (df["RSI13"] < 50)
+                ].tolist()
+
+            elif strategy == "수축확장":
+                rng = (df["high"] - df["low"]).rolling(10).mean()
+                base_sig_idx = df.index[
+                    (df["high"] - df["low"] > rng * 1.5)
+                ].tolist()
+
             else:
-                rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-    
-            # BB
-            def bb_ok(i):
-                c = float(df.at[i, "close"])
-                o = float(df.at[i, "open"])
-                l = float(df.at[i, "low"])
-                up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
-    
-                if bb_cond == "상한선":
-                    return pd.notna(up) and (c > float(up))
-    
-                if bb_cond == "하한선":
-                    if pd.isna(lo):
-                        return False
-                    rv = float(lo)
-                    # 조건: (open<rv or low<=rv) AND close>=rv
-                    entered_from_below = (o < rv) or (l <= rv)
-                    closes_above       = c >= rv
-                    return entered_from_below and closes_above
-    
-                if bb_cond == "중앙선":
-                    if pd.isna(mid):
-                        return False
-                    return c >= float(mid)
-    
-                return False
-    
-            bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
-    
-            # CCI (사용자 지정 임계값 반영)
-            if cci_mode == "없음":
-                cci_idx = []
-            elif cci_mode == "과매수":
-                cci_idx = df.index[df["CCI"] >= float(cci_over)].tolist()
-            elif cci_mode == "과매도":
-                cci_idx = df.index[df["CCI"] <= float(cci_under)].tolist()
-            else:
-                cci_idx = []
-    
-            # 조합
-            idx_sets = []
-            if rsi_mode != "없음": idx_sets.append(set(rsi_idx))
-            if bb_cond  != "없음": idx_sets.append(set(bb_idx))
-            if cci_mode != "없음": idx_sets.append(set(cci_idx))
-    
-            if idx_sets:
-                base_sig_idx = sorted(set.intersection(*idx_sets)) if len(idx_sets) > 1 else sorted(idx_sets[0])
-            else:
-                base_sig_idx = list(range(n)) if sec_cond != "없음" else []
+                # RSI
+                if rsi_mode == "없음":
+                    rsi_idx = []
+                elif rsi_mode == "현재(과매도/과매수 중 하나)":
+                    rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
+                                     set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
+                elif rsi_mode == "과매도 기준":
+                    rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+                else:
+                    rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+
+                # BB
+                def bb_ok(i):
+                    c = float(df.at[i, "close"])
+                    o = float(df.at[i, "open"])
+                    l = float(df.at[i, "low"])
+                    up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
+
+                    if bb_cond == "상한선":
+                        return pd.notna(up) and (c > float(up))
+
+                    if bb_cond == "하한선":
+                        if pd.isna(lo):
+                            return False
+                        rv = float(lo)
+                        # 조건: (open<rv or low<=rv) AND close>=rv
+                        entered_from_below = (o < rv) or (l <= rv)
+                        closes_above       = c >= rv
+                        return entered_from_below and closes_above
+
+                    if bb_cond == "중앙선":
+                        if pd.isna(mid):
+                            return False
+                        return c >= float(mid)
+
+                    return False
+
+                bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
+
+                # CCI (사용자 지정 임계값 반영)
+                if cci_mode == "없음":
+                    cci_idx = []
+                elif cci_mode == "과매수":
+                    cci_idx = df.index[df["CCI"] >= float(cci_over)].tolist()
+                elif cci_mode == "과매도":
+                    cci_idx = df.index[df["CCI"] <= float(cci_under)].tolist()
+                else:
+                    cci_idx = []
+
+                # 조합
+                idx_sets = []
+                if rsi_mode != "없음": idx_sets.append(set(rsi_idx))
+                if bb_cond  != "없음": idx_sets.append(set(bb_idx))
+                if cci_mode != "없음": idx_sets.append(set(cci_idx))
+
+                if idx_sets:
+                    base_sig_idx = sorted(set.intersection(*idx_sets)) if len(idx_sets) > 1 else sorted(idx_sets[0])
+                else:
+                    base_sig_idx = list(range(n)) if sec_cond != "없음" else []
     
         # --- 2) 보조/공통 함수 ---
         def is_bull(idx):
