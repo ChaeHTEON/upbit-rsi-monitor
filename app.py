@@ -2162,7 +2162,7 @@ def main():
         # ✅ (중복 위젯 제거) 사이드바 상태만 참조
         _ = st.session_state.get("allow_duplicates", False)
 
-        # ✅ 실전 감시 루프
+        # ✅ 실전 감시 루프 관련 유틸만 유지
         from datetime import datetime, timedelta
 
         def _to_code(opt):
@@ -2178,48 +2178,8 @@ def main():
 
         if "signal_state" not in st.session_state:
             st.session_state["signal_state"] = {}
-
-        # ✅ 실전 감시 루프 (함수 정의 이후 재배치)
-        if sel_symbols and st.session_state.get("selected_strategies"):
-            for s in sel_symbols:
-                s_code = _to_code(s)
-                for strategy_name in st.session_state["selected_strategies"]:
-                    use_tfs = STRATEGY_TF_MAP.get(strategy_name, (sel_tfs if sel_tfs else ["1"]))
-                    for tf in use_tfs:
-                        try:
-                            from datetime import datetime, timedelta
-                            tf_key = f"minutes/{tf}"
-                            df_watch = fetch_upbit_paged(
-                                s_code, tf_key,
-                                datetime.now() - timedelta(hours=3),
-                                datetime.now(),
-                                int(tf), warmup_bars=0
-                            )
-                            if df_watch is None or df_watch.empty:
-                                continue
-                            df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
-
-                            # === 함수들이 이미 정의된 시점이므로 안전하게 호출 가능 ===
-                            if strategy_name == "TGV":
-                                check_tgv_signal(df_watch, s_code, tf)
-                            elif strategy_name == "RVB":
-                                check_rvb_signal(df_watch, s_code, tf)
-                            elif strategy_name == "PR":
-                                check_pr_signal(df_watch, s_code, tf)
-                            elif strategy_name == "LCT":
-                                check_lct_signal(df_watch, s_code, tf)
-                            elif strategy_name == "4D_Sync":
-                                check_4d_sync_signal(df_watch, s_code, tf)
-                            elif strategy_name == "240m_Sync":
-                                check_240m_sync_signal(df_watch, s_code, tf)
-                            elif strategy_name == "Composite_Confirm":
-                                check_composite_confirm_signal(df_watch, s_code, tf)
-                            elif strategy_name == "Divergence_RVB":
-                                check_divergence_rvb_signal(df_watch, s_code, tf)
-                            elif strategy_name == "Market_Divergence":
-                                check_market_divergence_signal(df_watch, s_code, tf)
-                        except Exception as e:
-                            st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
+        # (주의) 여기의 '실전 감시 루프' 본문은 삭제합니다.
+        # 아래쪽(함수 정의 이후)에 동일 루프가 있으므로 그 한 군데만 남깁니다.
 
         # === TGV SIGNAL ===
         def calc_rsi(series, period=14):
