@@ -232,7 +232,7 @@ def main():
         if primary_strategy != "없음":
             st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
-        # ✅ with 블록 종료용 (렌더링 중단 방지)
+        # ✅ 블록 정상 종료 (렌더링 중단 방지)
         pass
 
     r1, r2, r3 = st.columns(3)
