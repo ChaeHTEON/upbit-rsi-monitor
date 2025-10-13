@@ -2179,14 +2179,16 @@ def main():
         if "signal_state" not in st.session_state:
             st.session_state["signal_state"] = {}
 
+        # ✅ 실전 감시 루프 (함수 정의 이후 재배치)
         if sel_symbols and st.session_state.get("selected_strategies"):
             for s in sel_symbols:
                 s_code = _to_code(s)
                 for strategy_name in st.session_state["selected_strategies"]:
                     use_tfs = STRATEGY_TF_MAP.get(strategy_name, (sel_tfs if sel_tfs else ["1"]))
                     for tf in use_tfs:
-                        tf_key = f"minutes/{tf}"
                         try:
+                            from datetime import datetime, timedelta
+                            tf_key = f"minutes/{tf}"
                             df_watch = fetch_upbit_paged(
                                 s_code, tf_key,
                                 datetime.now() - timedelta(hours=3),
@@ -2197,6 +2199,7 @@ def main():
                                 continue
                             df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
 
+                            # === 함수들이 이미 정의된 시점이므로 안전하게 호출 가능 ===
                             if strategy_name == "TGV":
                                 check_tgv_signal(df_watch, s_code, tf)
                             elif strategy_name == "RVB":
