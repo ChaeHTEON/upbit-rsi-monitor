@@ -587,24 +587,49 @@ def main():
         n = len(df)
         thr = float(threshold_pct)
     
-        # --- 1) 1차 조건 인덱스 (RSI/BB/CCI/바닥탐지) ---
-        if bottom_mode:
-            base_sig_idx = df.index[
-                (df["RSI13"] <= float(rsi_low)) &
-                (df["close"] <= df["BB_low"]) &
-                (df["CCI"] <= -100)
-            ].tolist()
-        else:
-            # RSI
-            if rsi_mode == "없음":
-                rsi_idx = []
-            elif rsi_mode == "현재(과매도/과매수 중 하나)":
-                rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
-                                 set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
-            elif rsi_mode == "과매도 기준":
-                rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+        # --- 1) 1차 조건 인덱스 (매매기법 > RSI/BB/CCI/바닥탐지) ---
+        primary_strategy = st.session_state.get("primary_strategy", "없음")
+
+        if primary_strategy != "없음":
+            if primary_strategy == "과매도반전(4H)":
+                base_sig_idx = df.index[(df["RSI13"] <= 30) & (df["BB_low"] > df["low"])].tolist()
+            elif primary_strategy == "이중바닥":
+                base_sig_idx = detect_double_bottom(df)
+            elif primary_strategy == "음양양":
+                base_sig_idx = detect_candle_pattern(df, pattern="음양양")
+            elif primary_strategy == "양음음":
+                base_sig_idx = detect_candle_pattern(df, pattern="양음음")
+            elif primary_strategy == "하단반등":
+                base_sig_idx = df.index[(df["close"] > df["BB_low"]) & (df["RSI13"] > 30)].tolist()
+            elif primary_strategy == "거래량급등":
+                base_sig_idx = df.index[df["volume"] > df["volume"].rolling(10).mean() * 1.6].tolist()
+            elif primary_strategy == "돌파형":
+                base_sig_idx = df.index[df["close"] > df["BB_up"]].tolist()
+            elif primary_strategy == "이탈형":
+                base_sig_idx = df.index[df["close"] < df["BB_low"]].tolist()
+            elif primary_strategy == "수축확장":
+                base_sig_idx = detect_bband_expand(df)
             else:
-                rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+                base_sig_idx = []
+        else:
+            if bottom_mode:
+                base_sig_idx = df.index[
+                    (df["RSI13"] <= float(rsi_low)) &
+                    (df["close"] <= df["BB_low"]) &
+                    (df["CCI"] <= -100)
+                ].tolist()
+            else:
+                # RSI
+                if rsi_mode == "없음":
+                    rsi_idx = []
+                elif rsi_mode == "현재(과매도/과매수 중 하나)":
+                    rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
+                                     set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
+                elif rsi_mode == "과매도 기준":
+                    rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+                else:
+                    rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+                base_sig_idx = rsi_idx
     
             # BB
             def bb_ok(i):
