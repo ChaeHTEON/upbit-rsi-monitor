@@ -197,6 +197,11 @@ def main():
     # ② 조건 설정
     # -----------------------------
     st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
+
+    # ✅ 세션 초기화 (UI 표시 중단 방지)
+    if "primary_strategy" not in st.session_state:
+        st.session_state["primary_strategy"] = "없음"
+
     c4, c5, c6 = st.columns(3)
     with c4:
         lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
