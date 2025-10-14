@@ -9,26 +9,31 @@
 # =============================================================
 
 def main():
-    # app.py
-    # -*- coding: utf-8 -*-
-    import os  # ★ 추가
-    from typing import List, Optional  # ✅ 추가
-    # ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
-    os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
-    os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
-    
-    import streamlit as st
-    import pandas as pd
-    import requests
-    from requests.adapters import HTTPAdapter, Retry
-    import plotly.graph_objs as go
-    from plotly.subplots import make_subplots
-    import ta
-    from datetime import datetime, timedelta
-    from pytz import timezone
-    import numpy as np
-    from typing import Optional, Set
+# app.py
+# -*- coding: utf-8 -*-
 
+# ✅ Python 3.9 호환 타입 어노테이션 설정
+from __future__ import annotations
+from typing import List, Optional
+
+# ✅ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
+import os
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
+
+# ✅ 필수 외부 모듈
+import streamlit as st
+import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+import ta
+import numpy as np
+
+# ✅ 표준 라이브러리
+from datetime import datetime, timedelta
+from pytz import timezone
     # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
     def _keep_sweep_open():
         """통계/조합 탐색(expander) 닫힘 방지"""
