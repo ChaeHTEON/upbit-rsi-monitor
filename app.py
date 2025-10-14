@@ -3235,7 +3235,21 @@ def main():
     default_start = today_kst - timedelta(days=1)
 
     # ✅ 제목 변경 (기존 “① 기본 설정” → “② 커스텀 페어 백테스트”)
-    st.markdown('<div class="section-title">② 커스텀 페어 백테스트</div>', unsafe_allow_html=True)
+    # -----------------------------
+    # ② 커스텀 페어 백테스트
+    # -----------------------------
+    st.markdown('<div class="section-title">② 커스텀 페어 백테스트 (거래량순)</div>', unsafe_allow_html=True)
+    
+    # ✅ 기존 거래량순 정렬 복사
+    try:
+        resp = requests.get("https://api.upbit.com/v1/market/all")
+        data = resp.json()
+        krw_list = [m for m in data if m["market"].startswith("KRW-")]
+        krw_sorted = sorted(krw_list, key=lambda x: x.get("acc_trade_price_24h", 0), reverse=True)
+        MARKET_LIST = [(f"{m['korean_name']} ({m['market'][4:]}) — {m['market']}", m["market"]) for m in krw_sorted]
+    except Exception:
+        pass
+    
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         market_label, market_code = st.selectbox("기준 종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
