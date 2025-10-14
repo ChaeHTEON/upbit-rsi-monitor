@@ -12,6 +12,7 @@ def main():
     # app.py
     # -*- coding: utf-8 -*-
     import os  # ★ 추가
+    from typing import List, Optional  # ✅ 추가
     # ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
     os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
     os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
