@@ -1,10 +1,18 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
-# ===== [FIXED] Streamlit page config (safe global init) =====
-import streamlit as st  # ✅ 전역에 선언
+import os
+import streamlit as st  # ✅ 전역 import — main() 이전에 반드시 위치
+from typing import List, Optional
+
+# ===== [Streamlit Safe Config] =====
 try:
     st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
 except Exception:
     pass
+
+# ===== watchdog/inotify 비활성화 =====
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
 # ===============================================================================
 
 # =============================================================
