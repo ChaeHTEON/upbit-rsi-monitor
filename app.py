@@ -217,7 +217,7 @@ def main():
         else:
             tf_label = st.selectbox("봉 종류 선택 (참고용, 시뮬레이션에는 영향 없음)", list(TF_MAP.keys()), index=2)
     with c3:
-        KST = timezone("Asia/Seoul")
+        KST = ptimezone('Asia/Seoul')
         today_kst = datetime.now(KST).date()
         default_start = today_kst - timedelta(days=1)
         start_date = st.date_input("시작 날짜", value=default_start)
@@ -498,7 +498,7 @@ def main():
                 df_cache = pd.DataFrame(columns=["time","open","high","low","close","volume"])
     
         # API 페이징
-        from pytz import timezone as ptimezone as _tz
+        from pytz import timezone as _tz
         _KST = _tz("Asia/Seoul"); _UTC = _tz("UTC")
         all_data = []
         to_time = _KST.localize(end_dt).astimezone(_UTC).replace(tzinfo=None)
@@ -1174,7 +1174,7 @@ def main():
             st.error("시작 날짜가 종료 날짜보다 이후입니다.")
             st.stop()
     
-        KST = timezone("Asia/Seoul")
+        KST = ptimezone('Asia/Seoul')
         start_dt = datetime.combine(start_date, datetime.min.time())
         if end_date == datetime.now(KST).date():
             end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
