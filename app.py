@@ -2525,14 +2525,11 @@ st.caption("※ 본 화면은 '② 커스텀 페어 백테스트 (거래량순)'
         # -----------------------------
         st.markdown('<div class="section-title">⑤ 실시간 감시 및 알람</div>', unsafe_allow_html=True)
 
-        import pandas as pd, numpy as np, random, streamlit as st
-        # (위에서 이미 `from datetime import datetime, timedelta` 를 쓰므로 충돌 방지)
+import pandas as pd, numpy as np, random, streamlit as st
+# (위에서 이미 `from datetime import datetime, timedelta` 를 쓰므로 충돌 방지)
 
-        # 상태 초기화
-        if "alerts_live" not in st.session_state:
-            st.session_state["alerts_live"] = []
-        if "alert_history" not in st.session_state:
-            st.session_state["alert_history"] = []
+# 상태 초기화
+if "alerts_live" not in st.session_state:
 
         # 감시 설정 UI
         import requests
