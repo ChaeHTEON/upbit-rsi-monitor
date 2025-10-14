@@ -17,7 +17,6 @@ def main():
     os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
     
     import streamlit as st
-    import pandas as pd
     import requests
     from requests.adapters import HTTPAdapter, Retry
     import plotly.graph_objs as go
@@ -26,6 +25,7 @@ def main():
     from datetime import datetime, timedelta
     from pytz import timezone
     import numpy as np
+    import pandas as pd  # ✅ main() 내부로 이동
     from typing import Optional, Set
 
     # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
