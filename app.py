@@ -3174,9 +3174,21 @@ with st.expander("📈 커스텀 페어 백테스트 (모든 종목·전략 지�
         sl = st.number_input("손절폭(%)", value=0.4, step=0.1, format="%.1f")/100.0
     with colZ:
         lookahead = st.number_input("lookahead(봉)", value=10, min_value=3, max_value=60, step=1)
+    # 🔽 매매기법 선택 UI 추가
+    strat_sel = st.multiselect(
+        "매매기법 선택",
+        ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync", "MLV", "HLV", "BBRSI"],
+        default=["TGV"]
+    )
+
+    # 실행 버튼
     if st.button("📊 페어 백테스트 실행", use_container_width=True):
-        res_all = pair_backtest_custom(base_sym, follow_sym, tframe, start="2025-10-01",
-                                       tp=tp, sl=sl, lookahead=lookahead)
+        res_all = pair_backtest_custom(
+            base_sym, follow_sym, tframe,
+            start="2025-10-01",
+            tp=tp, sl=sl, lookahead=lookahead,
+            strategies=strat_sel  # ✅ 선택한 전략만 전달
+        )
         if not res_all.empty:
             st.dataframe(res_all, use_container_width=True)
             st.bar_chart(res_all.set_index("전략")["적중률(%)"])
