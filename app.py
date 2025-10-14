@@ -1278,10 +1278,18 @@ def main():
         fig.update_layout(height=900)
 
         # (3) 거래량 + 평균선 + 2.5배 기준선 (TGV)
+        # (3) 거래량 + 평균선 + 2.5배 기준선 (TGV)
+        # 🔴 양봉 / 🔵 음봉 색상 구분
+        colors = [
+            "rgba(255,75,75,0.6)" if c > o else "rgba(0,104,201,0.6)"
+            for c, o in zip(df["close"], df["open"])
+        ]
+        
         fig.add_trace(
             go.Bar(
                 x=df["time"], y=df["volume"],
-                name="거래량", marker_color="rgba(128,128,128,0.4)"
+                name="거래량",
+                marker_color=colors
             ),
             row=3, col=1
         )
