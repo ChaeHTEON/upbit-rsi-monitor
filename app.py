@@ -3134,6 +3134,41 @@ except Exception:
 
 from typing import List, Optional
 
+# -----------------------------
+# ✅ 업비트 마켓 리스트 전역 초기화 (NameError 방지)
+# -----------------------------
+import streamlit as st
+import requests
+
+MARKET_LIST = [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
+default_idx = 0
+
+@st.cache_data(ttl=3600)
+def get_upbit_krw_markets():
+    try:
+        r = requests.get("https://api.upbit.com/v1/market/all", params={"isDetails": "false"}, timeout=8)
+        r.raise_for_status()
+        items = r.json()
+        rows = []
+        for it in items:
+            mk = it.get("market", "")
+            if mk.startswith("KRW-"):
+                sym = mk[4:]
+                knm = it.get("korean_name", "")
+                label = f"{knm} ({sym}) — {mk}"
+                rows.append((label, mk))
+        return rows if rows else MARKET_LIST
+    except Exception:
+        return MARKET_LIST
+
+try:
+    MARKET_LIST = get_upbit_krw_markets()
+except Exception:
+    pass
+
+# ============================================================
+# 커스텀 페어 백테스트 정의
+# ============================================================
 def pair_backtest_custom(
     symbol_base: str,
     symbol_follow: str,
@@ -3147,8 +3182,7 @@ def pair_backtest_custom(
     if strategies is None:
         strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync"]
 
-    # ✅ load_ohlcv 접근 보장 (전역 함수 import 확인)
-    from app import load_ohlcv  # 동일 파일 내 존재 시 생략 가능
+    from app import load_ohlcv
     df_base = load_ohlcv(symbol_base, tframe, start=start)
     df_follow = load_ohlcv(symbol_follow, tframe, start=start)
     results = []
@@ -3159,16 +3193,13 @@ def pair_backtest_custom(
     return results
 
 
+# ============================================================
+# main() 함수 정의
+# ============================================================
 def main():
-    # 기존 main() 내부 코드 유지
-    # ...
-    # 기존 import 및 UI 설정 코드 그대로 유지
-
-    # ✅ 📅 백테스트 기간 설정 블록을 main() 내부로 이동
     from datetime import datetime, timedelta
     from pytz import timezone
 
-    # ...
     KST = timezone("Asia/Seoul")
     today_kst = datetime.now(KST).date()
     default_start = today_kst - timedelta(days=1)
@@ -3183,6 +3214,10 @@ def main():
         start_date = st.date_input("시작 날짜", value=default_start)
     with c4:
         end_date = st.date_input("종료 날짜", value=today_kst)
-# ✅ main() 호출
+
+
+# ============================================================
+# 실행 진입점
+# ============================================================
 if __name__ == "__main__":
     main()
