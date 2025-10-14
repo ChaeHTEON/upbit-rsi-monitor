@@ -143,7 +143,14 @@ def main():
         rows.sort(key=lambda x: (x[1] != "KRW-BTC", x[1]))
         return rows if rows else [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
     
-    MARKET_LIST = get_upbit_krw_markets()
+    # ✅ 전역 Fallback 선선언 (미정의 방지)
+    MARKET_LIST = [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
+    try:
+        _tmp_markets = get_upbit_krw_markets()
+        if isinstance(_tmp_markets, list) and _tmp_markets:
+            MARKET_LIST = _tmp_markets
+    except Exception:
+        pass
     # 기본 선택: 거래대금 최상위(목록 첫 항목)
     default_idx = 0
     
