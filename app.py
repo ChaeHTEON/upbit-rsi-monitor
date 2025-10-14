@@ -1284,8 +1284,6 @@ def main():
             ),
             row=2, col=1
         )
-            row=2, col=1
-        )
         # RSI 기준선 (형광 초록색 점선, y=40)
         fig.add_hline(
             y=40, line=dict(color="#00FF7F", dash="dot", width=1),
