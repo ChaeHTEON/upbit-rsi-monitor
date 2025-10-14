@@ -194,7 +194,7 @@ def main():
             tf_label = FIXED_TF_MAP[selected_strategy]
             st.info(f"📊 '{selected_strategy}' 전략은 분봉 변경이 불가능합니다. (참고용 표시: {tf_label})")
         else:
-            tf_label = st.selectbox("봉 종류 선택 (참고용, 시뮬레이션에는 영향 없음)", list(TF_MAP.keys()), index=2)
+            tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
     with c3:
         KST = timezone("Asia/Seoul")
         today_kst = datetime.now(KST).date()
@@ -1279,9 +1279,11 @@ def main():
         # (2) RSI(13) 보조지표
         fig.add_trace(
             go.Scatter(
-                x=df["time"], y=df["rsi"],
+                x=df["time"], y=df["RSI13"],
                 name="RSI(13)", mode="lines", line=dict(color="orange", width=1)
             ),
+            row=2, col=1
+        )
             row=2, col=1
         )
         # RSI 기준선 (형광 초록색 점선, y=40)
