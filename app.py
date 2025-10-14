@@ -30,13 +30,17 @@ from datetime import datetime, timedelta
 from pytz import timezone
 import numpy as np
 
-# ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
+# =============================================================
+# ✅ Streamlit 모듈 인식 오류(UnboundLocalError) 복구
+# =============================================================
+import streamlit as st
 
 def main():
+    # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
     def _keep_sweep_open():
         """통계/조합 탐색(expander) 닫힘 방지"""
         st.session_state["sweep_expanded"] = True
-    
+
     # -----------------------------
     # 페이지/스타일
     # -----------------------------
