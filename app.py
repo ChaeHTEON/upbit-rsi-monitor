@@ -3152,18 +3152,27 @@ def pair_backtest_custom(
     return results
 
 
-# ✅ 날짜 선택 UI 추가
-st.markdown("#### 📅 백테스트 기간 설정")
-col_dt1, col_dt2 = st.columns(2)
-with col_dt1:
-    start_date = st.date_input("시작일", value=pd.to_datetime("2025-09-01"))
-with col_dt2:
-    end_date = st.date_input("종료일", value=pd.to_datetime("2025-10-01"))
+def main():
+    # 기존 main() 내부 코드 유지
+    # ...
+    # 기존 import 및 UI 설정 코드 그대로 유지
 
-# 실행 버튼
-if st.button("📊 페어 백테스트 실행", use_container_width=True):
-    res_all = pair_backtest_custom(
-        base_sym, follow_sym, tframe,
-        start=start_date.strftime("%Y-%m-%d"),
-        tp=tp, sl=sl, lookahead=lookahead,
-    )
+    # ✅ 📅 백테스트 기간 설정 블록을 main() 내부로 이동
+    st.markdown("#### 📅 백테스트 기간 설정")
+    col_dt1, col_dt2 = st.columns(2)
+    with col_dt1:
+        start_date = st.date_input("시작일", value=pd.to_datetime("2025-09-01"))
+    with col_dt2:
+        end_date = st.date_input("종료일", value=pd.to_datetime("2025-10-01"))
+
+    # 실행 버튼
+    if st.button("📊 페어 백테스트 실행", use_container_width=True):
+        res_all = pair_backtest_custom(
+            base_sym, follow_sym, tframe,
+            start=start_date.strftime("%Y-%m-%d"),
+            tp=tp, sl=sl, lookahead=lookahead,
+        )
+
+# ✅ main() 호출
+if __name__ == "__main__":
+    main()
