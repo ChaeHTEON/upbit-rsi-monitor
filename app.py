@@ -1264,17 +1264,21 @@ def main():
         # ★ 2행(subplots) 구성: row1=가격+BB(+RSI y2), row2=CCI
         # 가격 + RSI/CCI + 거래량 패널 (B안, 차트비율 조정)
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
+        # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
         fig = make_subplots(
             rows=4, cols=1, shared_xaxes=True,
             specs=[
-                [{"secondary_y": True}],   # (1) 가격
-                [{"secondary_y": False}],  # (2) RSI
-                [{"secondary_y": False}],  # (3) CCI
-                [{}]                       # (4) 거래량
+                [{"secondary_y": True}],
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+                [{}]
             ],
-            row_heights=[0.55, 0.15, 0.15, 0.15],  # RSI/CCI/거래량 균등 비율
+            row_heights=[0.55, 0.20, 0.20, 0.20],  # 보조지표 패널 높이 30% 확대
             vertical_spacing=0.04
         )
+
+        # 전체 차트 높이 확대 (900 → 1200)
+        fig.update_layout(height=1200)
 
         # (2) RSI(13) 보조지표
         fig.add_trace(
