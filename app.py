@@ -1262,12 +1262,46 @@ def main():
             df_plot["_pnl_str"] = ""
     
         # ★ 2행(subplots) 구성: row1=가격+BB(+RSI y2), row2=CCI
+        # 가격 + RSI/CCI + 거래량 오버레이 패널 (B안)
         fig = make_subplots(
-            rows=2, cols=1, shared_xaxes=True,
-            specs=[[{"secondary_y": True}], [{"secondary_y": False}]],
-            row_heights=[0.72, 0.28],
-            vertical_spacing=0.06
+            rows=3, cols=1, shared_xaxes=True,
+            specs=[
+                [{"secondary_y": True}],   # (1) 가격 + 보조지표
+                [{"secondary_y": False}],  # (2) RSI / CCI
+                [{}]                       # (3) 거래량
+            ],
+            row_heights=[0.55, 0.25, 0.20],
+            vertical_spacing=0.05
         )
+
+        # (3) 거래량 + 평균선 + 2.5배 기준선 (TGV)
+        fig.add_trace(
+            go.Bar(
+                x=df["time"], y=df["volume"],
+                name="거래량", marker_color="rgba(128,128,128,0.4)"
+            ),
+            row=3, col=1
+        )
+        if "vol_mean" not in df.columns:
+            df["vol_mean"] = df["volume"].rolling(20).mean()
+        if "vol_threshold" not in df.columns:
+            df["vol_threshold"] = df["vol_mean"] * 2.5
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["vol_mean"],
+                name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
+            ),
+            row=3, col=1
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["vol_threshold"],
+                name="TGV 기준(2.5배)", mode="lines",
+                line=dict(color="red", width=1.3, dash="dot")
+            ),
+            row=3, col=1
+        )
+        fig.update_yaxes(title_text="거래량", row=3, col=1)
     
         # ===== 툴팁 유틸 =====
         def _fmt_ohlc_tooltip(t, o, h, l, c, pnl_str=None):
