@@ -27,7 +27,6 @@ def main():
     import numpy as np
     import pandas as pd  # ✅ main() 내부로 이동
     from typing import Optional, Set
-
     # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
     def _keep_sweep_open():
         """통계/조합 탐색(expander) 닫힘 방지"""
