@@ -3184,9 +3184,13 @@ def pair_backtest_custom(
     if strategies is None:
         strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync"]
 
-    # ✅ import 제거 — 동일 파일 내 함수 직접 호출
-    df_base = load_ohlcv(symbol_base, tframe, start=start)
-    df_follow = load_ohlcv(symbol_follow, tframe, start=start)
+    # ✅ load_ohlcv 함수가 전역에 정의되어 있지 않을 경우 대비
+    load_func = globals().get("load_ohlcv")
+    if load_func is None:
+        raise RuntimeError("⚠️ load_ohlcv() 함수가 정의되어 있지 않습니다. 상단 코드 확인 필요.")
+
+    df_base = load_func(symbol_base, tframe, start=start)
+    df_follow = load_func(symbol_follow, tframe, start=start)
     results = []
 
     for strat in strategies:
