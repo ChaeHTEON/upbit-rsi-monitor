@@ -3133,6 +3133,7 @@ except Exception:
 # === [추가②] 커스텀 페어 백테스트 (모든 종목·전략 선택형) ===
 
 from typing import List, Optional
+import pandas as pd
 
 # -----------------------------
 # ✅ 업비트 마켓 리스트 전역 초기화 (NameError 방지)
@@ -3174,6 +3175,7 @@ def pair_backtest_custom(
     symbol_follow: str,
     tframe: str = "3m",
     start: str = "2025-10-01",
+    end: str = "2025-10-15",
     tp: float = 0.007,
     sl: float = 0.004,
     lookahead: int = 10,
@@ -3183,14 +3185,39 @@ def pair_backtest_custom(
         strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync"]
 
     from app import load_ohlcv
+
     df_base = load_ohlcv(symbol_base, tframe, start=start)
     df_follow = load_ohlcv(symbol_follow, tframe, start=start)
     results = []
+
     for strat in strategies:
-        res = simulate_pair_strategy(df_base, df_follow, strat, tp, sl, lookahead)
-        if res:
-            results.append(res)
-    return results
+        try:
+            res = simulate_pair_strategy(df_base, df_follow, strat, tp, sl, lookahead)
+            if res is not None:
+                results.append({
+                    "전략": strat,
+                    "기준코인": symbol_base,
+                    "추종코인": symbol_follow,
+                    "총신호": len(res) if hasattr(res, "__len__") else 1,
+                    "평균수익(%)": getattr(res, "avg_ret", 0),
+                    "총합수익(%)": getattr(res, "sum_ret", 0),
+                    "시작일": start,
+                    "종료일": end
+                })
+        except Exception as e:
+            results.append({
+                "전략": strat,
+                "기준코인": symbol_base,
+                "추종코인": symbol_follow,
+                "총신호": 0,
+                "평균수익(%)": 0,
+                "총합수익(%)": 0,
+                "시작일": start,
+                "종료일": end
+            })
+
+    df_res = pd.DataFrame(results)
+    return df_res
 
 
 # ============================================================
@@ -3207,13 +3234,33 @@ def main():
     st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
+        market_label, market_code = st.selectbox("기준 종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
     with c2:
-        pass
+        follow_label, follow_code = st.selectbox("추종 종목 선택", MARKET_LIST, index=0, format_func=lambda x: x[0])
     with c3:
         start_date = st.date_input("시작 날짜", value=default_start, key="start_date_main")
     with c4:
         end_date = st.date_input("종료 날짜", value=today_kst, key="end_date_main")
+
+    st.markdown("### ⚙️ 커스텀 페어 백테스트 실행")
+
+    run_btn = st.button("▶ 실행", use_container_width=True)
+    if run_btn:
+        try:
+            st.info(f"📊 {market_code} → {follow_code} ({start_date}~{end_date}) 페어 백테스트 실행 중...")
+            df_res = pair_backtest_custom(
+                symbol_base=market_code,
+                symbol_follow=follow_code,
+                start=str(start_date),
+                end=str(end_date)
+            )
+            if df_res is not None and not df_res.empty:
+                st.success("✅ 백테스트 완료!")
+                st.dataframe(df_res, use_container_width=True)
+            else:
+                st.warning("⚠️ 결과가 없습니다. 입력 조건을 확인해주세요.")
+        except Exception as e:
+            st.error(f"오류 발생: {str(e)}")
 
 
 # ============================================================
