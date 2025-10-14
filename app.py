@@ -11,16 +11,14 @@
 # app.py
 # -*- coding: utf-8 -*-
 
-# ✅ Python 3.9 호환 타입 어노테이션 설정
 from __future__ import annotations
 from typing import List, Optional
 
-# ✅ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
-import os
+import os  # ★ 추가
+# ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
 os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
 
-# ✅ 필수 외부 모듈
 import streamlit as st
 import pandas as pd
 import requests
@@ -28,22 +26,17 @@ from requests.adapters import HTTPAdapter, Retry
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 import ta
-import numpy as np
-
-# ✅ 표준 라이브러리
 from datetime import datetime, timedelta
 from pytz import timezone
+import numpy as np
 
+# ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
 
-# =============================================================
-# main() 함수 정의 시작
-# =============================================================
 def main():
-    # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
     def _keep_sweep_open():
         """통계/조합 탐색(expander) 닫힘 방지"""
         st.session_state["sweep_expanded"] = True
-
+    
     # -----------------------------
     # 페이지/스타일
     # -----------------------------
@@ -54,8 +47,13 @@ def main():
       .stMetric {text-align:center;}
       .section-title {font-size:1.05rem; font-weight:700; margin: 0.6rem 0 0.2rem;}
       .hint {color:#6b7280;}
+      .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
+      .fail-cell {color:#1E40AF; font-weight:600;}
+      .neutral-cell {color:#FF9800; font-weight:600;}
+      table {border-collapse:collapse; width:100%;}
+      th, td {border:1px solid #ddd; padding:6px; text-align:center;}
     </style>
-    """, unsafe_allow_html=True
+    """, unsafe_allow_html=True)
     
     # 타이틀
     st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
@@ -200,7 +198,7 @@ def main():
             tf_label = FIXED_TF_MAP[selected_strategy]
             st.info(f"📊 '{selected_strategy}' 전략은 분봉 변경이 불가능합니다. (참고용 표시: {tf_label})")
         else:
-            tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
+            tf_label = st.selectbox("봉 종류 선택 (참고용, 시뮬레이션에는 영향 없음)", list(TF_MAP.keys()), index=2)
     with c3:
         KST = timezone("Asia/Seoul")
         today_kst = datetime.now(KST).date()
@@ -1268,86 +1266,12 @@ def main():
             df_plot["_pnl_str"] = ""
     
         # ★ 2행(subplots) 구성: row1=가격+BB(+RSI y2), row2=CCI
-        # 가격 + RSI/CCI + 거래량 패널 (B안, 차트비율 조정)
-        # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
-        # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
         fig = make_subplots(
-            rows=4, cols=1, shared_xaxes=True,
-            specs=[
-                [{"secondary_y": True}],
-                [{"secondary_y": False}],
-                [{"secondary_y": False}],
-                [{}]
-            ],
-            row_heights=[0.55, 0.20, 0.20, 0.20],  # 보조지표 패널 높이 30% 확대
-            vertical_spacing=0.04
+            rows=2, cols=1, shared_xaxes=True,
+            specs=[[{"secondary_y": True}], [{"secondary_y": False}]],
+            row_heights=[0.72, 0.28],
+            vertical_spacing=0.06
         )
-
-        # 전체 차트 높이 확대 (900 → 1200)
-        fig.update_layout(height=1200)
-
-        # (2) RSI(13) 보조지표
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["RSI13"],
-                name="RSI(13)", mode="lines", line=dict(color="orange", width=1)
-            ),
-            row=2, col=1
-        )
-        # RSI 기준선 (빨강 실선, 네온 투명 강조)
-        fig.add_hline(
-            y=40,
-            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.8),
-            row=2, col=1
-        )
-
-        # CCI 기준선 (빨강 실선, 네온 투명 강조)
-        fig.add_hline(
-            y=-30,
-            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.8),
-            row=3, col=1
-        )
-
-        # 🔴 양봉 / 🔵 음봉 색상 구분 (막대 색상은 사용 이전에 미리 계산)
-        colors = [
-            "rgba(255,75,75,0.6)" if c > o else "rgba(0,104,201,0.6)"
-            for c, o in zip(df["close"], df["open"])
-        ]
-
-        # (4) 거래량 + 평균선 + 2.5배 기준선 (크기 조정) — 거래량 표시는 row=4 한 곳에서만
-        fig.add_trace(
-            go.Bar(
-                x=df["time"], y=df["volume"],
-                name="거래량", marker_color=colors
-            ),
-            row=4, col=1
-        )
-        if "vol_mean" not in df.columns:
-            df["vol_mean"] = df["volume"].rolling(20).mean()
-        if "vol_threshold" not in df.columns:
-            df["vol_threshold"] = df["vol_mean"] * 2.5
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["vol_mean"],
-                name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
-            ),
-            row=4, col=1
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["vol_threshold"],
-                name="TGV 기준(2.5배)", mode="lines",
-                line=dict(color="red", width=1.3, dash="dot")
-            ),
-            row=4, col=1
-        )
-        fig.update_yaxes(title_text="거래량", row=4, col=1)
-
-        # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
-        st.selectbox("봉종류 선택", ["캔들", "라인", "OHLC"], key="chart_type")
-
-        # 전체 차트 높이 확대
-        fig.update_layout(height=900)
     
         # ===== 툴팁 유틸 =====
         def _fmt_ohlc_tooltip(t, o, h, l, c, pnl_str=None):
@@ -2341,9 +2265,6 @@ def main():
             df["ema5"] = df["close"].ewm(span=5).mean(); df["ema20"] = df["close"].ewm(span=20).mean()
             df["vol_mean"] = df["volume"].rolling(20).mean()
             latest, prev = df.iloc[-1], df.iloc[-2]
-
-            # TGV 거래량 임계치(20봉 평균 × 2.5) 계산 — 시각화/알람에서 공용 사용
-            df["vol_threshold"] = df["vol_mean"] * 2.5
             cond_vol = latest["volume"] > latest["vol_mean"] * 2.5
             cond_cross = latest["ema5"] > latest["ema20"]
             cond_break = latest["close"] > prev["high"]
@@ -3091,7 +3012,11 @@ except Exception:
 
 # ============================================================================
 # PATCH: 실시간 알람 단일화 보강 (카카오 비활성 · 내부 토스트/목록 동기화)
-# ============================================================================
+# 적용일: 2025-10-11 09:17:21
+# 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
+# 내용:
+#  - st.toast 래핑: 토스트 발생 시 st.session_state['alerts']에 함께 누적
+#  -#  -# ============================================================================
 try:
     import streamlit as st
     import datetime as _dt
@@ -3122,92 +3047,9 @@ try:
                 return None
         return None
 
+    
+
     # --- kakao disabled ---
     
 except Exception:
     pass
-
-
-
-# === [추가②] 커스텀 페어 백테스트 (모든 종목·전략 선택형) ===
-
-# ✅ 간이 wrapper: 기존 main() 내부의 load_ohlcv()를 외부에서도 호출 가능하게 재정의
-def load_ohlcv(symbol: str, tf: str = "3m", start: str = "2025-10-01", end=None):
-    import pandas as pd, os
-    data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
-    file_path = os.path.join(data_dir, f"{symbol}_{tf}.csv")
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"⚠️ {file_path} 파일이 없습니다. 먼저 데이터를 로드해주세요.")
-    df = pd.read_csv(file_path)
-    df["time"] = pd.to_datetime(df["time"])
-    df = df[df["time"] >= pd.Timestamp(start)]
-    return df
-
-def pair_backtest_custom(
-    symbol_base: str,
-    symbol_follow: str,
-    tframe: str = "3m",
-    start: str = "2025-10-01",
-    tp: float = 0.007,
-    sl: float = 0.004,
-    lookahead: int = 10,
-    strategies: Optional[List[str]] = None
-):
-    if strategies is None:
-        strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync", "MLV", "HLV", "BBRSI"]
-
-    df_base = load_ohlcv(symbol_base, tframe, start=start)
-    df_follow = load_ohlcv(symbol_follow, tframe, start=start)
-    results = []
-    for strat in strategies:
-        try:
-            ts = detect_signal(df_base, symbol_base, tframe, [strat])
-            if not ts:
-                continue
-            out = pair_backtest_same_time(df_base, df_follow, start=start, tp=tp, sl=sl, lookahead=lookahead)
-            s = out["요약"]
-            s["전략"] = strat
-            s["기준"] = symbol_base
-            s["대상"] = symbol_follow
-            results.append(s)
-        except Exception as e:
-            results.append({"전략": strat, "에러": str(e)})
-    return pd.DataFrame(results)
-
-# ---- UI ----
-with st.expander("📈 커스텀 페어 백테스트 (모든 종목·전략 지원)"):
-    c1, c2, c3 = st.columns([1.2, 1.2, 0.6])
-    with c1:
-        base_sym = st.selectbox("기준 종목", ["KRW-BTC", "KRW-MNT", "KRW-XRP", "KRW-SOL", "KRW-ETH"], index=0)
-    with c2:
-        follow_sym = st.selectbox("대상 종목", ["KRW-MNT", "KRW-BTC", "KRW-SOL", "KRW-XRP", "KRW-ETH"], index=1)
-    with c3:
-        tframe = st.selectbox("분봉", ["1m", "3m", "5m", "15m"], index=1)
-    colX, colY, colZ = st.columns([1,1,1])
-    with colX:
-        tp = st.number_input("목표수익(%)", value=0.7, step=0.1, format="%.1f")/100.0
-    with colY:
-        sl = st.number_input("손절폭(%)", value=0.4, step=0.1, format="%.1f")/100.0
-    with colZ:
-        lookahead = st.number_input("lookahead(봉)", value=10, min_value=3, max_value=60, step=1)
-    # 🔽 매매기법 선택 UI 추가
-    strat_sel = st.multiselect(
-        "매매기법 선택",
-        ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync", "MLV", "HLV", "BBRSI"],
-        default=["TGV"]
-    )
-
-    # 실행 버튼
-    if st.button("📊 페어 백테스트 실행", use_container_width=True):
-        res_all = pair_backtest_custom(
-            base_sym, follow_sym, tframe,
-            start="2025-10-01",
-            tp=tp, sl=sl, lookahead=lookahead,
-            strategies=strat_sel  # ✅ 선택한 전략만 전달
-        )
-        if not res_all.empty:
-            st.dataframe(res_all, use_container_width=True)
-            st.bar_chart(res_all.set_index("전략")["적중률(%)"])
-        else:
-            st.warning("선택한 구간에 해당 전략 신호가 없습니다.")
-# === [추가② 끝] ===
