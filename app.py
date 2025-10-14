@@ -43,7 +43,7 @@ def main():
     def _keep_sweep_open():
         """통계/조합 탐색(expander) 닫힘 방지"""
         st.session_state["sweep_expanded"] = True
-    
+
     # -----------------------------
     # 페이지/스타일
     # -----------------------------
@@ -54,13 +54,8 @@ def main():
       .stMetric {text-align:center;}
       .section-title {font-size:1.05rem; font-weight:700; margin: 0.6rem 0 0.2rem;}
       .hint {color:#6b7280;}
-      .success-cell {background-color:#FFF59D; color:#E53935; font-weight:600;}
-      .fail-cell {color:#1E40AF; font-weight:600;}
-      .neutral-cell {color:#FF9800; font-weight:600;}
-      table {border-collapse:collapse; width:100%;}
-      th, td {border:1px solid #ddd; padding:6px; text-align:center;}
     </style>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True
     
     # 타이틀
     st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
