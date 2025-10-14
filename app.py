@@ -3125,7 +3125,17 @@ except Exception:
 
 # === [추가②] 커스텀 페어 백테스트 (모든 종목·전략 선택형) ===
 
-from typing import List, Optional
+# ✅ 간이 wrapper: 기존 main() 내부의 load_ohlcv()를 외부에서도 호출 가능하게 재정의
+def load_ohlcv(symbol: str, tf: str = "3m", start: str = "2025-10-01", end=None):
+    import pandas as pd, os
+    data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
+    file_path = os.path.join(data_dir, f"{symbol}_{tf}.csv")
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"⚠️ {file_path} 파일이 없습니다. 먼저 데이터를 로드해주세요.")
+    df = pd.read_csv(file_path)
+    df["time"] = pd.to_datetime(df["time"])
+    df = df[df["time"] >= pd.Timestamp(start)]
+    return df
 
 def pair_backtest_custom(
     symbol_base: str,
