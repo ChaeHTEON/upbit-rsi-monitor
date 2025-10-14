@@ -3138,60 +3138,32 @@ def pair_backtest_custom(
     strategies: Optional[List[str]] = None
 ):
     if strategies is None:
-        strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync", "MLV", "HLV", "BBRSI"]
+        strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync"]
 
+    # ✅ load_ohlcv 접근 보장 (전역 함수 import 확인)
+    from app import load_ohlcv  # 동일 파일 내 존재 시 생략 가능
     df_base = load_ohlcv(symbol_base, tframe, start=start)
     df_follow = load_ohlcv(symbol_follow, tframe, start=start)
     results = []
     for strat in strategies:
-        try:
-            ts = detect_signal(df_base, symbol_base, tframe, [strat])
-            if not ts:
-                continue
-            out = pair_backtest_same_time(df_base, df_follow, start=start, tp=tp, sl=sl, lookahead=lookahead)
-            s = out["요약"]
-            s["전략"] = strat
-            s["기준"] = symbol_base
-            s["대상"] = symbol_follow
-            results.append(s)
-        except Exception as e:
-            results.append({"전략": strat, "에러": str(e)})
-    return pd.DataFrame(results)
+        res = simulate_pair_strategy(df_base, df_follow, strat, tp, sl, lookahead)
+        if res:
+            results.append(res)
+    return results
 
-# ---- UI ----
-with st.expander("📈 커스텀 페어 백테스트 (모든 종목·전략 지원)"):
-    c1, c2, c3 = st.columns([1.2, 1.2, 0.6])
-    with c1:
-        base_sym = st.selectbox("기준 종목", ["KRW-BTC", "KRW-MNT", "KRW-XRP", "KRW-SOL", "KRW-ETH"], index=0)
-    with c2:
-        follow_sym = st.selectbox("대상 종목", ["KRW-MNT", "KRW-BTC", "KRW-SOL", "KRW-XRP", "KRW-ETH"], index=1)
-    with c3:
-        tframe = st.selectbox("분봉", ["1m", "3m", "5m", "15m"], index=1)
-    colX, colY, colZ = st.columns([1,1,1])
-    with colX:
-        tp = st.number_input("목표수익(%)", value=0.7, step=0.1, format="%.1f")/100.0
-    with colY:
-        sl = st.number_input("손절폭(%)", value=0.4, step=0.1, format="%.1f")/100.0
-    with colZ:
-        lookahead = st.number_input("lookahead(봉)", value=10, min_value=3, max_value=60, step=1)
-    # 🔽 매매기법 선택 UI 추가
-    strat_sel = st.multiselect(
-        "매매기법 선택",
-        ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync", "MLV", "HLV", "BBRSI"],
-        default=["TGV"]
+
+# ✅ 날짜 선택 UI 추가
+st.markdown("#### 📅 백테스트 기간 설정")
+col_dt1, col_dt2 = st.columns(2)
+with col_dt1:
+    start_date = st.date_input("시작일", value=pd.to_datetime("2025-09-01"))
+with col_dt2:
+    end_date = st.date_input("종료일", value=pd.to_datetime("2025-10-01"))
+
+# 실행 버튼
+if st.button("📊 페어 백테스트 실행", use_container_width=True):
+    res_all = pair_backtest_custom(
+        base_sym, follow_sym, tframe,
+        start=start_date.strftime("%Y-%m-%d"),
+        tp=tp, sl=sl, lookahead=lookahead,
     )
-
-    # 실행 버튼
-    if st.button("📊 페어 백테스트 실행", use_container_width=True):
-        res_all = pair_backtest_custom(
-            base_sym, follow_sym, tframe,
-            start="2025-10-01",
-            tp=tp, sl=sl, lookahead=lookahead,
-            strategies=strat_sel  # ✅ 선택한 전략만 전달
-        )
-        if not res_all.empty:
-            st.dataframe(res_all, use_container_width=True)
-            st.bar_chart(res_all.set_index("전략")["적중률(%)"])
-        else:
-            st.warning("선택한 구간에 해당 전략 신호가 없습니다.")
-# === [추가② 끝] ===
