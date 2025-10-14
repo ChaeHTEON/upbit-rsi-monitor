@@ -3332,7 +3332,6 @@ st.caption("※ 본 화면은 '② 커스텀 페어 백테스트 (거래량순)'
 if __name__ == '__main__':
     main()
 
-
 # ============================================================================
 # PATCH: 내부 알림 시스템 완전 복구 (다중 종목 감시 대응)
 # 적용일: 2025-10-11 07:44:57
@@ -3357,7 +3356,6 @@ try:
         if "alert_queue" not in st.session_state:
             st.session_state["alert_queue"] = Queue()
 
-    
 except Exception as _patch_err:
     # 패치 실패 시 전체 앱이 죽지 않도록 방어
     pass
