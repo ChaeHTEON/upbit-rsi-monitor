@@ -2,12 +2,13 @@
 try:
     import streamlit as _st_cfg
     if not _st_cfg.session_state.get("_pgcfg", False):
-        _st_cfg.set_page_config(page_title="Upbit RSI(13)
+        _st_cfg.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
         _st_cfg.session_state["_pgcfg"] = True
     del _st_cfg
 except Exception:
     pass
 # ===============================================================================
+
 
 # =============================================================
 # 복구 완료된 app.py (@완성본)
@@ -56,7 +57,7 @@ def main():
     # 페이지/스타일
     # -----------------------------
     # (auto-fixed) page_config already set
-+ Bollinger Band 시뮬레이터", layout="wide")
+
     st.markdown("""
     <style>
       .block-container {padding-top: 0.8rem; padding-bottom: 0.8rem; max-width: 1100px;}
