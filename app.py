@@ -3184,8 +3184,7 @@ def pair_backtest_custom(
     if strategies is None:
         strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync"]
 
-    from app import load_ohlcv
-
+    # ✅ import 제거 — 동일 파일 내 함수 직접 호출
     df_base = load_ohlcv(symbol_base, tframe, start=start)
     df_follow = load_ohlcv(symbol_follow, tframe, start=start)
     results = []
@@ -3204,7 +3203,7 @@ def pair_backtest_custom(
                     "시작일": start,
                     "종료일": end
                 })
-        except Exception as e:
+        except Exception:
             results.append({
                 "전략": strat,
                 "기준코인": symbol_base,
@@ -3231,7 +3230,8 @@ def main():
     today_kst = datetime.now(KST).date()
     default_start = today_kst - timedelta(days=1)
 
-    st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
+    # ✅ 제목 변경 (기존 “① 기본 설정” → “② 커스텀 페어 백테스트”)
+    st.markdown('<div class="section-title">② 커스텀 페어 백테스트</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         market_label, market_code = st.selectbox("기준 종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
@@ -3261,7 +3261,6 @@ def main():
                 st.warning("⚠️ 결과가 없습니다. 입력 조건을 확인해주세요.")
         except Exception as e:
             st.error(f"오류 발생: {str(e)}")
-
 
 # ============================================================
 # 실행 진입점
