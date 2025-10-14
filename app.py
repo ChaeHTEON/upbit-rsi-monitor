@@ -1291,8 +1291,12 @@ def main():
         )
 
         # (3) CCI(20) 보조지표
+        # CCI(20) 계산 (ta 0.11.0 버전 호환)
         if "cci" not in df.columns:
-            df["cci"] = ta.cci(df["high"], df["low"], df["close"], length=20)
+            from ta.trend import CCIIndicator
+            df["cci"] = CCIIndicator(
+                high=df["high"], low=df["low"], close=df["close"], window=20
+            ).cci()
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["cci"],
