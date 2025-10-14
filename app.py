@@ -1262,17 +1262,20 @@ def main():
             df_plot["_pnl_str"] = ""
     
         # ★ 2행(subplots) 구성: row1=가격+BB(+RSI y2), row2=CCI
-        # 가격 + RSI/CCI + 거래량 오버레이 패널 (B안)
+        # 가격 + RSI/CCI + 거래량 패널 (B안, 차트비율 조정)
         fig = make_subplots(
             rows=3, cols=1, shared_xaxes=True,
             specs=[
-                [{"secondary_y": True}],   # (1) 가격 + 보조지표
-                [{"secondary_y": False}],  # (2) RSI / CCI
-                [{}]                       # (3) 거래량
+                [{"secondary_y": True}],
+                [{"secondary_y": False}],
+                [{}]
             ],
-            row_heights=[0.55, 0.25, 0.20],
+            row_heights=[0.68, 0.22, 0.10],   # 상단 확장, 거래량 패널 얇게
             vertical_spacing=0.05
         )
+
+        # 전체 차트 높이 확대
+        fig.update_layout(height=900)
 
         # (3) 거래량 + 평균선 + 2.5배 기준선 (TGV)
         fig.add_trace(
