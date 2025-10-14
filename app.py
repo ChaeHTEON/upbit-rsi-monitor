@@ -1310,7 +1310,13 @@ def main():
             row=3, col=1
         )
 
-        # (4) 거래량 + 평균선 + 2.5배 기준선 (크기 조정)
+        # 🔴 양봉 / 🔵 음봉 색상 구분 (막대 색상은 사용 이전에 미리 계산)
+        colors = [
+            "rgba(255,75,75,0.6)" if c > o else "rgba(0,104,201,0.6)"
+            for c, o in zip(df["close"], df["open"])
+        ]
+
+        # (4) 거래량 + 평균선 + 2.5배 기준선 (크기 조정) — 거래량 표시는 row=4 한 곳에서만
         fig.add_trace(
             go.Bar(
                 x=df["time"], y=df["volume"],
@@ -1344,43 +1350,6 @@ def main():
 
         # 전체 차트 높이 확대
         fig.update_layout(height=900)
-
-        # (3) 거래량 + 평균선 + 2.5배 기준선 (TGV)
-        # (3) 거래량 + 평균선 + 2.5배 기준선 (TGV)
-        # 🔴 양봉 / 🔵 음봉 색상 구분
-        colors = [
-            "rgba(255,75,75,0.6)" if c > o else "rgba(0,104,201,0.6)"
-            for c, o in zip(df["close"], df["open"])
-        ]
-        
-        fig.add_trace(
-            go.Bar(
-                x=df["time"], y=df["volume"],
-                name="거래량",
-                marker_color=colors
-            ),
-            row=3, col=1
-        )
-        if "vol_mean" not in df.columns:
-            df["vol_mean"] = df["volume"].rolling(20).mean()
-        if "vol_threshold" not in df.columns:
-            df["vol_threshold"] = df["vol_mean"] * 2.5
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["vol_mean"],
-                name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
-            ),
-            row=3, col=1
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["vol_threshold"],
-                name="TGV 기준(2.5배)", mode="lines",
-                line=dict(color="red", width=1.3, dash="dot")
-            ),
-            row=3, col=1
-        )
-        fig.update_yaxes(title_text="거래량", row=3, col=1)
     
         # ===== 툴팁 유틸 =====
         def _fmt_ohlc_tooltip(t, o, h, l, c, pnl_str=None):
