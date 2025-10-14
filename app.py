@@ -3125,6 +3125,8 @@ except Exception:
 
 # === [추가②] 커스텀 페어 백테스트 (모든 종목·전략 선택형) ===
 
+from typing import List, Optional
+
 def pair_backtest_custom(
     symbol_base: str,
     symbol_follow: str,
@@ -3133,7 +3135,7 @@ def pair_backtest_custom(
     tp: float = 0.007,
     sl: float = 0.004,
     lookahead: int = 10,
-    strategies: list[str] | None = None
+    strategies: Optional[List[str]] = None
 ):
     if strategies is None:
         strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync", "MLV", "HLV", "BBRSI"]
