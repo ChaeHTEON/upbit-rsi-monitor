@@ -3211,9 +3211,9 @@ def main():
     with c2:
         pass
     with c3:
-        start_date = st.date_input("시작 날짜", value=default_start)
+        start_date = st.date_input("시작 날짜", value=default_start, key="start_date_main")
     with c4:
-        end_date = st.date_input("종료 날짜", value=today_kst)
+        end_date = st.date_input("종료 날짜", value=today_kst, key="end_date_main")
 
 
 # ============================================================
