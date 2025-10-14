@@ -1288,29 +1288,17 @@ def main():
             ),
             row=2, col=1
         )
-        # RSI 기준선 (형광 초록색 점선, y=40)
+        # RSI 기준선 (빨강 실선, 네온 투명 강조)
         fig.add_hline(
-            y=40, line=dict(color="#00FF7F", dash="dot", width=1),
+            y=40,
+            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.8),
             row=2, col=1
         )
 
-        # (3) CCI(20) 보조지표
-        # CCI(20) 계산 (ta 0.11.0 버전 호환)
-        if "cci" not in df.columns:
-            from ta.trend import CCIIndicator
-            df["cci"] = CCIIndicator(
-                high=df["high"], low=df["low"], close=df["close"], window=20
-            ).cci()
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["cci"],
-                name="CCI(20)", mode="lines", line=dict(color="purple", width=1)
-            ),
-            row=3, col=1
-        )
-        # CCI 기준선 (형광 초록색 점선, y=-30)
+        # CCI 기준선 (빨강 실선, 네온 투명 강조)
         fig.add_hline(
-            y=-30, line=dict(color="#00FF7F", dash="dot", width=1),
+            y=-30,
+            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.8),
             row=3, col=1
         )
 
