@@ -1,24 +1,14 @@
 from __future__ import annotations
-# ===== [AUTO-INJECTED] Streamlit page config (must be first Streamlit call) =====
+# ===== [FIXED] Streamlit page config (safe-first-call) =====
 try:
-    import streamlit as _st_cfg
-    if not _st_cfg.session_state.get("_pgcfg", False):
-        _st_cfg.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
-        _st_cfg.session_state["_pgcfg"] = True
-    del _st_cfg
+    import streamlit as st
+    st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
 except Exception:
     pass
 # ===============================================================================
 
-
 # =============================================================
 # 복구 완료된 app.py (@완성본)
-# - 기준: app (4).py
-# - 모든 알람/카카오 관련 코드 제거
-# - ⑤ 실시간 감시 섹션 완전 삭제
-# - 879행 total_min 들여쓰기 수정
-# - UI/UX 및 요약·차트·신호결과 변경 없음
-# - 생성시각: 2025-10-11 11:52:25
 # =============================================================
 
 # app.py
@@ -31,7 +21,6 @@ import os  # ★ 추가
 os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
 os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
 
-import streamlit as st
 import pandas as pd
 import requests
 from requests.adapters import HTTPAdapter, Retry
@@ -41,11 +30,7 @@ import ta
 from datetime import datetime, timedelta
 from pytz import timezone as ptimezone
 import numpy as np
-
-# =============================================================
-# ✅ Streamlit 모듈 인식 오류(UnboundLocalError) 복구
-# =============================================================
-import streamlit as st
+import streamlit as st  # ✅ 한 곳만 유지 (중복 제거)
 
 def main():
     # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
