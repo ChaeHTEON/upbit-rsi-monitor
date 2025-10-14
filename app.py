@@ -3158,25 +3158,24 @@ def main():
     # 기존 import 및 UI 설정 코드 그대로 유지
 
     # ✅ 📅 백테스트 기간 설정 블록을 main() 내부로 이동
-from datetime import datetime, timedelta
-from pytz import timezone
+    from datetime import datetime, timedelta
+    from pytz import timezone
 
-# ...
-KST = timezone("Asia/Seoul")
-today_kst = datetime.now(KST).date()
-default_start = today_kst - timedelta(days=1)
+    # ...
+    KST = timezone("Asia/Seoul")
+    today_kst = datetime.now(KST).date()
+    default_start = today_kst - timedelta(days=1)
 
-st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
-with c2:
-    # (기존 전략/타임프레임 선택 코드 유지)
-    pass
-with c3:
-    start_date = st.date_input("시작 날짜", value=default_start)
-with c4:
-    end_date = st.date_input("종료 날짜", value=today_kst)
+    st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
+    with c2:
+        pass
+    with c3:
+        start_date = st.date_input("시작 날짜", value=default_start)
+    with c4:
+        end_date = st.date_input("종료 날짜", value=today_kst)
 # ✅ main() 호출
 if __name__ == "__main__":
     main()
