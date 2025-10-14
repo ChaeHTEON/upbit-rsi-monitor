@@ -1,3 +1,4 @@
+from __future__ import annotations
 # ===== [AUTO-INJECTED] Streamlit page config (must be first Streamlit call) =====
 try:
     import streamlit as _st_cfg
@@ -23,7 +24,6 @@ except Exception:
 # app.py
 # -*- coding: utf-8 -*-
 
-from __future__ import annotations
 from typing import List, Optional
 
 import os  # ★ 추가
