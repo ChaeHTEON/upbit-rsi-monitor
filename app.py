@@ -1,10 +1,34 @@
 from __future__ import annotations
-# ===== [FIXED] Streamlit page config (safe-first-call) =====
+# ===== [FIXED] Streamlit page config (safe global init) =====
+import streamlit as st  # ✅ 전역에 선언
 try:
-    import streamlit as st
     st.set_page_config(page_title="Upbit RSI(13) + Bollinger Band 시뮬레이터", layout="wide")
 except Exception:
     pass
+# ===============================================================================
+
+# =============================================================
+# 복구 완료된 app.py (@완성본)
+# =============================================================
+
+# app.py
+# -*- coding: utf-8 -*-
+
+from typing import List, Optional
+import os  # ★ 추가
+# ★ watchdog/inotify 한도 초과 방지: 스트림릿 파일감시 비활성화
+os.environ["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
+
+import pandas as pd
+import requests
+from requests.adapters import HTTPAdapter, Retry
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
+import ta
+from datetime import datetime, timedelta
+from pytz import timezone as ptimezone
+import numpy as np
 # ===============================================================================
 
 # =============================================================
