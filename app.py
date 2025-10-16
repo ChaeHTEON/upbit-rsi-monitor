@@ -1620,7 +1620,7 @@ def main():
             hovermode="closest"
         )
 
-        # ✅ 차트 객체 캐싱: rerun 시 기존 뷰 상태 유지
+        # ✅ 차트 객체 캐싱 + 데이터 자동 갱신 (줌/스크롤 유지)
         chart_key = f"{market_code}_{interval_key}_{bb_window}_{bb_dev}_{cci_window}"
         if "chart_cache" not in st.session_state:
             st.session_state["chart_cache"] = {}
@@ -1631,10 +1631,35 @@ def main():
             fig = st.session_state["chart_cache"][chart_key]
         else:
             st.session_state["chart_cache"][chart_key] = fig
+
+        # ✅ 데이터 최신화 (뷰 유지한 채 trace만 교체)
+        try:
+            df_new = fetch_upbit_paged(
+                market_code, interval_key,
+                datetime.combine(start_date, datetime.min.time()),
+                datetime.combine(end_date, datetime.max.time()),
+                int(minutes_per_bar), warmup_bars=0
+            )
+            if df_new is not None and not df_new.empty:
+                fig.data = [
+                    go.Candlestick(
+                        x=df_new["time"],
+                        open=df_new["open"],
+                        high=df_new["high"],
+                        low=df_new["low"],
+                        close=df_new["close"],
+                        name="가격",
+                        increasing=dict(line=dict(color="red", width=1.1)),
+                        decreasing=dict(line=dict(color="blue", width=1.1)),
+                    )
+                ]
+        except Exception as e:
+            st.warning(f"⚠️ 데이터 갱신 오류: {e}")
+
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
             top_l, top_r = st.columns([4, 1])
-    
+
             def _format_buy_price():
                 raw = st.session_state.get("buy_price_text", "0")
                 digits = "".join(ch for ch in raw if ch.isdigit())
@@ -1643,16 +1668,15 @@ def main():
                 val = int(digits)
                 st.session_state.buy_price = val
                 st.session_state.buy_price_text = f"{val:,}"
-    
+
             with top_l:
                 st.text_input("💰 매수가 입력", key="buy_price_text", on_change=_format_buy_price)
                 buy_price = st.session_state.get("buy_price", 0)
-    
+
             with top_r:
                 label = "↩ 되돌아가기" if st.session_state.opt_view else "📈 최적화뷰"
-                # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
-    
+
             st.plotly_chart(
                 fig,
                 use_container_width=True,
