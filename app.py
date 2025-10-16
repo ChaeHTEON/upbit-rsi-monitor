@@ -1316,10 +1316,7 @@ def main():
             ),
             row=3, col=1
         )
-        # RSI 기준선 (30/70 가독성 강화)
-        fig.add_hline(y=30, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.5), row=3, col=1)
-        fig.add_hline(y=70, line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.5), row=3, col=1)
-        )
+
         # RSI 보조선 (30/70 강조선)
         fig.add_hline(y=30, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.3), row=3, col=1)
         fig.add_hline(y=70, line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.3), row=3, col=1)
