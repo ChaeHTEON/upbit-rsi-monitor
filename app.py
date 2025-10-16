@@ -1293,18 +1293,49 @@ def main():
 
         fig.update_layout(height=2000)
 
-        # (2) CCI — 가로/세로 정렬 통일 + 기준선 강조
+        # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["CCI"],
                 name="CCI(14)", mode="lines",
-                line=dict(color="royalblue", width=1.8),
+                line=dict(color="teal", width=2.0),
                 showlegend=True
             ),
             row=2, col=1
         )
-        fig.add_hline(y=100, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.2), row=2, col=1)
-        fig.add_hline(y=-100, line=dict(color="rgba(0,0,255,0.4)", dash="dot", width=1.2), row=2, col=1)
+
+        # CCI 기준선 (±100 실선 강조)
+        fig.add_hline(y=100, line=dict(color="red", width=2.0, dash="solid"), row=2, col=1)
+        fig.add_hline(y=-100, line=dict(color="blue", width=2.0, dash="solid"), row=2, col=1)
+        # CCI 중간선 (0선 강조)
+        fig.add_hline(y=0, line=dict(color="rgba(80,80,80,0.8)", width=1.5, dash="dot"), row=2, col=1)
+
+        # (3) RSI(13) — 신호선 추가 (RSI(9)) + 기준선 강조
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["RSI13"],
+                name="RSI(13)", mode="lines",
+                line=dict(color="darkorange", width=2.2),
+                showlegend=True
+            ),
+            row=3, col=1
+        )
+        # RSI(9) 신호선 추가 (보조선)
+        if "RSI9" in df.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=df["time"], y=df["RSI9"],
+                    name="RSI(9)", mode="lines",
+                    line=dict(color="green", width=1.5, dash="dot"),
+                    showlegend=True
+                ),
+                row=3, col=1
+            )
+
+        # RSI 기준선 (30/70 강조선)
+        fig.add_hline(y=30, line=dict(color="red", dash="solid", width=1.5), row=3, col=1)
+        fig.add_hline(y=70, line=dict(color="green", dash="solid", width=1.5), row=3, col=1)
+        fig.add_hline(y=50, line=dict(color="gray", dash="dot", width=1.0), row=3, col=1)
 
         # (3) RSI(13) — 범례 강제 표시 + 시인성 강화
         fig.add_trace(
