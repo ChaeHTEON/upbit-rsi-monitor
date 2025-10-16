@@ -1601,9 +1601,10 @@ def main():
                 pass
     
         # ===== 레이아웃 (AutoScale 기본값 명시) =====
-        # ✅ uirevision: 매번 새로운 키값으로 강제 리셋 (토글+랜덤)
-        import numpy as _np
-        _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{_np.random.randint(1e9)}"
+        # ✅ uirevision: “실제 축 스케일이 바뀌는 입력”에만 바뀌도록 안정화
+        #    → 새로고침/재실행(rerun)이어도 줌/스크롤/범례 상태 보존
+        _stable_uirev = f"{market_code}|{interval_key}|BB{int(bb_window)}x{float(bb_dev):.1f}|CCI{int(cci_window)}"
+        
         fig.update_layout(
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
@@ -1615,7 +1616,7 @@ def main():
             yaxis=dict(title="가격", autorange=True,  fixedrange=False),
             yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
             yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
-            uirevision=_uirev,
+            uirevision=_stable_uirev,   # ★★★ 핵심: 더 이상 랜덤값 아님
             hovermode="closest"
         )
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
