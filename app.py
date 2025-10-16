@@ -95,7 +95,6 @@ def main():
                         "https://api.upbit.com/v1/ticker",
                         params={"markets": ",".join(subset)},
                         timeout=8
-                    )
                     rr.raise_for_status()
                     for t in rr.json():
                         mk = t.get("market")
@@ -109,7 +108,6 @@ def main():
             sorted_all = sorted(
                 krw_codes,
                 key=lambda c: (-vol_krw.get(c, 0.0), c)
-            )
     
             # 4) 메인 5개를 상단에, 그 외 나머지
             MAIN5 = ["KRW-BTC", "KRW-XRP", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]
@@ -175,7 +173,6 @@ def main():
         options=["중복 제거 (연속 동일 결과 1개)", "중복 포함 (연속 신호 모두)"],
         index=0,  # ✅ "중복 제거" 기본 선택
         horizontal=True
-    )
     
     # -----------------------------
     # ① 기본 설정
@@ -245,7 +242,6 @@ def main():
                 "Market_Divergence"
             ],
             index=0
-        )
 
         # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
@@ -260,7 +256,6 @@ def main():
             "RSI 조건",
             ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
             index=0
-        )
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
@@ -298,7 +293,6 @@ def main():
                 f"과매도(≤{cci_under})"
             ),
             index=0
-        )
     st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
     sec_cond = st.selectbox(
         "2차 조건 선택",
@@ -310,7 +304,6 @@ def main():
             "매물대 터치 후 반등(위→아래→반등)",
             "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"
         ]
-    )
     
     # ✅ 매물대 반등 조건일 때만 N봉 입력 노출
     if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
@@ -407,7 +400,6 @@ def main():
             num_rows="dynamic",
             use_container_width=True,
             height=180
-        )
         manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
         if st.button("💾 매물대 저장"):
             # 1) 로컬 저장
@@ -1114,12 +1106,10 @@ def main():
                 cci_over=simulate_kwargs.get("cci_over", 100.0),
                 cci_under=simulate_kwargs.get("cci_under", -100.0),
                 cci_signal_n=simulate_kwargs.get("cci_signal", 9),
-            )
     
             part_path = os.path.join(
                 part_dir,
                 f"{symbol}_{interval_key.replace('/','-')}_{s:%Y%m%d%H%M}_{e:%Y%m%d%H%M}.parquet"
-            )
             (res_chunk if res_chunk is not None else pd.DataFrame()).to_parquet(part_path, index=False)
             ckpt["parts"].append(part_path)
     
@@ -1226,7 +1216,6 @@ def main():
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
         res_dedup = simulate(
             df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
             bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -1234,7 +1223,6 @@ def main():
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
     
         # -----------------------------
@@ -1247,7 +1235,6 @@ def main():
                 res.sort_values("신호시간")
                    .drop_duplicates(subset=["anchor_i"], keep="first")
                    .reset_index(drop=True)
-            )
         else:
             plot_res = pd.DataFrame()
 
@@ -1290,8 +1277,7 @@ def main():
                 ],
                 row_heights=[0.60, 0.18, 0.14, 0.08],  # 메인 조금 확대, 보조 균형
                 vertical_spacing=0.03
-            )
-            fig.update_layout(height=1550)  # 전체 높이 확장
+        fig.update_layout(height=1550)  # 전체 높이 확장
 
             # ✅ RSI(13): 주황 얇은 실선, 기준선 30·50·70 실선화
         # ✅ CCI — 얇은 실선 + 색상 상하단 통일 + 점선 정렬 보정
@@ -1303,7 +1289,6 @@ def main():
                 showlegend=True
             ),
             row=2, col=1
-        )
         fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=100, y1=100,
                       line=dict(color="red", width=0.9, dash="solid"), row=2, col=1)
         fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=-100, y1=-100,
@@ -1312,6 +1297,22 @@ def main():
                       line=dict(color="gray", width=0.8, dash="dot"), row=2, col=1)
         fig.update_yaxes(title_text="CCI(14)", row=2, col=1)
 
+            # === Visual Enhancement Patch ===
+            # Adjust overall chart layout and legend
+            fig.update_layout(height=1550)
+            fig.update_layout(
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="center",
+                    x=0.5,
+                    itemwidth=45,
+                    tracegroupgap=6
+                )
+            )
+            # === End Patch ===
+        
         # ✅ RSI — CCI와 동일 색상 컨셉(상단 빨강, 하단 파랑)
         fig.add_trace(
             go.Scatter(
@@ -1321,7 +1322,6 @@ def main():
                 showlegend=True
             ),
             row=3, col=1
-        )
         fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=70, y1=70,
                       line=dict(color="red", width=0.9, dash="solid"), row=3, col=1)
         fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=50, y1=50,
@@ -1340,11 +1340,9 @@ def main():
                 x=0.5,
                 itemwidth=45,
                 tracegroupgap=6
-            )
-        )
         
                 # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
-            fig.add_trace(
+        fig.add_trace(
                     go.Scatter(
                         x=df["time"], y=df["CCI"],
                         name="CCI(14)", mode="lines",
@@ -1352,7 +1350,6 @@ def main():
                         showlegend=True
                     ),
                     row=2, col=1
-                )
 
 ### [부분코드] CCI/RSI xref 오류 수정
   # 원인: subplot 환경에서 `xref="x domain"` 적용 시 Plotly 내부에서 중복 domain 오류 발생
@@ -1379,7 +1376,6 @@ def main():
                 name="거래량", marker_color=colors
             ),
             row=4, col=1
-        )
         if "vol_mean" not in df.columns:
             df["vol_mean"] = df["volume"].rolling(20).mean()
         if "vol_threshold" not in df.columns:
@@ -1390,7 +1386,6 @@ def main():
                 name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
             ),
             row=4, col=1
-        )
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["vol_threshold"],
@@ -1398,7 +1393,6 @@ def main():
                 line=dict(color="red", width=1.3, dash="dot")
             ),
             row=4, col=1
-        )
         fig.update_yaxes(title_text="거래량", row=4, col=1)
 
         # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
@@ -1413,24 +1407,20 @@ def main():
                 return (
                     "시간: " + t + "<br>"
                     "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c)
-                )
             else:
                 return (
                     "시간: " + t + "<br>"
                     "시가: " + str(o) + "<br>고가: " + str(h) + "<br>저가: " + str(l) + "<br>종가: " + str(c) + "<br>"
                     "수익률(%): " + pnl_str
-                )
     
         def _make_candle_hovertexts(dfp, has_buy):
             if has_buy:
                 return [
                     _fmt_ohlc_tooltip(
                         t, o, h, l, c, pnl_str=s
-                    )
                     for t, o, h, l, c, s in zip(
                         dfp["time"].dt.strftime("%Y-%m-%d %H:%M"),
                         dfp["open"], dfp["high"], dfp["low"], dfp["close"], dfp["_pnl_str"]
-                    )
                 ]
             else:
                 return [
@@ -1438,7 +1428,6 @@ def main():
                     for t, o, h, l, c in zip(
                         dfp["time"].dt.strftime("%Y-%m-%d %H:%M"),
                         dfp["open"], dfp["high"], dfp["low"], dfp["close"]
-                    )
                 ]
     
         # ===== Candlestick (row1) =====
@@ -1502,7 +1491,7 @@ def main():
                         xs.append(t0)
                         ys.append(float(df_plot.loc[df_plot["time"] == t0, "open"].iloc[0]))
                 if xs:
-                    fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
                         x=xs, y=ys, mode="markers",
                         name=f"신호({_label})",
                         marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
@@ -1518,14 +1507,14 @@ def main():
                 y0 = float(df_plot.loc[df_plot["time"] == t0, "close"].iloc[0])
                 y1 = float(df_plot.loc[df_plot["time"] == t1, "close"].iloc[0])
     
-                fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
                     x=[t0, t1], y=[y0, y1], mode="lines",
                     line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
                     showlegend=False, hoverinfo="skip"
                 ), row=1, col=1)
     
                 if row_["결과"] == "성공":
-                    fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
                         x=[t1], y=[y1],
                         mode="markers", name="도달⭐",
                         marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
@@ -1533,7 +1522,7 @@ def main():
                     ), row=1, col=1)
                     legend_emitted["성공"] = True
                 elif row_["결과"] == "실패":
-                    fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
                         x=[t1], y=[y1],
                         mode="markers", name="실패❌",
                         marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
@@ -1541,7 +1530,7 @@ def main():
                     ), row=1, col=1)
                     legend_emitted["실패"] = True
                 elif row_["결과"] == "중립":
-                    fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
                         x=[t1], y=[y1],
                         mode="markers", name="중립❌",
                         marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
@@ -1574,19 +1563,17 @@ def main():
         ), row=2, col=1)
         # CCI 기준선
         for yv, colr in [(100, "#E63946"), (-100, "#457B9D"), (0, "#888")]:
-            fig.add_shape(
+        fig.add_shape(
                 type="line",
                 xref="paper", x0=0, x1=1,
                 yref="y3", y0=yv, y1=yv,
                 line=dict(color=colr, width=1, dash="dot")
-            )
     
         # ===== 업비트 스타일 십자선/툴팁 모드 & AutoScale =====
         fig.update_layout(
             hovermode="x",
             hoverdistance=1,
             spikedistance=1
-        )
         fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=1, col=1)
         fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=1, col=1)
         fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=2, col=1)
@@ -1596,7 +1583,7 @@ def main():
             pnl_num = (df_plot["close"] / float(buy_price) - 1) * 100
             pnl_str = pnl_num.apply(lambda v: f"{'+' if v >= 0 else ''}{v:.2f}%")
     
-            fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scatter(
                 x=df_plot["time"],
                 y=df_plot["close"],
                 mode="lines",
@@ -1622,7 +1609,7 @@ def main():
             pnl_num_mesh = (y_mesh / float(buy_price) - 1) * 100.0
             pnl_str_mesh = np.array([f"{'+' if v>=0 else ''}{v:.2f}%" for v in pnl_num_mesh])
     
-            fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scattergl(
                 x=x_mesh,
                 y=y_mesh,
                 mode="markers",
@@ -1648,12 +1635,12 @@ def main():
                 x_end   = df_plot.iloc[end_idx]["time"]
     
                 # X축: 보이는 데이터(df_plot)에서 최근 70봉만 딱 보이도록 지정
-                fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
-                fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
+        fig.update_xaxes(range=[x_start, x_end], row=1, col=1)
+        fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
     
                 # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
-                fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
-                fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
+        fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
+        fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
             except Exception:
                 pass
     
@@ -1700,7 +1687,6 @@ def main():
                 fig,
                 use_container_width=True,
                 config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "autosize", "responsive": True},
-            )
     
         # -----------------------------
         # ③ 요약 & 차트
@@ -1713,7 +1699,6 @@ def main():
             f"- 바닥탐지(실시간): {bottom_txt}\n"
             f"- 2차 조건 · {sec_txt}\n"
             f"- 워밍업: {warmup_bars}봉"
-        )
     
         # 메트릭 요약
         def _summarize(df_in):
@@ -1741,7 +1726,6 @@ def main():
                 f"<div style='font-weight:600;'>최종수익률 합계: "
                 f"<span style='color:{col}; font-size:1.1rem'>{total_final:.1f}%</span></div>",
                 unsafe_allow_html=True
-            )
     
         st.markdown("---")
         # 📒 공유 메모 바로 위에서는 ④ 신호 결과 블록 제거
@@ -1759,7 +1743,6 @@ def main():
             sweep_market_label, sweep_market = st.selectbox(
                 "종목 선택 (통계 전용)", MARKET_LIST, index=main_idx_for_sweep,
                 format_func=lambda x: x[0], key="sweep_market_sel", on_change=_keep_sweep_open
-            )
             sweep_start = st.date_input("시작일 (통계 전용)", value=start_date,
                                         key="sweep_start", on_change=_keep_sweep_open)
             sweep_end   = st.date_input("종료일 (통계 전용)", value=end_date,
@@ -1798,7 +1781,6 @@ def main():
                         sec_cond=sec_cond, bottom_mode=bottom_mode,
                         manual_supply_levels=manual_supply_levels,
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
-                    )
     
                     merged_df, ckpt = run_combination_scan_chunked(
                         symbol=sweep_market,
@@ -1811,7 +1793,6 @@ def main():
                         max_minutes=15,
                         on_progress=_on_progress,
                         simulate_kwargs=simulate_kwargs,
-                    )
     
                     if merged_df is not None and not merged_df.empty:
                         if "sweep_state" not in st.session_state:
@@ -1882,7 +1863,6 @@ def main():
                                         miss_policy="(고정) 성공·실패·중립",
                                         bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
                                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-                                    )
                                     win, total, succ, fail, neu = _winrate(res_s)
                                     total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
                                     avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
@@ -1943,7 +1923,6 @@ def main():
                     "실행할 프리셋 선택",
                     options=[p["label"] for p in presets],
                     default=[p["label"] for p in presets]
-                )
                 if st.button("▶ 프리셋 실행"):
                     rows = []
                     for p in presets:
@@ -1963,7 +1942,6 @@ def main():
                             miss_policy="(고정) 성공·실패·중립",
                             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-                        )
                         def _wr(df_):
                             if df_ is None or df_.empty: return 0.0, 0, 0, 0, 0
                             tot = len(df_); s=(df_["결과"]=="성공").sum(); f=(df_["결과"]=="실패").sum(); n=(df_["결과"]=="중립").sum()
@@ -2069,7 +2047,6 @@ def main():
                             for r in df_show["결과"]
                         ],
                         subset=["평균수익률(%)","합계수익률(%)"]
-                    )
                     st.dataframe(styled_tbl, use_container_width=True)
     
                     csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
@@ -2081,7 +2058,6 @@ def main():
                         key="sweep_select_idx",
                         format_func=lambda i: f"{i} - {df_show.loc[i,'결과']} · {df_show.loc[i,'타임프레임']} · N={df_show.loc[i,'측정N(봉)']}",
                         on_change=_keep_sweep_open
-                    )
                     if selected_idx is not None:
                         sel = df_show.loc[selected_idx]
                         st.info(f"선택된 조건: {sel.to_dict()}")
@@ -2103,7 +2079,6 @@ def main():
                                 miss_policy="(고정) 성공·실패·중립",
                                 bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
                                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-                            )
                             if res_detail is not None and not res_detail.empty:
                                 st.subheader("세부 신호 결과 (최신 순)")
                                 res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
@@ -2234,7 +2209,6 @@ def main():
             MARKET_LIST,
             default=[MARKET_LIST[0]],
             format_func=lambda x: x[0]
-        )
         sel_tfs = st.multiselect("감시할 분봉", ["1", "5", "15"], default=["1"])
 
         # -----------------------------
@@ -2293,7 +2267,6 @@ def main():
                 "매물대_상단매도",
             ],
             default=["TGV", "RVB", "PR", "RSI_과매도반등"],
-        )
         st.session_state["selected_strategies"] = sel_strategies
 
         # ✅ (중복 위젯 제거) 사이드바 상태만 참조
@@ -2783,7 +2756,6 @@ def main():
                                 datetime.now(),
                                 int(tf),
                                 warmup_bars=0
-                            )
                             if df_watch is None or df_watch.empty:
                                 continue
                             df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
@@ -2882,7 +2854,6 @@ def main():
                     f"- 성공 확률(예상): <span style='color: green;'>{prob_str}</span>\n"
                     f"---",
                     unsafe_allow_html=True
-                )
         else:
             st.info("기록된 알람이 없습니다.")
 
@@ -3327,7 +3298,6 @@ def main():
                 symbol_follow=follow_code,
                 start=str(start_date),
                 end=str(end_date)
-            )
             if df_res is not None and not df_res.empty:
                 st.success("✅ 백테스트 완료!")
                 st.dataframe(df_res, use_container_width=True)
