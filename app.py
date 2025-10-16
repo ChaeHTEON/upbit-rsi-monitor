@@ -1273,13 +1273,16 @@ def main():
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
         # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
         # ✅ Plotly subplot 비율 및 여백 개선 (화면비 유지)
-        if "fig" not in st.session_state:
-            st.session_state["fig"] = make_subplots(
+        # ✅ rerun 방지: PlotlyJS 직접 렌더링 (줌/비율 유지)
+        import streamlit.components.v1 as components
+        import json
+
+        if "fig_json" not in st.session_state:
+            # 최초 1회만 figure 생성 및 JSON 변환
+            fig = make_subplots(
                 rows=4, cols=1,
                 shared_xaxes=True,
-                # 메인 차트/보조지표 세로 비율 확대
                 row_heights=[0.68, 0.17, 0.10, 0.05],
-                # CCI↔거래량 간 여백 완전 제거
                 vertical_spacing=0.002,
                 specs=[
                     [{"secondary_y": True}],
@@ -1288,6 +1291,31 @@ def main():
                     [{"secondary_y": False}]
                 ]
             )
+            fig.update_layout(
+                margin=dict(l=40, r=20, t=40, b=10),
+                autosize=True,
+                height=950
+            )
+            st.session_state["fig_json"] = fig.to_json()
+
+        plotly_html = f"""
+        <div id="chart-container" style="height:900px;"></div>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <script>
+        const figData = {st.session_state["fig_json"]};
+        let chartDiv = document.getElementById("chart-container");
+
+        if (!window.chartRendered) {{
+            Plotly.newPlot(chartDiv, figData.data, figData.layout);
+            window.chartRendered = true;
+        }} else {{
+            // rerun 발생 시 데이터만 갱신 (줌/비율 유지)
+            Plotly.update(chartDiv, figData.data);
+        }}
+        </script>
+        """
+
+        components.html(plotly_html, height=900)
             st.session_state["fig"].update_layout(
                 margin=dict(l=40, r=20, t=40, b=10),
                 autosize=True,
