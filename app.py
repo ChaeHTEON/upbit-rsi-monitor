@@ -1279,7 +1279,11 @@ def main():
             row_heights=[0.7, 0.18, 0.12],
             # ✅ 보조 지표 간 여백 축소
             vertical_spacing=0.03,
-            specs=[[{"secondary_y": True}], [{}], [{}]]
+            specs=[
+                [{"secondary_y": True}],   # 1행: 메인 차트
+                [{"secondary_y": False}],  # 2행: CCI 보조지표
+                [{"secondary_y": False}]   # 3행: 거래량
+            ]
         )
 
         # 전체 차트 높이 확대 (900 → 1200)
