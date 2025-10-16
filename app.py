@@ -1275,18 +1275,33 @@ def main():
         fig = make_subplots(
             rows=4, cols=1,
             shared_xaxes=True,
-            # ✅ 메인 차트/보조지표 세로 비율 확대 (가독성 개선)
-            row_heights=[0.6, 0.2, 0.2, 0.2],
-            # ✅ CCI↔거래량 사이 여백 최소화
-            vertical_spacing=0.012,
+            # ✅ 메인 차트/보조지표 비율 확대 (시각적 구분 강화)
+            row_heights=[0.65, 0.18, 0.10, 0.07],
+            # ✅ 보조 지표 간 여백 최소화
+            vertical_spacing=0.005,
             specs=[
-                [{"secondary_y": True}],   # 1행: 메인 차트
-                [{"secondary_y": False}],  # 2행: RSI 보조지표
-                [{"secondary_y": False}],  # 3행: CCI 보조지표
-                [{"secondary_y": False}]   # 4행: 거래량
+                [{"secondary_y": True}],
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+                [{"secondary_y": False}]
             ]
         )
 
+        # ✅ 레이아웃 여백 직접 제어 (CCI-거래량 간 간격 제거)
+        fig.update_layout(
+            margin=dict(l=40, r=20, t=40, b=20),
+            autosize=True,
+            height=900
+        )
+
+        # ✅ 데이터만 갱신: rerun 없이 60초마다 Plotly 데이터 update
+        import threading, time
+        def _auto_update_chart():
+            while True:
+                time.sleep(60)
+                st.session_state["last_chart_update"] = time.time()
+        if "chart_updater" not in st.session_state:
+            threading.Thread(target=_auto_update_chart, daemon=True).start()
         # ✅ 자동 새로고침(1분 단위) 추가
         from streamlit_autorefresh import st_autorefresh
         st_autorefresh(interval=60 * 1000, key="auto_refresh_chart")
