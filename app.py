@@ -1285,25 +1285,24 @@ def main():
                     [{"secondary_y": True}],
                     [{"secondary_y": False}],
                     [{"secondary_y": False}],
-                    [{"secondary_y": False}]
+                    [{"secondary_y": False}],
                 ],
                 row_heights=[0.55, 0.20, 0.15, 0.10],
                 vertical_spacing=0.03
             )
-            # ✅ 동일한 블록 깊이(8칸)로 정렬하여 IndentationError 제거
-            fig.add_trace(
-                go.Scatter(
-                    x=df["time"], y=df["RSI13"],
-                    name="RSI(13)", mode="lines",
-                    line=dict(color="darkorange", width=1.0),
-                    showlegend=True
-                ),
-                row=3, col=1
-            )
-            fig.add_hline(y=30, line=dict(color="red", width=1.0, dash="solid"), row=3, col=1)
-            fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
-            fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
-            fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
+                fig.add_trace(
+                    go.Scatter(
+                        x=df["time"], y=df["RSI13"],
+                        name="RSI(13)", mode="lines",
+                        line=dict(color="darkorange", width=1.0),
+                        showlegend=True
+                    ),
+                    row=3, col=1
+                )
+                fig.add_hline(y=30, line=dict(color="red", width=1.0, dash="solid"), row=3, col=1)
+                fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
+                fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
+                fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
         
                 # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
                 fig.add_trace(
