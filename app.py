@@ -1645,6 +1645,7 @@ def main():
                 fig,
                 use_container_width=True,
                 config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "autosize", "responsive": True},
+                key="main_chart"   # ✅ 동일 key로 유지 → 새로고침 시 뷰(줌/스크롤) 유지
             )
     
         # -----------------------------
