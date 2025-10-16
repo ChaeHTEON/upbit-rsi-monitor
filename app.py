@@ -1268,24 +1268,24 @@ def main():
             df_plot["수익률(%)"] = np.nan
             df_plot["_pnl_str"] = ""
     
-        # ★ 2행(subplots) 구성: row1=가격+BB(+RSI y2), row2=CCI
+        # ★ 4행(subplots) 구성: row1=가격+BB(+RSI y2), row2=RSI, row3=CCI, row4=거래량
         # 가격 + RSI/CCI + 거래량 패널 (B안, 차트비율 조정)
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
         # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
         fig = make_subplots(
-            rows=3, cols=1,
+            rows=4, cols=1,
             shared_xaxes=True,
             # ✅ 메인 차트/보조지표 높이 확대
-            row_heights=[0.7, 0.18, 0.12],
+            row_heights=[0.55, 0.15, 0.15, 0.15],
             # ✅ 보조 지표 간 여백 축소
             vertical_spacing=0.03,
             specs=[
                 [{"secondary_y": True}],   # 1행: 메인 차트
-                [{"secondary_y": False}],  # 2행: CCI 보조지표
-                [{"secondary_y": False}]   # 3행: 거래량
+                [{"secondary_y": False}],  # 2행: RSI 보조지표
+                [{"secondary_y": False}],  # 3행: CCI 보조지표
+                [{"secondary_y": False}]   # 4행: 거래량
             ]
         )
-
         # 전체 차트 높이 확대 (900 → 1200)
         fig.update_layout(height=1200)
 
