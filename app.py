@@ -1276,6 +1276,7 @@ def main():
         # ✅ 수정: RSI 범례 가시성 강화 + subplot 간격 균등화
         # ✅ 수정: 메인/보조지표 전체 확대 (가독성 향상)
         # ✅ 수정: 메인(가격) 차트 세로 크기 2배 확대
+        # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
         fig = make_subplots(
             rows=4, cols=1, shared_xaxes=True,
             specs=[
@@ -1284,34 +1285,38 @@ def main():
                 [{"secondary_y": False}],  # RSI
                 [{"secondary_y": False}]   # 거래량
             ],
-            # 메인 차트 2배 확대 (보조지표는 동일 비율 유지)
-            row_heights=[0.70, 0.12, 0.10, 0.08],
+            # 보조지표 높이 1.4배 확대 (메인 유지)
+            row_heights=[0.70, 0.17, 0.14, 0.10],
             vertical_spacing=0.03
         )
 
-        # 전체 차트 높이 확대 (1500 → 1800)
-        fig.update_layout(height=1800)
+        fig.update_layout(height=1900)
 
-        # (3) RSI(13) 보조지표 (가시성 개선)
+        # (2) CCI — 굵기 및 기준선 강조
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["CCI"],
+                name="CCI(14)", mode="lines",
+                line=dict(color="royalblue", width=1.6)
+            ),
+            row=2, col=1
+        )
+        # CCI 기준선 (가독성 강화: 점선 + 반투명)
+        fig.add_hline(y=100, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1), row=2, col=1)
+        fig.add_hline(y=-100, line=dict(color="rgba(0,0,255,0.4)", dash="dot", width=1), row=2, col=1)
+
+        # (3) RSI(13) — 선명한 실선 + 보조 점선 + 범례 표시
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["RSI13"],
                 name="RSI(13, 보조)", mode="lines",
-                line=dict(color="#FF9933", width=1.8, dash="dot")  # 주황 점선으로 강조
+                line=dict(color="darkorange", width=2.0)
             ),
             row=3, col=1
         )
-        # RSI 기준선 (과매도/과매수 범위)
-        fig.add_hline(
-            y=30,
-            line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.2),
-            row=3, col=1
-        )
-        fig.add_hline(
-            y=70,
-            line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.2),
-            row=3, col=1
-        )
+        # RSI 보조선 (30/70 강조선)
+        fig.add_hline(y=30, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.3), row=3, col=1)
+        fig.add_hline(y=70, line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.3), row=3, col=1)
 
         # CCI, RSI, 거래량 축 간격 균등 반영 → 시각적 균형 향상
 
