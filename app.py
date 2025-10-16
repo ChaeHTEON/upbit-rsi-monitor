@@ -1318,13 +1318,14 @@ def main():
             for c, o in zip(df["close"], df["open"])
         ]
 
-        # (5) 거래량 + 평균선 + 2.5배 기준선
+        # ✅ 수정: subplot 4행 구조 맞춤 (row=5 → row=4)
+        # (4) 거래량 + 평균선 + 2.5배 기준선
         fig.add_trace(
             go.Bar(
                 x=df["time"], y=df["volume"],
                 name="거래량", marker_color=colors
             ),
-            row=5, col=1
+            row=4, col=1
         )
         if "vol_mean" not in df.columns:
             df["vol_mean"] = df["volume"].rolling(20).mean()
@@ -1335,7 +1336,7 @@ def main():
                 x=df["time"], y=df["vol_mean"],
                 name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
             ),
-            row=5, col=1
+            row=4, col=1
         )
         fig.add_trace(
             go.Scatter(
@@ -1343,9 +1344,9 @@ def main():
                 name="TGV 기준(2.5배)", mode="lines",
                 line=dict(color="red", width=1.3, dash="dot")
             ),
-            row=5, col=1
+            row=4, col=1
         )
-        fig.update_yaxes(title_text="거래량", row=5, col=1)
+        fig.update_yaxes(title_text="거래량", row=4, col=1)
 
         # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
         st.selectbox("봉종류 선택", ["캔들", "라인", "OHLC"], key="chart_type")
