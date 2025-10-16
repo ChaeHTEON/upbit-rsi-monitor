@@ -1658,6 +1658,38 @@ def main():
             f"- 2차 조건 · {sec_txt}\n"
             f"- 워밍업: {warmup_bars}봉"
         )
+
+        # ---------------------------------------------
+        # ⏱️ 차트 데이터 자동 갱신 (30초마다)
+        # ---------------------------------------------
+        from streamlit_autorefresh import st_autorefresh
+        count = st_autorefresh(interval=30 * 1000, key="chart_refresh")
+
+        try:
+            if "chart_df" not in st.session_state:
+                st.session_state["chart_df"] = df
+
+            if count > 0:
+                try:
+                    if "load_ohlcv" in globals():
+                        df_new = load_ohlcv(symbol, tf)
+                    else:
+                        from datetime import datetime, timedelta
+                        df_new = fetch_upbit_paged(
+                            symbol, f"minutes/{tf}",
+                            datetime.now() - timedelta(hours=3),
+                            datetime.now(),
+                            int(tf), warmup_bars=0
+                        )
+                    if df_new is not None and not df_new.empty:
+                        st.session_state["chart_df"] = df_new
+                except Exception as e:
+                    st.warning(f"데이터 갱신 중 오류 발생: {e}")
+
+            # 항상 최신 데이터 기준으로 차트 갱신
+            render_chart_with_updated_data = st.session_state["chart_df"]
+        except Exception as e:
+            st.warning(f"자동갱신 모듈 오류: {e}")
     
         # 메트릭 요약
         def _summarize(df_in):
