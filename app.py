@@ -1660,36 +1660,60 @@ def main():
         )
 
         # ---------------------------------------------
-        # ⏱️ 차트 데이터 자동 갱신 (30초마다)
+        # ⏱️ 차트 데이터 자동 갱신 (30초마다, 뷰 유지형)
         # ---------------------------------------------
-        from streamlit_autorefresh import st_autorefresh
-        count = st_autorefresh(interval=30 * 1000, key="chart_refresh")
+        import threading, time
+        import plotly.graph_objs as go
+        from datetime import datetime, timedelta
 
-        try:
-            if "chart_df" not in st.session_state:
-                st.session_state["chart_df"] = df
+        # 🔹 최초 차트 fig가 없을 경우 초기 생성
+        if "chart_fig" not in st.session_state:
+            # ⚠️ make_chart()는 기존 차트 생성 함수명에 맞게 수정 (예: render_chart 또는 create_chart)
+            if "make_chart" in globals():
+                st.session_state["chart_fig"] = make_chart(df)
+            else:
+                st.session_state["chart_fig"] = go.Figure(data=[
+                    go.Candlestick(
+                        x=df.index,
+                        open=df["open"],
+                        high=df["high"],
+                        low=df["low"],
+                        close=df["close"]
+                    )
+                ])
 
-            if count > 0:
+        # 🔹 차트를 유지한 채 표시
+        placeholder = st.empty()
+        placeholder.plotly_chart(st.session_state["chart_fig"], use_container_width=True)
+
+        # 🔹 백그라운드에서 30초마다 데이터 갱신 (뷰 유지)
+        def update_chart_periodically():
+            while True:
+                time.sleep(30)
                 try:
-                    if "load_ohlcv" in globals():
-                        df_new = load_ohlcv(symbol, tf)
-                    else:
-                        from datetime import datetime, timedelta
-                        df_new = fetch_upbit_paged(
-                            symbol, f"minutes/{tf}",
-                            datetime.now() - timedelta(hours=3),
-                            datetime.now(),
-                            int(tf), warmup_bars=0
-                        )
+                    df_new = fetch_upbit_paged(
+                        symbol, f"minutes/{tf}",
+                        datetime.now() - timedelta(hours=3),
+                        datetime.now(),
+                        int(tf), warmup_bars=0
+                    )
                     if df_new is not None and not df_new.empty:
-                        st.session_state["chart_df"] = df_new
+                        fig_new = go.Figure(data=[
+                            go.Candlestick(
+                                x=df_new.index,
+                                open=df_new["open"],
+                                high=df_new["high"],
+                                low=df_new["low"],
+                                close=df_new["close"]
+                            )
+                        ])
+                        # trace만 교체 → 줌/뷰 유지
+                        st.session_state["chart_fig"].data = fig_new.data
+                        placeholder.plotly_chart(st.session_state["chart_fig"], use_container_width=True)
                 except Exception as e:
-                    st.warning(f"데이터 갱신 중 오류 발생: {e}")
+                    print(f"⚠️ 차트 갱신 오류: {e}")
 
-            # 항상 최신 데이터 기준으로 차트 갱신
-            render_chart_with_updated_data = st.session_state["chart_df"]
-        except Exception as e:
-            st.warning(f"자동갱신 모듈 오류: {e}")
+        threading.Thread(target=update_chart_periodically, daemon=True).start()
     
         # 메트릭 요약
         def _summarize(df_in):
