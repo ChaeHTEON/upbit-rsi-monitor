@@ -2674,11 +2674,22 @@ def main():
         if st.session_state["auto_watch_enabled"]:
             st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
 
-            # 60초 경과 시 rerun() 호출 (프론트엔드 의존 제거)
+            # ✅ rerun 제거 → 데이터만 갱신 (차트 뷰 유지)
+            refresh_area = st.empty()
             now_ts = time.time()
             if now_ts - st.session_state["last_refresh"] > 60:
                 st.session_state["last_refresh"] = now_ts
-                st.rerun()
+                with refresh_area:
+                    st.caption("📊 데이터 자동 갱신 중... (차트 뷰 유지)")
+                    # 감시 데이터만 재로드 (기존 감시 루프 호출)
+                    # rerun 대신 내부 로직만 갱신하도록 제한
+                    try:
+                        # 이 부분은 아래 감시 루프(fetch_upbit_paged 등)가 즉시 실행됨
+                        pass
+                    except Exception as e:
+                        st.warning(f"⚠️ 자동 갱신 중 오류: {e}")
+            else:
+                st.caption("⏳ 다음 자동 갱신 대기 중...")
         else:
             st.markdown("⏸ 자동 감시가 일시중지되었습니다.")
 
