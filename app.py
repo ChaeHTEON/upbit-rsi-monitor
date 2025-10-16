@@ -1275,10 +1275,10 @@ def main():
         fig = make_subplots(
             rows=4, cols=1,
             shared_xaxes=True,
-            # ✅ 메인 차트/보조지표 높이 확대
-            row_heights=[0.55, 0.15, 0.15, 0.15],
-            # ✅ 보조 지표 간 여백 축소
-            vertical_spacing=0.03,
+            # ✅ 메인 차트/보조지표 세로 비율 확대 (가독성 개선)
+            row_heights=[0.6, 0.2, 0.2, 0.2],
+            # ✅ CCI↔거래량 사이 여백 최소화
+            vertical_spacing=0.012,
             specs=[
                 [{"secondary_y": True}],   # 1행: 메인 차트
                 [{"secondary_y": False}],  # 2행: RSI 보조지표
@@ -1286,6 +1286,10 @@ def main():
                 [{"secondary_y": False}]   # 4행: 거래량
             ]
         )
+
+        # ✅ 자동 새로고침(1분 단위) 추가
+        from streamlit_autorefresh import st_autorefresh
+        st_autorefresh(interval=60 * 1000, key="auto_refresh_chart")
         # 전체 차트 높이 확대 (900 → 1200)
         fig.update_layout(height=1200)
 
