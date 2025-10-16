@@ -1272,20 +1272,60 @@ def main():
         # 가격 + RSI/CCI + 거래량 패널 (B안, 차트비율 조정)
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
         # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
-        fig = make_subplots(
-            rows=4, cols=1,
-            shared_xaxes=True,
-            # ✅ 메인 차트/보조지표 비율 확대 (시각적 구분 강화)
-            row_heights=[0.65, 0.18, 0.10, 0.07],
-            # ✅ 보조 지표 간 여백 최소화
-            vertical_spacing=0.005,
-            specs=[
-                [{"secondary_y": True}],
-                [{"secondary_y": False}],
-                [{"secondary_y": False}],
-                [{"secondary_y": False}]
-            ]
-        )
+        # ✅ Plotly subplot 비율 및 여백 개선 (화면비 유지)
+        if "fig" not in st.session_state:
+            st.session_state["fig"] = make_subplots(
+                rows=4, cols=1,
+                shared_xaxes=True,
+                # 메인 차트/보조지표 세로 비율 확대
+                row_heights=[0.68, 0.17, 0.10, 0.05],
+                # CCI↔거래량 간 여백 완전 제거
+                vertical_spacing=0.002,
+                specs=[
+                    [{"secondary_y": True}],
+                    [{"secondary_y": False}],
+                    [{"secondary_y": False}],
+                    [{"secondary_y": False}]
+                ]
+            )
+            st.session_state["fig"].update_layout(
+                margin=dict(l=40, r=20, t=40, b=10),
+                autosize=True,
+                height=950
+            )
+        fig = st.session_state["fig"]
+
+        # ✅ 데이터만 갱신: rerun 없이 Plotly trace 갱신
+        import plotly.graph_objects as go
+        def update_chart_data(df):
+            with fig.batch_update():
+                if len(fig.data) >= 4:
+                    if "close" in df:
+                        fig.data[0].y = df["close"].values
+                    if "rsi" in df:
+                        fig.data[1].y = df["rsi"].values
+                    if "CCI" in df:
+                        fig.data[2].y = df["CCI"].values
+                    if "volume" in df:
+                        fig.data[3].y = df["volume"].values
+        # 백그라운드 주기적 데이터 갱신
+        import threading, time
+        def _chart_auto_update():
+            while True:
+                time.sleep(60)
+                try:
+                    # 🔁 fetch_upbit_paged → add_indicators 로 데이터 재로드
+                    df_new = fetch_upbit_paged(market_code, "minutes/1",
+                                               datetime.now() - timedelta(hours=3),
+                                               datetime.now(),
+                                               1)
+                    if df_new is not None and not df_new.empty:
+                        df_new = add_indicators(df_new, bb_window=20, bb_dev=2.0, cci_window=14)
+                        update_chart_data(df_new)
+                except Exception as e:
+                    st.warning(f"⚠️ 차트 자동갱신 오류: {e}")
+        if "chart_updater" not in st.session_state:
+            threading.Thread(target=_chart_auto_update, daemon=True).start()
 
         # ✅ 레이아웃 여백 직접 제어 (CCI-거래량 간 간격 제거)
         fig.update_layout(
