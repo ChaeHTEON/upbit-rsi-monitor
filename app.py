@@ -1275,6 +1275,7 @@ def main():
         # ✅ 수정: CCI 아래 RSI 보조 추가 및 간격 축소
         # ✅ 수정: RSI 범례 가시성 강화 + subplot 간격 균등화
         # ✅ 수정: 메인/보조지표 전체 확대 (가독성 향상)
+        # ✅ 수정: 메인(가격) 차트 세로 크기 2배 확대
         fig = make_subplots(
             rows=4, cols=1, shared_xaxes=True,
             specs=[
@@ -1283,13 +1284,13 @@ def main():
                 [{"secondary_y": False}],  # RSI
                 [{"secondary_y": False}]   # 거래량
             ],
-            # 비율 조정: 메인(가격) 0.42 → 확대, 나머지 보조지표 균등하게 0.20씩
-            row_heights=[0.42, 0.20, 0.20, 0.18],
-            vertical_spacing=0.03  # 간격 유지
+            # 메인 차트 2배 확대 (보조지표는 동일 비율 유지)
+            row_heights=[0.70, 0.12, 0.10, 0.08],
+            vertical_spacing=0.03
         )
 
-        # 전체 차트 높이 확대 (1300 → 1500)
-        fig.update_layout(height=1500)
+        # 전체 차트 높이 확대 (1500 → 1800)
+        fig.update_layout(height=1800)
 
         # (3) RSI(13) 보조지표 (가시성 개선)
         fig.add_trace(
