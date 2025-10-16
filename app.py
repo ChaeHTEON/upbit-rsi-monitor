@@ -1294,34 +1294,54 @@ def main():
             fig.update_layout(height=1550)  # 전체 높이 확장
 
             # ✅ RSI(13): 주황 얇은 실선, 기준선 30·50·70 실선화
-            fig.add_trace(
-                go.Scatter(
-                    x=df["time"], y=df["RSI13"],
-                    name="RSI(13)", mode="lines",
-                    line=dict(color="darkorange", width=1.0),
-                    showlegend=True
-                ),
-                row=3, col=1
-            )
-            fig.add_hline(y=30, line=dict(color="red", width=1.0, dash="solid"), row=3, col=1)
-            fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
-            fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
-            fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
+        # ✅ CCI — 얇은 실선 + 색상 상하단 통일 + 점선 정렬 보정
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["CCI"],
+                name="CCI(14)", mode="lines",
+                line=dict(color="rgba(0,102,204,0.9)" if df["CCI"].iloc[-1] < 0 else "rgba(255,0,0,0.9)", width=0.9),
+                showlegend=True
+            ),
+            row=2, col=1
+        )
+        fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=100, y1=100,
+                      line=dict(color="red", width=0.9, dash="solid"), row=2, col=1)
+        fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=-100, y1=-100,
+                      line=dict(color="blue", width=0.9, dash="solid"), row=2, col=1)
+        fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=0, y1=0,
+                      line=dict(color="gray", width=0.8, dash="dot"), row=2, col=1)
+        fig.update_yaxes(title_text="CCI(14)", row=2, col=1)
 
-            # ✅ CCI: ±100 실선, 중앙선(0) 점선으로 구분
-            fig.add_trace(
-                go.Scatter(
-                    x=df["time"], y=df["CCI"],
-                    name="CCI(14)", mode="lines",
-                    line=dict(color="royalblue", width=1.0),
-                    showlegend=True
-                ),
-                row=2, col=1
+        # ✅ RSI — CCI와 동일 색상 컨셉(상단 빨강, 하단 파랑)
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["RSI13"],
+                name="RSI(13)", mode="lines",
+                line=dict(color="rgba(255,0,0,0.9)" if df["RSI13"].iloc[-1] >= 50 else "rgba(0,102,204,0.9)", width=0.9),
+                showlegend=True
+            ),
+            row=3, col=1
+        )
+        fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=70, y1=70,
+                      line=dict(color="red", width=0.9, dash="solid"), row=3, col=1)
+        fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=50, y1=50,
+                      line=dict(color="gray", width=0.8, dash="dot"), row=3, col=1)
+        fig.add_shape(type="line", x0=0, x1=1, xref="paper", y0=30, y1=30,
+                      line=dict(color="blue", width=0.9, dash="solid"), row=3, col=1)
+        fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
+
+        # ✅ 범례 균일 간격 보정
+        fig.update_layout(
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5,
+                itemwidth=45,
+                tracegroupgap=6
             )
-            fig.add_hline(y=100, line=dict(color="red", width=1.0, dash="solid"), row=2, col=1)
-            fig.add_hline(y=-100, line=dict(color="blue", width=1.0, dash="solid"), row=2, col=1)
-            fig.add_hline(y=0, line=dict(color="gray", width=0.8, dash="dot"), row=2, col=1)
-            fig.update_yaxes(title_text="CCI(14)", row=2, col=1)
+        )
         
                 # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
             fig.add_trace(
