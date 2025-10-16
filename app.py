@@ -1278,54 +1278,54 @@ def main():
         # ✅ 수정: 메인(가격) 차트 세로 크기 2배 확대
         # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
         # ✅ 수정: 보조지표 가로/세로 균등 정렬 + RSI 범례 표시 + 높이 1.5배 확대
-# ✅ 원래 비율/보조지표/스타일 복원
-fig = make_subplots(
-    rows=4, cols=1, shared_xaxes=True,
-    specs=[
-        [{"secondary_y": True}],   # 가격
-        [{"secondary_y": False}],  # CCI
-        [{"secondary_y": False}],  # RSI
-        [{"secondary_y": False}]   # 거래량
-    ],
-    row_heights=[0.55, 0.20, 0.15, 0.10],  # 기존 구조 복원
-    vertical_spacing=0.03
-)
+        # ✅ 원래 비율/보조지표/스타일 복원
+        fig = make_subplots(
+            rows=4, cols=1, shared_xaxes=True,
+            specs=[
+                [{"secondary_y": True}],   # 가격
+                [{"secondary_y": False}],  # CCI
+                [{"secondary_y": False}],  # RSI
+                [{"secondary_y": False}]   # 거래량
+            ],
+            row_heights=[0.55, 0.20, 0.15, 0.10],  # 기존 구조 복원
+            vertical_spacing=0.03
+        )
 
-fig.update_layout(height=1500)
-
-# RSI(13) 복원
-fig.add_trace(
-    go.Scatter(
-        x=df["time"], y=df["RSI13"],
-        name="RSI(13)", mode="lines",
-        line=dict(color="darkorange", width=1.0),
-        showlegend=True
-    ),
-    row=3, col=1
-)
-
-# RSI 기준선 (얇은 실선 유지)
-fig.add_hline(y=30, line=dict(color="red", width=1.0, dash="solid"), row=3, col=1)
-fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
-fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
-fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
-
-# CCI 기준선 (얇은 실선)
-fig.add_hline(y=100, line=dict(color="red", width=1.0, dash="solid"), row=2, col=1)
-fig.add_hline(y=-100, line=dict(color="blue", width=1.0, dash="solid"), row=2, col=1)
-fig.add_hline(y=0, line=dict(color="gray", width=0.8, dash="solid"), row=2, col=1)
-fig.update_yaxes(title_text="CCI(14)", row=2, col=1)
-
-        # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
+        fig.update_layout(height=1500)
+        
+        # RSI(13) 복원
         fig.add_trace(
             go.Scatter(
-                x=df["time"], y=df["CCI"],
-                name="CCI(14)", mode="lines",
-                line=dict(color="teal", width=2.0),
+                x=df["time"], y=df["RSI13"],
+                name="RSI(13)", mode="lines",
+                line=dict(color="darkorange", width=1.0),
                 showlegend=True
             ),
-            row=2, col=1
+            row=3, col=1
         )
+        
+        # RSI 기준선 (얇은 실선 유지)
+        fig.add_hline(y=30, line=dict(color="red", width=1.0, dash="solid"), row=3, col=1)
+        fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
+        fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
+        fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
+        
+        # CCI 기준선 (얇은 실선)
+        fig.add_hline(y=100, line=dict(color="red", width=1.0, dash="solid"), row=2, col=1)
+        fig.add_hline(y=-100, line=dict(color="blue", width=1.0, dash="solid"), row=2, col=1)
+        fig.add_hline(y=0, line=dict(color="gray", width=0.8, dash="solid"), row=2, col=1)
+        fig.update_yaxes(title_text="CCI(14)", row=2, col=1)
+        
+                # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
+                fig.add_trace(
+                    go.Scatter(
+                        x=df["time"], y=df["CCI"],
+                        name="CCI(14)", mode="lines",
+                        line=dict(color="teal", width=2.0),
+                        showlegend=True
+                    ),
+                    row=2, col=1
+                )
 
 ### [부분코드] CCI/RSI xref 오류 수정
   # 원인: subplot 환경에서 `xref="x domain"` 적용 시 Plotly 내부에서 중복 domain 오류 발생
