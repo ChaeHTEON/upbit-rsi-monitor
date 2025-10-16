@@ -1272,40 +1272,54 @@ def main():
         # 가격 + RSI/CCI + 거래량 패널 (B안, 차트비율 조정)
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
         # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
+        # ✅ 수정: CCI 아래 RSI 보조 추가 및 간격 축소
         fig = make_subplots(
-            rows=4, cols=1, shared_xaxes=True,
+            rows=5, cols=1, shared_xaxes=True,
             specs=[
                 [{"secondary_y": True}],
                 [{"secondary_y": False}],
                 [{"secondary_y": False}],
+                [{"secondary_y": False}],
                 [{}]
             ],
-            row_heights=[0.55, 0.20, 0.20, 0.20],  # 보조지표 패널 높이 30% 확대
-            vertical_spacing=0.04
+            row_heights=[0.55, 0.18, 0.18, 0.18, 0.18],  # RSI 보조 추가로 균등 조정
+            vertical_spacing=0.02  # 공백 축소
         )
 
         # 전체 차트 높이 확대 (900 → 1200)
         fig.update_layout(height=1200)
 
-        # (2) RSI(13) 보조지표
+        # (2) CCI
         fig.add_trace(
             go.Scatter(
-                x=df["time"], y=df["RSI13"],
-                name="RSI(13)", mode="lines", line=dict(color="orange", width=1)
+                x=df["time"], y=df["CCI"],
+                name="CCI(14)", mode="lines", line=dict(color="blue", width=1.2)
             ),
             row=2, col=1
         )
-        # RSI 기준선 (빨강 실선, 네온 투명 강조)
+        # CCI 기준선
         fig.add_hline(
-            y=40,
+            y=-30,
             line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.8),
             row=2, col=1
         )
 
-        # CCI 기준선 (빨강 실선, 네온 투명 강조)
+        # (3) RSI(13) 신규 보조지표 (CCI 하단)
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["RSI13"],
+                name="RSI(13)", mode="lines", line=dict(color="orange", width=1.2)
+            ),
+            row=3, col=1
+        )
         fig.add_hline(
-            y=-30,
-            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.8),
+            y=40,
+            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.5),
+            row=3, col=1
+        )
+        fig.add_hline(
+            y=70,
+            line=dict(color="rgba(255,0,0,0.3)", dash="dot", width=1.2),
             row=3, col=1
         )
 
@@ -1315,13 +1329,13 @@ def main():
             for c, o in zip(df["close"], df["open"])
         ]
 
-        # (4) 거래량 + 평균선 + 2.5배 기준선 (크기 조정) — 거래량 표시는 row=4 한 곳에서만
+        # (5) 거래량 + 평균선 + 2.5배 기준선
         fig.add_trace(
             go.Bar(
                 x=df["time"], y=df["volume"],
                 name="거래량", marker_color=colors
             ),
-            row=4, col=1
+            row=5, col=1
         )
         if "vol_mean" not in df.columns:
             df["vol_mean"] = df["volume"].rolling(20).mean()
@@ -1332,7 +1346,7 @@ def main():
                 x=df["time"], y=df["vol_mean"],
                 name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
             ),
-            row=4, col=1
+            row=5, col=1
         )
         fig.add_trace(
             go.Scatter(
@@ -1340,9 +1354,9 @@ def main():
                 name="TGV 기준(2.5배)", mode="lines",
                 line=dict(color="red", width=1.3, dash="dot")
             ),
-            row=4, col=1
+            row=5, col=1
         )
-        fig.update_yaxes(title_text="거래량", row=4, col=1)
+        fig.update_yaxes(title_text="거래량", row=5, col=1)
 
         # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
         st.selectbox("봉종류 선택", ["캔들", "라인", "OHLC"], key="chart_type")
