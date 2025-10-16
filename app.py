@@ -1632,7 +1632,7 @@ def main():
         else:
             st.session_state["chart_cache"][chart_key] = fig
 
-        # ✅ 데이터 최신화 (뷰 유지한 채 trace만 교체)
+        # ✅ 데이터 최신화 (뷰 유지한 채 trace 내용만 업데이트)
         try:
             df_new = fetch_upbit_paged(
                 market_code, interval_key,
@@ -1641,18 +1641,17 @@ def main():
                 int(minutes_per_bar), warmup_bars=0
             )
             if df_new is not None and not df_new.empty:
-                fig.data = [
-                    go.Candlestick(
-                        x=df_new["time"],
-                        open=df_new["open"],
-                        high=df_new["high"],
-                        low=df_new["low"],
-                        close=df_new["close"],
-                        name="가격",
-                        increasing=dict(line=dict(color="red", width=1.1)),
-                        decreasing=dict(line=dict(color="blue", width=1.1)),
-                    )
-                ]
+                # 기존 fig에 포함된 trace 중 첫 번째가 가격봉(Candlestick)인 경우만 갱신
+                for trace in fig.data:
+                    if isinstance(trace, go.Candlestick):
+                        trace.update(
+                            x=df_new["time"],
+                            open=df_new["open"],
+                            high=df_new["high"],
+                            low=df_new["low"],
+                            close=df_new["close"]
+                        )
+                        break  # ✅ 첫 번째 봉 trace만 수정
         except Exception as e:
             st.warning(f"⚠️ 데이터 갱신 오류: {e}")
 
