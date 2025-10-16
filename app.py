@@ -1273,55 +1273,44 @@ def main():
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
         # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
         # ✅ 수정: CCI 아래 RSI 보조 추가 및 간격 축소
+        # ✅ 수정: RSI 범례 가시성 강화 + subplot 간격 균등화
         fig = make_subplots(
-            rows=5, cols=1, shared_xaxes=True,
+            rows=4, cols=1, shared_xaxes=True,
             specs=[
-                [{"secondary_y": True}],
-                [{"secondary_y": False}],
-                [{"secondary_y": False}],
-                [{"secondary_y": False}],
-                [{}]
+                [{"secondary_y": True}],   # 가격
+                [{"secondary_y": False}],  # CCI
+                [{"secondary_y": False}],  # RSI
+                [{"secondary_y": False}]   # 거래량
             ],
-            row_heights=[0.55, 0.18, 0.18, 0.18, 0.18],  # RSI 보조 추가로 균등 조정
-            vertical_spacing=0.02  # 공백 축소
+            row_heights=[0.35, 0.22, 0.22, 0.21],  # 균등 비율 조정
+            vertical_spacing=0.03  # 간격 일정화
         )
 
-        # 전체 차트 높이 확대 (900 → 1200)
-        fig.update_layout(height=1200)
+        # 전체 차트 높이 확대 (900 → 1300)
+        fig.update_layout(height=1300)
 
-        # (2) CCI
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["CCI"],
-                name="CCI(14)", mode="lines", line=dict(color="blue", width=1.2)
-            ),
-            row=2, col=1
-        )
-        # CCI 기준선
-        fig.add_hline(
-            y=-30,
-            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.8),
-            row=2, col=1
-        )
-
-        # (3) RSI(13) 신규 보조지표 (CCI 하단)
+        # (3) RSI(13) 보조지표 (가시성 개선)
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["RSI13"],
-                name="RSI(13)", mode="lines", line=dict(color="orange", width=1.2)
+                name="RSI(13, 보조)", mode="lines",
+                line=dict(color="#FF9933", width=1.8, dash="dot")  # 주황 점선으로 강조
             ),
             row=3, col=1
         )
+        # RSI 기준선 (과매도/과매수 범위)
         fig.add_hline(
-            y=40,
-            line=dict(color="rgba(255,0,0,0.5)", dash="solid", width=1.5),
+            y=30,
+            line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.2),
             row=3, col=1
         )
         fig.add_hline(
             y=70,
-            line=dict(color="rgba(255,0,0,0.3)", dash="dot", width=1.2),
+            line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.2),
             row=3, col=1
         )
+
+        # CCI, RSI, 거래량 축 간격 균등 반영 → 시각적 균형 향상
 
         # 🔴 양봉 / 🔵 음봉 색상 구분 (막대 색상은 사용 이전에 미리 계산)
         colors = [
