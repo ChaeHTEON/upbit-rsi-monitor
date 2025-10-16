@@ -1635,6 +1635,7 @@ def main():
             yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
             uirevision=_uirev,
             hovermode="closest")
+        )
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
             top_l, top_r = st.columns([4, 1])
