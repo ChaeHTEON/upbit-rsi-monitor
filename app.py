@@ -1279,18 +1279,21 @@ def main():
         # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
         # ✅ 수정: 보조지표 가로/세로 균등 정렬 + RSI 범례 표시 + 높이 1.5배 확대
         # ✅ 원래 비율/보조지표/스타일 복원
+            # ✅ 차트 비율 및 보조지표 시각 균형 개선
             fig = make_subplots(
                 rows=4, cols=1, shared_xaxes=True,
                 specs=[
-                    [{"secondary_y": True}],
-                    [{"secondary_y": False}],
-                    [{"secondary_y": False}],
-                    [{"secondary_y": False}]
+                    [{"secondary_y": True}],   # 메인 차트
+                    [{"secondary_y": False}],  # CCI
+                    [{"secondary_y": False}],  # RSI
+                    [{"secondary_y": False}]   # 거래량
                 ],
-                row_heights=[0.55, 0.20, 0.15, 0.10],
+                row_heights=[0.60, 0.18, 0.14, 0.08],  # 메인 조금 확대, 보조 균형
                 vertical_spacing=0.03
             )
-            # ✅ 동일한 블록 깊이(8칸)로 정렬하여 IndentationError 제거
+            fig.update_layout(height=1550)  # 전체 높이 확장
+
+            # ✅ RSI(13): 주황 얇은 실선, 기준선 30·50·70 실선화
             fig.add_trace(
                 go.Scatter(
                     x=df["time"], y=df["RSI13"],
@@ -1304,6 +1307,21 @@ def main():
             fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
             fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
             fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
+
+            # ✅ CCI: ±100 실선, 중앙선(0) 점선으로 구분
+            fig.add_trace(
+                go.Scatter(
+                    x=df["time"], y=df["CCI"],
+                    name="CCI(14)", mode="lines",
+                    line=dict(color="royalblue", width=1.0),
+                    showlegend=True
+                ),
+                row=2, col=1
+            )
+            fig.add_hline(y=100, line=dict(color="red", width=1.0, dash="solid"), row=2, col=1)
+            fig.add_hline(y=-100, line=dict(color="blue", width=1.0, dash="solid"), row=2, col=1)
+            fig.add_hline(y=0, line=dict(color="gray", width=0.8, dash="dot"), row=2, col=1)
+            fig.update_yaxes(title_text="CCI(14)", row=2, col=1)
         
                 # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
             fig.add_trace(
