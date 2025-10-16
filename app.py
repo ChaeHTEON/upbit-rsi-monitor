@@ -62,10 +62,10 @@ def main():
     @st.cache_data(ttl=3600)
     def get_upbit_krw_markets():
         """
-        - 메인 5개: KRW-BTC, KRW-XRP, KRW-ETH, KRW-SOL, KRW-DOGE
+        # 메인 5개: KRW-BTC, KRW-XRP, KRW-ETH, KRW-SOL, KRW-DOGE
           → 24h 거래대금(acc_trade_price_24h) 기준으로 상단 정렬
-        - 그 외 모든 KRW-마켓 → 동일 지표로 내림차순 정렬
-        - 실패 시 기존 BTC 우선 + 코드순으로 폴백
+        # 그 외 모든 KRW-마켓 → 동일 지표로 내림차순 정렬
+        # 실패 시 기존 BTC 우선 + 코드순으로 폴백
         """
         try:
             # 1) 전체 마켓 목록
@@ -748,9 +748,9 @@ def main():
         def first_bull_50_over_bb(start_i):
             """
             i0 이후 '밴드 아래'에 있다가 처음으로 '진입'하는 '첫 양봉'만 인정.
-            - 조건1: 양봉(close > open)
-            - 조건2: (open < ref or low <= ref) AND close >= ref → 진입 정의
-            - 조건3: start_i+1 ~ j-1 구간 모든 종가 < ref → '첫 진입' 보장
+            # 조건1: 양봉(close > open)
+            # 조건2: (open < ref or low <= ref) AND close >= ref → 진입 정의
+            # 조건3: start_i+1 ~ j-1 구간 모든 종가 < ref → '첫 진입' 보장
             """
             for j in range(start_i + 1, n):
                 o, l, c = float(df.at[j, "open"]), float(df.at[j, "low"]), float(df.at[j, "close"])
@@ -1285,27 +1285,28 @@ def main():
                     [{"secondary_y": True}],
                     [{"secondary_y": False}],
                     [{"secondary_y": False}],
-                    [{"secondary_y": False}],
+                    [{"secondary_y": False}]
                 ],
                 row_heights=[0.55, 0.20, 0.15, 0.10],
                 vertical_spacing=0.03
             )
-                fig.add_trace(
-                    go.Scatter(
-                        x=df["time"], y=df["RSI13"],
-                        name="RSI(13)", mode="lines",
-                        line=dict(color="darkorange", width=1.0),
-                        showlegend=True
-                    ),
-                    row=3, col=1
-                )
-                fig.add_hline(y=30, line=dict(color="red", width=1.0, dash="solid"), row=3, col=1)
-                fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
-                fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
-                fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
+            # ✅ 동일한 블록 깊이(8칸)로 정렬하여 IndentationError 제거
+            fig.add_trace(
+                go.Scatter(
+                    x=df["time"], y=df["RSI13"],
+                    name="RSI(13)", mode="lines",
+                    line=dict(color="darkorange", width=1.0),
+                    showlegend=True
+                ),
+                row=3, col=1
+            )
+            fig.add_hline(y=30, line=dict(color="red", width=1.0, dash="solid"), row=3, col=1)
+            fig.add_hline(y=50, line=dict(color="gray", width=0.8, dash="solid"), row=3, col=1)
+            fig.add_hline(y=70, line=dict(color="green", width=1.0, dash="solid"), row=3, col=1)
+            fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
         
                 # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
-                fig.add_trace(
+            fig.add_trace(
                     go.Scatter(
                         x=df["time"], y=df["CCI"],
                         name="CCI(14)", mode="lines",
