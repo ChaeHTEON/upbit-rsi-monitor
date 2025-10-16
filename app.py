@@ -1273,15 +1273,13 @@ def main():
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
         # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
         fig = make_subplots(
-            rows=4, cols=1, shared_xaxes=True,
-            specs=[
-                [{"secondary_y": True}],
-                [{"secondary_y": False}],
-                [{"secondary_y": False}],
-                [{}]
-            ],
-            row_heights=[0.55, 0.20, 0.20, 0.20],  # 보조지표 패널 높이 30% 확대
-            vertical_spacing=0.04
+            rows=3, cols=1,
+            shared_xaxes=True,
+            # ✅ 메인 차트/보조지표 높이 확대
+            row_heights=[0.7, 0.18, 0.12],
+            # ✅ 보조 지표 간 여백 축소
+            vertical_spacing=0.03,
+            specs=[[{"secondary_y": True}], [{}], [{}]]
         )
 
         # 전체 차트 높이 확대 (900 → 1200)
