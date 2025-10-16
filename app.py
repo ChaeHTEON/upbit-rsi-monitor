@@ -1268,178 +1268,22 @@ def main():
             df_plot["수익률(%)"] = np.nan
             df_plot["_pnl_str"] = ""
     
-        # ★ 4행(subplots) 구성: row1=가격+BB(+RSI y2), row2=RSI, row3=CCI, row4=거래량
+        # ★ 2행(subplots) 구성: row1=가격+BB(+RSI y2), row2=CCI
         # 가격 + RSI/CCI + 거래량 패널 (B안, 차트비율 조정)
         # 가격 + RSI + CCI + 거래량 패널 (RSI 보조 추가)
         # 가격 + RSI + CCI + 거래량 패널 (보조지표 확대 버전)
-        # ✅ Plotly subplot 비율 및 여백 개선 (화면비 유지)
-        # ✅ rerun 방지: PlotlyJS 직접 렌더링 (줌/비율 유지)
-        import streamlit.components.v1 as components
-        import json
-
-        if "fig_json" not in st.session_state:
-            # 최초 1회만 figure 생성 및 JSON 변환
-            fig = make_subplots(
-                rows=4, cols=1,
-                shared_xaxes=True,
-                row_heights=[0.68, 0.17, 0.10, 0.05],
-                vertical_spacing=0.002,
-                specs=[
-                    [{"secondary_y": True}],
-                    [{"secondary_y": False}],
-                    [{"secondary_y": False}],
-                    [{"secondary_y": False}]
-                ]
-            )
-            fig.update_layout(
-                margin=dict(l=40, r=20, t=40, b=10),
-                autosize=True,
-                height=950
-            )
-            st.session_state["fig_json"] = fig.to_json()
-
-        plotly_html = f"""
-        <div id="chart-container" style="height:900px;"></div>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <script>
-        const figData = {st.session_state["fig_json"]};
-        let chartDiv = document.getElementById("chart-container");
-
-        if (!window.chartRendered) {{
-            Plotly.newPlot(chartDiv, figData.data, figData.layout);
-            window.chartRendered = true;
-        }} else {{
-            // rerun 발생 시 데이터만 갱신 (줌/비율 유지)
-            Plotly.update(chartDiv, figData.data);
-        }}
-        </script>
-        """
-
-        components.html(plotly_html, height=900)
-            fig.update_layout(
-                margin=dict(l=40, r=20, t=40, b=10),
-                autosize=True,
-                height=950
-            )
-            st.session_state["fig_json"] = fig.to_json()
-        plotly_html = f"""
-        <div id="chart-container" style="height:900px;"></div>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <script>
-        const figData = {st.session_state["fig_json"]};
-        let chartDiv = document.getElementById("chart-container");
-        if (!window.chartRendered) {{
-            Plotly.newPlot(chartDiv, figData.data, figData.layout);
-            window.chartRendered = true;
-        }} else {{
-            Plotly.update(chartDiv, figData.data);
-        }}
-        </script>
-        """
-        components.html(plotly_html, height=900)
-            fig.update_layout(
-                margin=dict(l=40, r=20, t=40, b=10),
-                autosize=True,
-                height=950
-            )
-            st.session_state["fig_json"] = fig.to_json()
-        plotly_html = f"""
-        <div id="chart-container" style="height:900px;"></div>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <script>
-        const figData = {st.session_state["fig_json"]};
-        let chartDiv = document.getElementById("chart-container");
-        if (!window.chartRendered) {{
-            Plotly.newPlot(chartDiv, figData.data, figData.layout);
-            window.chartRendered = true;
-        }} else {{
-            Plotly.update(chartDiv, figData.data);
-        }}
-        </script>
-        """
-        components.html(plotly_html, height=900)
-            fig.update_layout(
-                margin=dict(l=40, r=20, t=40, b=10),
-                autosize=True,
-                height=950
-            )
-            st.session_state["fig_json"] = fig.to_json()
-
-        plotly_html = f"""
-        <div id="chart-container" style="height:900px;"></div>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-        <script>
-        const figData = {st.session_state["fig_json"]};
-        let chartDiv = document.getElementById("chart-container");
-
-        if (!window.chartRendered) {{
-            Plotly.newPlot(chartDiv, figData.data, figData.layout);
-            window.chartRendered = true;
-        }} else {{
-            // rerun 발생 시 데이터만 갱신 (줌/비율 유지)
-            Plotly.update(chartDiv, figData.data);
-        }}
-        </script>
-        """
-
-        components.html(plotly_html, height=900)
-            st.session_state["fig"].update_layout(
-                margin=dict(l=40, r=20, t=40, b=10),
-                autosize=True,
-                height=950
-            )
-        fig = st.session_state["fig"]
-
-        # ✅ 데이터만 갱신: rerun 없이 Plotly trace 갱신
-        import plotly.graph_objects as go
-        def update_chart_data(df):
-            with fig.batch_update():
-                if len(fig.data) >= 4:
-                    if "close" in df:
-                        fig.data[0].y = df["close"].values
-                    if "rsi" in df:
-                        fig.data[1].y = df["rsi"].values
-                    if "CCI" in df:
-                        fig.data[2].y = df["CCI"].values
-                    if "volume" in df:
-                        fig.data[3].y = df["volume"].values
-        # 백그라운드 주기적 데이터 갱신
-        import threading, time
-        def _chart_auto_update():
-            while True:
-                time.sleep(60)
-                try:
-                    # 🔁 fetch_upbit_paged → add_indicators 로 데이터 재로드
-                    df_new = fetch_upbit_paged(market_code, "minutes/1",
-                                               datetime.now() - timedelta(hours=3),
-                                               datetime.now(),
-                                               1)
-                    if df_new is not None and not df_new.empty:
-                        df_new = add_indicators(df_new, bb_window=20, bb_dev=2.0, cci_window=14)
-                        update_chart_data(df_new)
-                except Exception as e:
-                    st.warning(f"⚠️ 차트 자동갱신 오류: {e}")
-        if "chart_updater" not in st.session_state:
-            threading.Thread(target=_chart_auto_update, daemon=True).start()
-
-        # ✅ 레이아웃 여백 직접 제어 (CCI-거래량 간 간격 제거)
-        fig.update_layout(
-            margin=dict(l=40, r=20, t=40, b=20),
-            autosize=True,
-            height=900
+        fig = make_subplots(
+            rows=4, cols=1, shared_xaxes=True,
+            specs=[
+                [{"secondary_y": True}],
+                [{"secondary_y": False}],
+                [{"secondary_y": False}],
+                [{}]
+            ],
+            row_heights=[0.55, 0.20, 0.20, 0.20],  # 보조지표 패널 높이 30% 확대
+            vertical_spacing=0.04
         )
 
-        # ✅ 데이터만 갱신: rerun 없이 60초마다 Plotly 데이터 update
-        import threading, time
-        def _auto_update_chart():
-            while True:
-                time.sleep(60)
-                st.session_state["last_chart_update"] = time.time()
-        if "chart_updater" not in st.session_state:
-            threading.Thread(target=_auto_update_chart, daemon=True).start()
-        # ✅ 자동 새로고침(1분 단위) 추가
-        from streamlit_autorefresh import st_autorefresh
-        st_autorefresh(interval=60 * 1000, key="auto_refresh_chart")
         # 전체 차트 높이 확대 (900 → 1200)
         fig.update_layout(height=1200)
 
@@ -2830,22 +2674,11 @@ def main():
         if st.session_state["auto_watch_enabled"]:
             st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
 
-            # ✅ rerun 제거 → 데이터만 갱신 (차트 뷰 유지)
-            refresh_area = st.empty()
+            # 60초 경과 시 rerun() 호출 (프론트엔드 의존 제거)
             now_ts = time.time()
             if now_ts - st.session_state["last_refresh"] > 60:
                 st.session_state["last_refresh"] = now_ts
-                with refresh_area:
-                    st.caption("📊 데이터 자동 갱신 중... (차트 뷰 유지)")
-                    # 감시 데이터만 재로드 (기존 감시 루프 호출)
-                    # rerun 대신 내부 로직만 갱신하도록 제한
-                    try:
-                        # 이 부분은 아래 감시 루프(fetch_upbit_paged 등)가 즉시 실행됨
-                        pass
-                    except Exception as e:
-                        st.warning(f"⚠️ 자동 갱신 중 오류: {e}")
-            else:
-                st.caption("⏳ 다음 자동 갱신 대기 중...")
+                st.rerun()
         else:
             st.markdown("⏸ 자동 감시가 일시중지되었습니다.")
 
