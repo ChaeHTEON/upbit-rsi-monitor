@@ -1684,7 +1684,21 @@ def main():
 
         # 🔹 차트를 유지한 채 표시
         placeholder = st.empty()
-        placeholder.plotly_chart(st.session_state["chart_fig"], use_container_width=True)
+
+        # ✅ 기존 차트 레이아웃(뷰포트) 유지용
+        if "chart_layout" in st.session_state:
+            st.session_state["chart_fig"].update_layout(st.session_state["chart_layout"])
+
+        # 렌더링
+        chart_obj = placeholder.plotly_chart(st.session_state["chart_fig"], use_container_width=True)
+
+        # ✅ 현재 차트 뷰 저장 (줌/스크롤 상태 유지)
+        try:
+            current_layout = st.session_state["chart_fig"].layout
+            if current_layout:
+                st.session_state["chart_layout"] = current_layout
+        except Exception:
+            pass
 
         # 🔹 백그라운드에서 30초마다 데이터 갱신 (뷰 유지)
         def update_chart_periodically():
