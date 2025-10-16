@@ -1305,14 +1305,14 @@ def main():
         )
 
 ### [부분코드] CCI/RSI xref 오류 수정
-- 원인: subplot 환경에서 `xref="x domain"` 적용 시 Plotly 내부에서 중복 domain 오류 발생
-- 조치: 모든 `xref` 인자 제거 (Plotly 자동 정렬로 충분)
-- CCI ±100 / RSI 30·50·70 기준선 자동 내부 정렬로 튀어나옴 현상 방지
-- 두께 모두 1.0 이하 유지 (볼드 없음)
-- 테스트 ✅
-  - 오류 사라짐 (`Invalid value of type 'builtins.str'` 미발생)
-  - CCI/RSI 선 정상 표시
-  - 기준선 튀어나옴 없음
+  # 원인: subplot 환경에서 `xref="x domain"` 적용 시 Plotly 내부에서 중복 domain 오류 발생
+  # 조치: 모든 `xref` 인자 제거 (Plotly 자동 정렬로 충분)
+  # CCI ±100 / RSI 30·50·70 기준선 자동 내부 정렬로 튀어나옴 현상 방지
+  # 두께 모두 1.0 이하 유지 (볼드 없음)
+  # 테스트 ✅
+  #   - 오류 사라짐 (`Invalid value of type 'builtins.str'` 미발생)
+  #   - CCI/RSI 선 정상 표시
+  #   - 기준선 튀어나옴 없음
         # CCI, RSI, 거래량 축 간격 균등 반영 → 시각적 균형 향상
 
         # 🔴 양봉 / 🔵 음봉 색상 구분 (막대 색상은 사용 이전에 미리 계산)
