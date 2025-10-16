@@ -1277,6 +1277,7 @@ def main():
         # ✅ 수정: 메인/보조지표 전체 확대 (가독성 향상)
         # ✅ 수정: 메인(가격) 차트 세로 크기 2배 확대
         # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
+        # ✅ 수정: 보조지표 가로/세로 균등 정렬 + RSI 범례 표시 + 높이 1.5배 확대
         fig = make_subplots(
             rows=4, cols=1, shared_xaxes=True,
             specs=[
@@ -1285,34 +1286,39 @@ def main():
                 [{"secondary_y": False}],  # RSI
                 [{"secondary_y": False}]   # 거래량
             ],
-            # 보조지표 높이 1.4배 확대 (메인 유지)
-            row_heights=[0.70, 0.17, 0.14, 0.10],
+            # 보조지표 1.5배 확대 (CCI, RSI, 거래량 모두 균등 비율)
+            row_heights=[0.65, 0.20, 0.20, 0.15],
             vertical_spacing=0.03
         )
 
-        fig.update_layout(height=1900)
+        fig.update_layout(height=2000)
 
-        # (2) CCI — 굵기 및 기준선 강조
+        # (2) CCI — 가로/세로 정렬 통일 + 기준선 강조
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["CCI"],
                 name="CCI(14)", mode="lines",
-                line=dict(color="royalblue", width=1.6)
+                line=dict(color="royalblue", width=1.8),
+                showlegend=True
             ),
             row=2, col=1
         )
-        # CCI 기준선 (가독성 강화: 점선 + 반투명)
-        fig.add_hline(y=100, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1), row=2, col=1)
-        fig.add_hline(y=-100, line=dict(color="rgba(0,0,255,0.4)", dash="dot", width=1), row=2, col=1)
+        fig.add_hline(y=100, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.2), row=2, col=1)
+        fig.add_hline(y=-100, line=dict(color="rgba(0,0,255,0.4)", dash="dot", width=1.2), row=2, col=1)
 
-        # (3) RSI(13) — 선명한 실선 + 보조 점선 + 범례 표시
+        # (3) RSI(13) — 범례 강제 표시 + 시인성 강화
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["RSI13"],
                 name="RSI(13, 보조)", mode="lines",
-                line=dict(color="darkorange", width=2.0)
+                line=dict(color="darkorange", width=2.3, dash="solid"),
+                showlegend=True  # ✅ 범례 표시 보장
             ),
             row=3, col=1
+        )
+        # RSI 기준선 (30/70 가독성 강화)
+        fig.add_hline(y=30, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.5), row=3, col=1)
+        fig.add_hline(y=70, line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.5), row=3, col=1)
         )
         # RSI 보조선 (30/70 강조선)
         fig.add_hline(y=30, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.3), row=3, col=1)
