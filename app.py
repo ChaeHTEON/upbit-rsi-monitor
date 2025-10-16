@@ -1304,50 +1304,56 @@ def main():
             row=2, col=1
         )
 
-        # ✅ CCI 선 및 기준선 가독성 개선 (두께 ↓, 실선 유지)
+        # ✅ CCI 시각적 개선 — 얇은 실선 + 점선 정렬 + 축명 추가
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["CCI"],
                 name="CCI(14)", mode="lines",
-                line=dict(color="teal", width=1.5),  # 두께 완화
+                line=dict(color="firebrick", width=1.0),
                 showlegend=True
             ),
             row=2, col=1
         )
 
-        # CCI 기준선 (±100 실선, 두께 얇게)
-        fig.add_hline(y=100, line=dict(color="red", width=1.2, dash="solid"), row=2, col=1)
-        fig.add_hline(y=-100, line=dict(color="blue", width=1.2, dash="solid"), row=2, col=1)
-        # CCI 0선 (중간선 점선 약하게)
-        fig.add_hline(y=0, line=dict(color="rgba(100,100,100,0.5)", width=1.0, dash="dot"), row=2, col=1)
+        # CCI 기준선 (±100 실선, 점선 튀어나옴 방지)
+        fig.add_hline(y=100, line=dict(color="red", width=1.0, dash="solid"), row=2, col=1, xref="x domain")
+        fig.add_hline(y=-100, line=dict(color="blue", width=1.0, dash="solid"), row=2, col=1, xref="x domain")
+        # 중앙선 (0) 점선 얇게 표시
+        fig.add_hline(y=0, line=dict(color="rgba(100,100,100,0.6)", width=0.8, dash="dot"), row=2, col=1, xref="x domain")
 
-        # ✅ RSI(13) 및 RSI(9) 범례 표시 보장 + 기준선 조정
+        # 오른쪽 축 제목 표시 (RSI와 동일한 스타일)
+        fig.update_yaxes(title_text="CCI(14)", row=2, col=1)
+
+        # ✅ RSI(13) — 얇은 실선 + 범례 표시 + 기준선 조화
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["RSI13"],
                 name="RSI(13)", mode="lines",
-                line=dict(color="darkorange", width=1.8),
-                showlegend=True  # 🔹 범례 보장
+                line=dict(color="darkorange", width=1.0),
+                showlegend=True
             ),
             row=3, col=1
         )
 
-        # RSI(9) 신호선 (보조선)
+        # RSI(9) 신호선 추가 (얇은 점선)
         if "RSI9" in df.columns:
             fig.add_trace(
                 go.Scatter(
                     x=df["time"], y=df["RSI9"],
                     name="RSI(9)", mode="lines",
-                    line=dict(color="mediumseagreen", width=1.2, dash="dot"),
-                    showlegend=True  # 🔹 범례 보장
+                    line=dict(color="green", width=0.8, dash="dot"),
+                    showlegend=True
                 ),
                 row=3, col=1
             )
 
-        # RSI 기준선 (30, 50, 70 모두 얇은 실선)
-        fig.add_hline(y=30, line=dict(color="red", dash="solid", width=1.0), row=3, col=1)
-        fig.add_hline(y=50, line=dict(color="gray", dash="dot", width=0.8), row=3, col=1)
-        fig.add_hline(y=70, line=dict(color="green", dash="solid", width=1.0), row=3, col=1)
+        # RSI 기준선 (30/50/70 얇은 실선, 차트 내 정렬)
+        fig.add_hline(y=30, line=dict(color="red", dash="solid", width=1.0), row=3, col=1, xref="x domain")
+        fig.add_hline(y=50, line=dict(color="gray", dash="dot", width=0.8), row=3, col=1, xref="x domain")
+        fig.add_hline(y=70, line=dict(color="green", dash="solid", width=1.0), row=3, col=1, xref="x domain")
+
+        # 오른쪽 축 제목 표시
+        fig.update_yaxes(title_text="RSI(13)", row=3, col=1)
 
         # CCI, RSI, 거래량 축 간격 균등 반영 → 시각적 균형 향상
 
