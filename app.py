@@ -1613,12 +1613,24 @@ def main():
             legend_orientation="h",
             legend_y=1.02,
             margin=dict(l=30, r=30, t=60, b=40),
-            yaxis=dict(title="가격", autorange=True,  fixedrange=False),
+            yaxis=dict(title="가격", autorange=True, fixedrange=False),
             yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False),
-            yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
-            uirevision=_stable_uirev,   # ★★★ 핵심: 더 이상 랜덤값 아님
+            yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True, fixedrange=False),
+            uirevision=_stable_uirev,
             hovermode="closest"
         )
+
+        # ✅ 차트 객체 캐싱: rerun 시 기존 뷰 상태 유지
+        chart_key = f"{market_code}_{interval_key}_{bb_window}_{bb_dev}_{cci_window}"
+        if "chart_cache" not in st.session_state:
+            st.session_state["chart_cache"] = {}
+
+        # 동일 설정일 경우 기존 fig 재사용 (줌/스크롤 유지)
+        if chart_key in st.session_state["chart_cache"]:
+            st.session_state["chart_cache"][chart_key].update_layout(uirevision=_stable_uirev)
+            fig = st.session_state["chart_cache"][chart_key]
+        else:
+            st.session_state["chart_cache"][chart_key] = fig
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
             top_l, top_r = st.columns([4, 1])
