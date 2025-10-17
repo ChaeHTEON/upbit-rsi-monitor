@@ -88,7 +88,7 @@ def main():
     
             # 2) 티커로 24h 거래대금 조회 (청크 요청)
             def _fetch_tickers(codes, chunk=50):
-        out = {}
+                        out = {}
             for i in range(0, len(codes), chunk):
                 subset = codes[i:i+chunk]
                 rr = requests.get(
