@@ -257,6 +257,7 @@ def main():
             "RSI 조건",
             ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
             index=0
+        )
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
