@@ -109,13 +109,12 @@ def main():
             sorted_all = sorted(
                 krw_codes,
                 key=lambda c: (-vol_krw.get(c, 0.0), c)
-    
+            )
+
             # 4) 메인 5개를 상단에, 그 외 나머지
             MAIN5 = ["KRW-BTC", "KRW-XRP", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]
             main_sorted   = [c for c in sorted_all if c in MAIN5]
             others_sorted = [c for c in sorted_all if c not in MAIN5]
-    
-            ordered = main_sorted + others_sorted
     
             # 5) 라벨 구성
             rows = []
