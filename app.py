@@ -88,20 +88,19 @@ def main():
     
             # 2) 티커로 24h 거래대금 조회 (청크 요청)
             def _fetch_tickers(codes, chunk=50):
-                        out = {}
-            for i in range(0, len(codes), chunk):
-                subset = codes[i:i+chunk]
-                rr = requests.get(
-                    "https://api.upbit.com/v1/ticker",
-                    params={"markets": ",".join(subset)},
-                    timeout=8
-                )
-                rr.raise_for_status()
-                for t in rr.json():
-                    mk = t.get("market")
-                    # 거래대금(원화 기준) 사용
-                    out[mk] = float(t.get("acc_trade_price_24h", 0.0))
-            return out
+                out = {}
+                for i in range(0, len(codes), chunk):
+                    subset = codes[i:i+chunk]
+                    rr = requests.get(
+                        "https://api.upbit.com/v1/ticker",
+                        params={"markets": ",".join(subset)},
+                        timeout=8
+                    rr.raise_for_status()
+                    for t in rr.json():
+                        mk = t.get("market")
+                        # 거래대금(원화 기준) 사용
+                        out[mk] = float(t.get("acc_trade_price_24h", 0.0))
+                return out
     
             vol_krw = _fetch_tickers(krw_codes)
     
@@ -109,12 +108,13 @@ def main():
             sorted_all = sorted(
                 krw_codes,
                 key=lambda c: (-vol_krw.get(c, 0.0), c)
-            )
-
+    
             # 4) 메인 5개를 상단에, 그 외 나머지
             MAIN5 = ["KRW-BTC", "KRW-XRP", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]
             main_sorted   = [c for c in sorted_all if c in MAIN5]
             others_sorted = [c for c in sorted_all if c not in MAIN5]
+    
+            ordered = main_sorted + others_sorted
     
             # 5) 라벨 구성
             rows = []
@@ -173,8 +173,7 @@ def main():
         options=["중복 제거 (연속 동일 결과 1개)", "중복 포함 (연속 신호 모두)"],
         index=0,  # ✅ "중복 제거" 기본 선택
         horizontal=True
-    )
-
+    
     # -----------------------------
     # ① 기본 설정
     # -----------------------------
@@ -243,8 +242,8 @@ def main():
                 "Market_Divergence"
             ],
             index=0
-        )
 
+        # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
 
         # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
@@ -257,7 +256,6 @@ def main():
             "RSI 조건",
             ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
             index=0
-        )
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
@@ -1113,7 +1111,6 @@ def main():
                 part_dir,
                 f"{symbol}_{interval_key.replace('/','-')}_{s:%Y%m%d%H%M}_{e:%Y%m%d%H%M}.parquet"
             (res_chunk if res_chunk is not None else pd.DataFrame()).to_parquet(part_path, index=False)
-            )
             ckpt["parts"].append(part_path)
     
             ckpt["idx"] = i + 1
@@ -1219,7 +1216,6 @@ def main():
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
         res_dedup = simulate(
             df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
             bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -1227,7 +1223,6 @@ def main():
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
     
         # -----------------------------
@@ -1282,7 +1277,6 @@ def main():
                 ],
                 row_heights=[0.60, 0.18, 0.14, 0.08],  # 메인 조금 확대, 보조 균형
                 vertical_spacing=0.03
-            )
         fig.update_layout(height=1550)  # 전체 높이 확장
 
             # ✅ RSI(13): 주황 얇은 실선, 기준선 30·50·70 실선화
@@ -1869,7 +1863,6 @@ def main():
                                         miss_policy="(고정) 성공·실패·중립",
                                         bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
                                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
                                     win, total, succ, fail, neu = _winrate(res_s)
                                     total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
                                     avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
@@ -1949,7 +1942,6 @@ def main():
                             miss_policy="(고정) 성공·실패·중립",
                             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
                         def _wr(df_):
                             if df_ is None or df_.empty: return 0.0, 0, 0, 0, 0
                             tot = len(df_); s=(df_["결과"]=="성공").sum(); f=(df_["결과"]=="실패").sum(); n=(df_["결과"]=="중립").sum()
@@ -2087,7 +2079,6 @@ def main():
                                 miss_policy="(고정) 성공·실패·중립",
                                 bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
                                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
                             if res_detail is not None and not res_detail.empty:
                                 st.subheader("세부 신호 결과 (최신 순)")
                                 res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
@@ -3320,10 +3311,3 @@ def main():
 # ============================================================
 if __name__ == "__main__":
     main()
-
-
-if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        st.error(e)
