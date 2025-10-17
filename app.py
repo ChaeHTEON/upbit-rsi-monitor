@@ -243,8 +243,8 @@ def main():
                 "Market_Divergence"
             ],
             index=0
+        )
 
-        # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
 
         # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
