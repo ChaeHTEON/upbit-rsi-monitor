@@ -77,7 +77,7 @@ def main():
             # 코드 → 한글명 매핑
             code2name = {}
             krw_codes = []
-    )            for it in items:
+            for it in items:
                 mk = it.get("market", "")
                 if mk.startswith("KRW-"):
                     krw_codes.append(mk)
@@ -88,20 +88,20 @@ def main():
     
             # 2) 티커로 24h 거래대금 조회 (청크 요청)
             def _fetch_tickers(codes, chunk=50):
-                out = {}
-                for i in range(0, len(codes), chunk):
-                    subset = codes[i:i+chunk]
-                    rr = requests.get(
-                        "https://api.upbit.com/v1/ticker",
-                        params={"markets": ",".join(subset)},
-                        timeout=8
-                    )
-                    rr.raise_for_status()
-                    for t in rr.json():
-                        mk = t.get("market")
-                        # 거래대금(원화 기준) 사용
-                        out[mk] = float(t.get("acc_trade_price_24h", 0.0))
-                return out
+                        out = {}
+            for i in range(0, len(codes), chunk):
+                subset = codes[i:i+chunk]
+                rr = requests.get(
+                    "https://api.upbit.com/v1/ticker",
+                    params={"markets": ",".join(subset)},
+                    timeout=8
+                )
+                rr.raise_for_status()
+                for t in rr.json():
+                    mk = t.get("market")
+                    # 거래대금(원화 기준) 사용
+                    out[mk] = float(t.get("acc_trade_price_24h", 0.0))
+            return out
     
             vol_krw = _fetch_tickers(krw_codes)
     
@@ -174,7 +174,7 @@ def main():
         index=0,  # ✅ "중복 제거" 기본 선택
         horizontal=True
     
-    )    # -----------------------------
+    # -----------------------------
     # ① 기본 설정
     # -----------------------------
     st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
@@ -243,7 +243,7 @@ def main():
             ],
             index=0
 
-        )        # 선택한 전략명 저장 (전역에서 활용 가능)
+        # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
 
         # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
@@ -256,7 +256,7 @@ def main():
             "RSI 조건",
             ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
             index=0
-        )    with r2:
+    with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
         rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
@@ -3318,13 +3318,6 @@ def main():
 # ============================================================
 if __name__ == "__main__":
     main()
-
-
-if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        st.error(e)
 
 
 if __name__ == '__main__':
