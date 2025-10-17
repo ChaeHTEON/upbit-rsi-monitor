@@ -99,6 +99,7 @@ def main():
                 rr.raise_for_status()
                 for t in rr.json():
                     mk = t.get("market")
+                    # 거래대금(원화 기준) 사용
                     out[mk] = float(t.get("acc_trade_price_24h", 0.0))
             return out
     
