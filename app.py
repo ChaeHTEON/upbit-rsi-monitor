@@ -77,7 +77,7 @@ def main():
             # 코드 → 한글명 매핑
             code2name = {}
             krw_codes = []
-            for it in items:
+    )            for it in items:
                 mk = it.get("market", "")
                 if mk.startswith("KRW-"):
                     krw_codes.append(mk)
@@ -174,7 +174,7 @@ def main():
         index=0,  # ✅ "중복 제거" 기본 선택
         horizontal=True
     
-    # -----------------------------
+    )    # -----------------------------
     # ① 기본 설정
     # -----------------------------
     st.markdown('<div class="section-title">① 기본 설정</div>', unsafe_allow_html=True)
@@ -243,7 +243,7 @@ def main():
             ],
             index=0
 
-        # 선택한 전략명 저장 (전역에서 활용 가능)
+        )        # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
 
         # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
@@ -256,7 +256,7 @@ def main():
             "RSI 조건",
             ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
             index=0
-    with r2:
+        )    with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
         rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
@@ -3318,6 +3318,13 @@ def main():
 # ============================================================
 if __name__ == "__main__":
     main()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        st.error(e)
 
 
 if __name__ == '__main__':
