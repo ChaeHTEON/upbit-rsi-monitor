@@ -88,7 +88,7 @@ def main():
     
             # 2) 티커로 24h 거래대금 조회 (청크 요청)
             def _fetch_tickers(codes, chunk=50):
-            out = {}
+        out = {}
             for i in range(0, len(codes), chunk):
                 subset = codes[i:i+chunk]
                 rr = requests.get(
@@ -1112,6 +1112,7 @@ def main():
                 part_dir,
                 f"{symbol}_{interval_key.replace('/','-')}_{s:%Y%m%d%H%M}_{e:%Y%m%d%H%M}.parquet"
             (res_chunk if res_chunk is not None else pd.DataFrame()).to_parquet(part_path, index=False)
+            )
             ckpt["parts"].append(part_path)
     
             ckpt["idx"] = i + 1
@@ -1217,6 +1218,7 @@ def main():
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+        )
         res_dedup = simulate(
             df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
             bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -1224,6 +1226,7 @@ def main():
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+        )
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
     
         # -----------------------------
@@ -1278,6 +1281,7 @@ def main():
                 ],
                 row_heights=[0.60, 0.18, 0.14, 0.08],  # 메인 조금 확대, 보조 균형
                 vertical_spacing=0.03
+            )
         fig.update_layout(height=1550)  # 전체 높이 확장
 
             # ✅ RSI(13): 주황 얇은 실선, 기준선 30·50·70 실선화
@@ -1864,6 +1868,7 @@ def main():
                                         miss_policy="(고정) 성공·실패·중립",
                                         bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
                                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+        )
                                     win, total, succ, fail, neu = _winrate(res_s)
                                     total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
                                     avg_ret   = float(res_s["최종수익률(%)"].mean()) if "최종수익률(%)" in res_s and total > 0 else 0.0
@@ -1943,6 +1948,7 @@ def main():
                             miss_policy="(고정) 성공·실패·중립",
                             bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+        )
                         def _wr(df_):
                             if df_ is None or df_.empty: return 0.0, 0, 0, 0, 0
                             tot = len(df_); s=(df_["결과"]=="성공").sum(); f=(df_["결과"]=="실패").sum(); n=(df_["결과"]=="중립").sum()
@@ -2080,6 +2086,7 @@ def main():
                                 miss_policy="(고정) 성공·실패·중립",
                                 bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
                                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+        )
                             if res_detail is not None and not res_detail.empty:
                                 st.subheader("세부 신호 결과 (최신 순)")
                                 res_detail = res_detail.sort_index(ascending=False).reset_index(drop=True)
@@ -3312,3 +3319,10 @@ def main():
 # ============================================================
 if __name__ == "__main__":
     main()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        st.error(e)
