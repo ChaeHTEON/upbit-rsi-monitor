@@ -88,20 +88,20 @@ def main():
     
             # 2) 티커로 24h 거래대금 조회 (청크 요청)
             def _fetch_tickers(codes, chunk=50):
-                        out = {}
-            for i in range(0, len(codes), chunk):
-                subset = codes[i:i+chunk]
-                rr = requests.get(
-                    "https://api.upbit.com/v1/ticker",
-                    params={"markets": ",".join(subset)},
-                    timeout=8
-                )
-                rr.raise_for_status()
-                for t in rr.json():
-                    mk = t.get("market")
-                    # 거래대금(원화 기준) 사용
-                    out[mk] = float(t.get("acc_trade_price_24h", 0.0))
-            return out
+                out = {}
+                for i in range(0, len(codes), chunk):
+                    subset = codes[i:i+chunk]
+                    rr = requests.get(
+                        "https://api.upbit.com/v1/ticker",
+                        params={"markets": ",".join(subset)},
+                        timeout=8
+                    )
+                    rr.raise_for_status()
+                    for t in rr.json():
+                        mk = t.get("market")
+                        # 거래대금(원화 기준) 사용
+                        out[mk] = float(t.get("acc_trade_price_24h", 0.0))
+                return out
     
             vol_krw = _fetch_tickers(krw_codes)
     
