@@ -244,7 +244,8 @@ def main():
                 key="volume_condition_main"
             )
         with c5:
-            lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
+            lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
+
         with c6:
             threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
             winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
