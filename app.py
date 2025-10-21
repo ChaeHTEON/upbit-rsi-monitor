@@ -1656,7 +1656,7 @@ def main():
             name="RSI(13)"
         ), row=1, col=1, secondary_y=True)
     
-        # ===== CCI 하단 차트 (row2) =====
+# ===== CCI 하단 차트 (row2) =====
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["CCI"], mode="lines",
             line=dict(width=1.6),
@@ -1675,6 +1675,22 @@ def main():
                 yref="y3", y0=yv, y1=yv,
                 line=dict(color=colr, width=1, dash="dot")
             )
+    
+        # ----- CCI 골든크로스 ★ (row2) -----
+        try:
+            cci_ = df_plot["CCI"]
+            cci_s = df_plot["CCI_sig"]
+            cross_up = (cci_.shift(1) <= cci_s.shift(1)) & (cci_ > cci_s)
+            xs = df_plot.loc[cross_up, "time"]
+            ys = df_plot.loc[cross_up, "CCI"]
+            if len(xs) > 0:
+                fig.add_trace(go.Scatter(
+                    x=xs, y=ys, mode="markers",
+                    name="CCI 골든★",
+                    marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
+                ), row=2, col=1)
+        except Exception:
+            pass
     
         # ===== 업비트 스타일 십자선/툴팁 모드 & AutoScale =====
         fig.update_layout(
