@@ -221,14 +221,31 @@ def main():
     # -----------------------------
     # ② 조건 설정
     # -----------------------------
-    st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
-    c4, c5, c6 = st.columns(3)
-    with c4:
-        lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
-    with c5:
-        threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-        winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1)
-        hit_basis = "종가 기준"   # ✅ 고정
+    with st.expander("② 조건 설정", expanded=True):
+        c1, c2, c3, c4, c5, c6 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3, 1.3])
+        with c1:
+            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"])
+        with c2:
+            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하단", "중단", "상단"])
+        with c3:
+            cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"])
+        with c4:
+            volume_cond = st.selectbox(
+                "거래량 조건",
+                [
+                    "없음",
+                    "평균 이상",
+                    "평균 이하",
+                    "급등 (평균의 2배 이상)",
+                    "급감 (평균의 절반 이하)"
+                ]
+            )
+        with c5:
+            lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
+        with c6:
+            threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
+            winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
+            hit_basis = "종가 기준"  # ✅ 고정
         stoploss_pct  = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
     with c6:
         # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
