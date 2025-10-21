@@ -222,14 +222,16 @@ def main():
     # ② 조건 설정
     # -----------------------------
     with st.expander("② 조건 설정", expanded=True):
-        c1, c2, c3, c4, c5, c6 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3, 1.3])
+        c1, c2, c3, c4, c5 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3])
         with c1:
-            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
+            lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
         with c2:
-            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하단", "중단", "상단"], key="bb_condition_main")
+            threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
         with c3:
-            cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"], key="cci_condition_main")
+            winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
         with c4:
+            stoploss_pct = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
+        with c5:
             volume_cond = st.selectbox(
                 "거래량 조건",
                 [
@@ -238,7 +240,8 @@ def main():
                     "평균 이하",
                     "급등 (평균의 2배 이상)",
                     "급감 (평균의 절반 이하)"
-                ]
+                ],
+                key="volume_condition_main"
             )
         with c5:
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
@@ -1391,6 +1394,22 @@ def main():
                 ),
                 row=3, col=1
             )
+
+        # ✅ RSI 골든크로스 별표 추가 (CCI 구조 동일)
+        try:
+            rsi_ = df_plot["RSI13"] if "RSI13" in df_plot.columns else df["RSI13"]
+            rsi_s = df_plot["RSI9"] if "RSI9" in df_plot.columns else df["RSI13"].rolling(9).mean()
+            cross_up = (rsi_.shift(1) <= rsi_s.shift(1)) & (rsi_ > rsi_s)
+            xs = df_plot.loc[cross_up, "time"]
+            ys = df_plot.loc[cross_up, "RSI13"]
+            if len(xs) > 0:
+                fig.add_trace(go.Scatter(
+                    x=xs, y=ys, mode="markers",
+                    name="RSI 골든★",
+                    marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
+                ), row=3, col=1)
+        except Exception:
+            pass
 
         # RSI 기준선 (30/70 강조선)
         fig.add_hline(y=30, line=dict(color="red", dash="solid", width=1.5), row=3, col=1)
