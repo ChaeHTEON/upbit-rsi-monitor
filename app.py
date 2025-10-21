@@ -243,10 +243,34 @@ def main():
         with c5:
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
         with c6:
-            threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1, key="thr_main")
-            winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1, key="win_main")
-            stoploss_pct  = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1, key="sl_main")
-            hit_basis     = "종가 기준"
+            # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
+            st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+            primary_strategy = st.selectbox(
+                "매매기법 선택",
+                [
+                    "없음",
+                    "TGV",
+                    "RVB",
+                    "PR",
+                    "LCT",
+                    "4D_Sync",
+                    "240m_Sync",
+                    "Composite_Confirm",
+                    "Divergence_RVB",
+                    "Market_Divergence",
+                    # --- 추가 타입 ---
+                    "MACD_GoldenCross",
+                    "EMA100_Above",
+                    "EMA100_Below",
+                ],
+                index=0,
+            )
+            # 선택한 전략명 저장 (전역에서 활용 가능)
+            st.session_state["primary_strategy"] = primary_strategy
+        
+            # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
+            if primary_strategy != "없음":
+                st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
         # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
         st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
@@ -623,6 +647,7 @@ def main():
     def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
         out = df.copy()
         out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
+        out["RSI9"]  = ta.momentum.RSIIndicator(close=out["close"], window=9).rsi()   # ★ 추가: 보조 RSI
         bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
         out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
         out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
@@ -1461,6 +1486,26 @@ def main():
         # RSI 보조선 (30/70 강조선)
         fig.add_hline(y=30, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.3), row=3, col=1)
         fig.add_hline(y=70, line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.3), row=3, col=1)
+        
+        # ★ 추가: RSI(9) vs RSI(13) 골든크로스 마커 (row3)
+        try:
+            if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
+                rsi_fast = df_plot["RSI9"]
+                rsi_slow = df_plot["RSI13"]
+                cross_up = (rsi_fast.shift(1) <= rsi_slow.shift(1)) & (rsi_fast > rsi_slow)
+                xs = df_plot.loc[cross_up, "time"]
+                ys = df_plot.loc[cross_up, "RSI9"]
+                if len(xs) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=xs, y=ys, mode="markers",
+                            name="RSI 골든★",
+                            marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
+                        ),
+                        row=3, col=1
+                    )
+        except Exception:
+            pass
 
         # CCI, RSI, 거래량 축 간격 균등 반영 → 시각적 균형 향상
 
