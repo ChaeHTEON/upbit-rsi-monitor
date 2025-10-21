@@ -242,7 +242,11 @@ def main():
                 "240m_Sync",
                 "Composite_Confirm",
                 "Divergence_RVB",
-                "Market_Divergence"
+                "Market_Divergence",
+                # --- 추가 타입 ---
+                "MACD_GoldenCross",
+                "EMA100_Above",
+                "EMA100_Below"
             ],
             index=0
         )
@@ -700,6 +704,19 @@ def main():
                     (df["RSI13"] >= 45)
                 ].tolist()
 
+            # --- 추가: MACD 골든크로스 (12,16,9) — 해당 캔들 종가 매수 ---
+            elif strategy == "MACD_GoldenCross":
+                macd  = df["MACD"]
+                macds = df["MACD_signal"]
+                cross = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
+                base_sig_idx = df.index[cross].tolist()
+
+            # --- 추가: EMA100 기준 위/아래 ---
+            elif strategy == "EMA100_Above":
+                base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
+            elif strategy == "EMA100_Below":
+                base_sig_idx = df.index[(df["close"] < df["EMA100"])].tolist()
+
             else:
                 # (전략 없음) — 기존 RSI/BB/CCI 조합 그대로 사용
                 if rsi_mode == "없음":
@@ -711,7 +728,6 @@ def main():
                     rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
                 else:
                     rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-
                 def bb_ok(i):
                     c = float(df.at[i, "close"])
                     o = float(df.at[i, "open"])
@@ -1286,15 +1302,16 @@ def main():
         # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
         # ✅ 수정: 보조지표 가로/세로 균등 정렬 + RSI 범례 표시 + 높이 1.5배 확대
         fig = make_subplots(
-            rows=4, cols=1, shared_xaxes=True,
+            rows=5, cols=1, shared_xaxes=True,
             specs=[
                 [{"secondary_y": True}],   # 가격
                 [{"secondary_y": False}],  # CCI
                 [{"secondary_y": False}],  # RSI
-                [{"secondary_y": False}]   # 거래량
+                [{"secondary_y": False}],  # 거래량
+                [{"secondary_y": False}]   # MACD
             ],
-            # 보조지표 1.5배 확대 (CCI, RSI, 거래량 모두 균등 비율)
-            row_heights=[0.65, 0.20, 0.20, 0.15],
+            # 보조지표 비율 조정 (MACD 추가)
+            row_heights=[0.60, 0.18, 0.18, 0.12, 0.12],
             vertical_spacing=0.03
         )
 
@@ -1382,13 +1399,6 @@ def main():
             df["vol_threshold"] = df["vol_mean"] * 2.5
         fig.add_trace(
             go.Scatter(
-                x=df["time"], y=df["vol_mean"],
-                name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
-            ),
-            row=4, col=1
-        )
-        fig.add_trace(
-            go.Scatter(
                 x=df["time"], y=df["vol_threshold"],
                 name="TGV 기준(2.5배)", mode="lines",
                 line=dict(color="red", width=1.3, dash="dot")
@@ -1396,6 +1406,39 @@ def main():
             row=4, col=1
         )
         fig.update_yaxes(title_text="거래량", row=4, col=1)
+
+        # ----- MACD(12,16,9) 보조지표 (row5) -----
+        try:
+            # 히스토그램
+            fig.add_trace(
+                go.Bar(x=df["time"], y=df["MACD_hist"], name="MACD Hist"),
+                row=5, col=1
+            )
+            # MACD / Signal
+            fig.add_trace(
+                go.Scatter(x=df["time"], y=df["MACD"], name="MACD", mode="lines"),
+                row=5, col=1
+            )
+            fig.add_trace(
+                go.Scatter(x=df["time"], y=df["MACD_signal"], name="Signal", mode="lines",
+                           line=dict(dash="dot")),
+                row=5, col=1
+            )
+            # 0선
+            fig.add_hline(y=0, line=dict(width=1, dash="dot"), row=5, col=1)
+            # 골든크로스 ★ (보조패널)
+            macd_  = df["MACD"]; macds_ = df["MACD_signal"]
+            cross_ = (macd_.shift(1) <= macds_.shift(1)) & (macd_ > macds_)
+            xs_ = df.loc[cross_, "time"]; ys_ = df.loc[cross_, "MACD"]
+            if len(xs_) > 0:
+                fig.add_trace(
+                    go.Scatter(x=xs_, y=ys_, mode="markers", name="MACD 골든★(보조)",
+                               marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))),
+                    row=5, col=1
+                )
+            fig.update_yaxes(title_text="MACD", row=5, col=1)
+        except Exception:
+            pass
 
         # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
         st.selectbox("봉종류 선택", ["캔들", "라인", "OHLC"], key="chart_type")
