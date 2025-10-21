@@ -248,21 +248,24 @@ def main():
             stoploss_pct  = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1, key="sl_main")
             hit_basis     = "종가 기준"
 
-            # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
-            st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
-            primary_strategy = st.selectbox(
-                "매매기법 선택",
-                [
-                    "없음",
-                    "TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync",
-                    "Composite_Confirm", "Divergence_RVB", "Market_Divergence",
-                    "MACD_GoldenCross", "EMA100_Above", "EMA100_Below"
-                ],
-                index=0
-            )
-            st.session_state["primary_strategy"] = primary_strategy
-            if primary_strategy != "없음":
-                st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
+        # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
+        st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+        primary_strategy = st.selectbox(
+            "매매기법 선택",
+            [
+                "없음",
+                "TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync",
+                "Composite_Confirm", "Divergence_RVB", "Market_Divergence",
+                "MACD_GoldenCross", "EMA100_Above", "EMA100_Below"
+            ],
+            index=0
+        )
+    
+        # 선택한 전략명 저장
+        st.session_state["primary_strategy"] = primary_strategy
+        if primary_strategy != "없음":
+            st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
+
         "매매기법 선택",
         [
             "없음",
