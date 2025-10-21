@@ -1314,7 +1314,7 @@ def main():
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["RSI13"],
-                name="RSI(13)", mode="lines",
+                name="RSI(13)",
                 line=dict(color="darkorange", width=2.2),
                 showlegend=True
             ),
