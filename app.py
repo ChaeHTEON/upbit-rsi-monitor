@@ -224,11 +224,11 @@ def main():
     with st.expander("② 조건 설정", expanded=True):
         c1, c2, c3, c4, c5, c6 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3, 1.3])
         with c1:
-            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"])
+            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
         with c2:
-            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하단", "중단", "상단"])
+            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하단", "중단", "상단"], key="bb_condition_main")
         with c3:
-            cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"])
+            cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"], key="cci_condition_main")
         with c4:
             volume_cond = st.selectbox(
                 "거래량 조건",
