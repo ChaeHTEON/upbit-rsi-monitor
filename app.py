@@ -2733,13 +2733,24 @@ def main():
         def check_rsi_oversold_rebound_signal(df, symbol, tf):
             if len(df) < 5: return
             rsi = calc_rsi(df["close"])
+
+            # ✅ RSI 골든크로스 감지 (RSI vs 9봉 이동평균선)
+            rsi_signal = rsi.rolling(9).mean()
+            cross_up = (rsi.shift(1) < rsi_signal.shift(1)) & (rsi > rsi_signal)
+            if cross_up.iloc[-1]:
+                msg = f"⭐ RSI 골든크로스 [{symbol}, {tf}분] → {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "RSI_골든크로스", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+            # 기존 RSI 과매도 반등 조건 유지
             if rsi.iloc[-2] < 30 <= rsi.iloc[-1]:
                 msg = f"📈 RSI 과매도 반등 [{symbol}, {tf}분] → {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
                 _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
                           "strategy": "RSI_과매도반등", "msg": msg, "checked": False}
                 st.session_state["alerts_live"].insert(0, _entry)
                 st.session_state["alert_history"].insert(0, _entry)
-
         def check_rsi_overbought_drop_signal(df, symbol, tf):
             if len(df) < 5: return
             rsi = calc_rsi(df["close"])
