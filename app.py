@@ -597,6 +597,13 @@ def main():
         except Exception:
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
+        # EMA 100선
+        out["EMA100"] = ta.trend.EMAIndicator(close=out["close"], window=100).ema_indicator()
+        # MACD (12,16,9)
+        _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
+        out["MACD"] = _macd.macd()
+        out["MACD_signal"] = _macd.macd_signal()
+        out["MACD_hist"] = _macd.macd_diff()
         return out
     
     def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dedup_mode,
@@ -1477,7 +1484,16 @@ def main():
             line=dict(color="#8D99AE", width=1.4, dash="dot"), name="BB 중앙",
             customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
         ), row=1, col=1)
-    
+
+        # ----- EMA(100) 라인 (row1) -----
+        try:
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
+                line=dict(width=1.4), name="EMA(100)"
+            ), row=1, col=1)
+        except Exception:
+            pass
+
         # ===== 신호마커/점선/⭐ 표시 (신호 결과 기반) =====
         if not plot_res.empty:
             for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
@@ -1486,11 +1502,12 @@ def main():
                     continue
                 xs, ys = [], []
                 for _, r in sub.iterrows():
-                    t0 = pd.to_datetime(r["신호시간"])
-                    if t0 in df_plot["time"].values:
-                        xs.append(t0)
-                        ys.append(float(df_plot.loc[df_plot["time"] == t0, "open"].iloc[0]))
-                if xs:
+                    t = pd.to_datetime(r["신호시간"])
+                    if t not in df_plot["time"].values:
+                        continue
+                    xs.append(t)
+                    ys.append(float(df_plot.loc[df_plot["time"] == t, "close"].iloc[0]))
+                if len(xs) > 0:
                     fig.add_trace(go.Scatter(
                         x=xs, y=ys, mode="markers",
                         name=f"신호({_label})",
@@ -1506,12 +1523,6 @@ def main():
     
                 y0 = float(df_plot.loc[df_plot["time"] == t0, "close"].iloc[0])
                 y1 = float(df_plot.loc[df_plot["time"] == t1, "close"].iloc[0])
-    
-                fig.add_trace(go.Scatter(
-                    x=[t0, t1], y=[y0, y1], mode="lines",
-                    line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
-                    showlegend=False, hoverinfo="skip"
-                ), row=1, col=1)
     
                 if row_["결과"] == "성공":
                     fig.add_trace(go.Scatter(
@@ -1537,6 +1548,22 @@ def main():
                         showlegend=not legend_emitted["중립"]
                     ), row=1, col=1)
                     legend_emitted["중립"] = True
+
+        # ----- MACD(12,16,9) 골든크로스 ★ (row1, 가격 위) -----
+        try:
+            macd = df_plot["MACD"]
+            macds = df_plot["MACD_signal"]
+            cross_idx = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
+            xs = df_plot.loc[cross_idx, "time"]
+            ys = df_plot.loc[cross_idx, "close"]
+            if len(xs) > 0:
+                fig.add_trace(go.Scatter(
+                    x=xs, y=ys, mode="markers",
+                    name="MACD 골든★",
+                    marker=dict(size=11, symbol="star", line=dict(width=1, color="black"))
+                ), row=1, col=1)
+        except Exception:
+            pass
     
         # ===== RSI 라인 (row1, y2) =====
         fig.add_trace(go.Scatter(
