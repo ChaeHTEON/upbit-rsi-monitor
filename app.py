@@ -251,29 +251,27 @@ def main():
             winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
             hit_basis = "종가 기준"  # ✅ 고정
         stoploss_pct  = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
-    with c6:
-        # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
-        st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
-        primary_strategy = st.selectbox(
-            "매매기법 선택",
-            [
-                "없음",
-                "TGV",
-                "RVB",
-                "PR",
-                "LCT",
-                "4D_Sync",
-                "240m_Sync",
-                "Composite_Confirm",
-                "Divergence_RVB",
-                "Market_Divergence",
-                # --- 추가 타입 ---
-                "MACD_GoldenCross",
-                "EMA100_Above",
-                "EMA100_Below"
-            ],
-            index=0
-        )
+    # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
+    st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+    primary_strategy = st.selectbox(
+        "매매기법 선택",
+        [
+            "없음",
+            "TGV",
+            "RVB",
+            "PR",
+            "LCT",
+            "4D_Sync",
+            "240m_Sync",
+            "Composite_Confirm",
+            "Divergence_RVB",
+            "Market_Divergence",
+            "MACD_GoldenCross",
+            "EMA100_Above",
+            "EMA100_Below"
+        ],
+        index=0
+    )
 
         # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
