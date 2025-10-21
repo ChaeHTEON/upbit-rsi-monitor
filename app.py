@@ -227,6 +227,7 @@ def main():
         threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
         winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1)
         hit_basis = "종가 기준"   # ✅ 고정
+        stoploss_pct  = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
     with c6:
         # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
         st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
@@ -610,7 +611,7 @@ def main():
         out["MACD_hist"] = _macd.macd_diff()
         return out
     
-    def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dedup_mode,
+    def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct, bb_cond, dedup_mode,
                  minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
                  hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
                  supply_levels: Optional[Set[float]] = None,
@@ -939,23 +940,38 @@ def main():
             max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
     
             target = base_price * (1.0 + thr / 100.0)
+            stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
             hit_idx = None
             for j in range(anchor_idx + 1, end_idx + 1):
                 c_ = float(df.at[j, "close"])
                 h_ = float(df.at[j, "high"])
+                l_ = float(df.at[j, "low"])
+                # ✅ 손절가 먼저 도달 시 즉시 실패 처리
+                if l_ <= stop_price:
+                    hit_idx = j
+                    bars_after = hit_idx - anchor_idx
+                    reach_min = bars_after * minutes_per_bar
+                    end_time = df.at[hit_idx, "time"]
+                    end_close = stop_price
+                    final_ret = (end_close / base_price - 1) * 100
+                    result = "실패"
+                    lock_end = hit_idx
+                    break
+                # ✅ 익절가 도달 시 성공 처리
                 price_for_hit = c_
                 if price_for_hit >= target * 0.9999:
                     hit_idx = j
+                    bars_after = hit_idx - anchor_idx
+                    reach_min = bars_after * minutes_per_bar
+                    end_time = df.at[hit_idx, "time"]
+                    end_close = target
+                    final_ret = thr
+                    result = "성공"
+                    lock_end = hit_idx
                     break
     
             if hit_idx is not None:
-                bars_after = hit_idx - anchor_idx
-                reach_min = bars_after * minutes_per_bar
-                end_time = df.at[hit_idx, "time"]
-                end_close = target
-                final_ret = thr
-                result = "성공"
-                lock_end = hit_idx
+                pass
             else:
                 bars_after = lookahead
                 end_idx = anchor_idx + bars_after
@@ -1121,6 +1137,7 @@ def main():
                 simulate_kwargs.get("rsi_high", 70),
                 simulate_kwargs.get("lookahead", 10),
                 simulate_kwargs.get("threshold_pct", 1.0),
+                simulate_kwargs.get("stoploss_pct", 0.4),
                 simulate_kwargs.get("bb_cond", "없음"),
                 simulate_kwargs.get("dup_mode", "중복 제거 (연속 동일 결과 1개)"),
                 minutes_per_bar,
@@ -1243,7 +1260,7 @@ def main():
     
         # ===== 시뮬레이션 (중복 포함/제거) =====
         res_all = simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
             bb_cond, "중복 포함 (연속 신호 모두)",
             minutes_per_bar, market_code, bb_window, bb_dev,
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
@@ -1251,7 +1268,7 @@ def main():
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
         )
         res_dedup = simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
+            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
             bb_cond, "중복 제거 (연속 동일 결과 1개)",
             minutes_per_bar, market_code, bb_window, bb_dev,
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
@@ -1852,8 +1869,8 @@ def main():
                 try:
                     simulate_kwargs = dict(
                         rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
-                        lookahead=lookahead, threshold_pct=threshold_pct,
-                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+                        lookahead=lookahead, threshold_pct=threshold_pct, stoploss_pct=stoploss_pct,
+                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일...과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
                         sec_cond=sec_cond, bottom_mode=bottom_mode,
                         manual_supply_levels=manual_supply_levels,
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
@@ -2015,7 +2032,7 @@ def main():
                             continue
                         df_p  = add_indicators(df_p, bb_window, bb_dev, cci_window, cci_signal)
                         res_p = simulate(
-                            df_p, rsi_mode, rsi_low, rsi_high, p["lookahead"], threshold_pct,
+                            df_p, rsi_mode, rsi_low, rsi_high, p["lookahead"], threshold_pct, stoploss_pct,
                             bb_cond, ("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
                             p["mpb"], p["symbol"], bb_window, bb_dev,
                             sec_cond=sec_cond, hit_basis="종가 기준",
@@ -2155,7 +2172,7 @@ def main():
                             df_sel = add_indicators(df_raw_sel, bb_window, bb_dev, cci_window, cci_signal)
                             res_detail = simulate(
                                 df_sel, sel["RSI"], rsi_low, rsi_high,
-                                int(sel["측정N(봉)"]), threshold_pct,
+                                int(sel["측정N(봉)"]), threshold_pct, stoploss_pct,
                                 sel["BB"], dedup_label,
                                 mpb_s, sweep_market, bb_window, bb_dev,
                                 sec_cond=sel["2차조건"], hit_basis="종가 기준",
