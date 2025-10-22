@@ -762,21 +762,24 @@ def main():
                 # =========================================================
                 try:
                     # ✅ shift 보정: 실제 봉 마감 시점 기준으로 판단
+                    # ✅ 안전 계산: NaN 제거 + 인덱스 정렬
+                    df = df.copy().dropna(subset=["RSI13","CCI","MACD","MACD_signal"]).sort_index()
+
+                    # ✅ 실제 봉 마감 시점 기준 골든크로스 감지
                     rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] >= 50)
                     cci_gc  = (df["CCI"].shift(1) < 0) & (df["CCI"] >= 0)
-                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] >= df["MACD_signal"])
+                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
                     triple_gc = (rsi_gc & cci_gc & macd_gc)
 
-                    # ✅ 감지된 동일 봉에서 조건 일치 시점 이후의 다음 캔들 진입
+                    # ✅ 다음 봉 진입 시 마지막 인덱스도 포함되도록 보정
                     _tmp = []
                     for i in df.index[triple_gc]:
-                        next_i = i + 1 if (i + 1) in df.index else i
+                        next_i = i + 1 if (i + 1) in df.index else df.index[-1]
                         if sec_cond != "없음":
-                            _tmp.append(i)       # 2차 조건 즉시 성립 → 해당 캔들
+                            _tmp.append(i)       # 2차 조건 즉시 진입
                         else:
-                            _tmp.append(next_i)  # 기본 → 다음 캔들
+                            _tmp.append(next_i)  # 기본 다음 봉 진입
                     base_sig_idx = sorted(set(_tmp))
-
                     # 디버그용 표시 (검증 시 주석 제거 가능)
                     # df.loc[triple_gc, "Triple_GC_Flag"] = True
 
