@@ -28,6 +28,11 @@ def main():
     import pandas as pd  # ✅ main() 내부로 이동
     from typing import Optional, Set
 
+    # ✅ 기본 TP/SL (전역 기본값, UI 미존재 시 사용)
+    threshold_pct = st.session_state.get("threshold_pct", 0.6)
+    stoploss_pct = st.session_state.get("stoploss_pct", 0.4)
+
+
     # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
     def _keep_sweep_open():
         """통계/조합 탐색(expander) 닫힘 방지"""
@@ -1930,7 +1935,7 @@ def main():
     
             col_thr, col_win = st.columns(2)
             with col_thr:
-                sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
+                sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct if "threshold_pct" in locals() else 0.6), step=0.1,
                                                 key="sweep_threshold_pct", on_change=_keep_sweep_open)
             with col_win:
                 sweep_winrate_thr   = st.slider("승률 기준(%) (통계 전용)", 10, 100, int(winrate_thr), step=1,
