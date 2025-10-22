@@ -1303,27 +1303,42 @@ def main():
             st.session_state.opt_view = not st.session_state.get("opt_view", False)
             st.rerun()
     
-        # ===== 시뮬레이션 (중복 포함/제거) =====
+# ===== 시뮬레이션 (중복 포함/제거) =====
         # ✅ 기본 판정 기준(전역 미정의 방지)
         hit_basis = "종가 기준"
-        res_all = simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-            bb_cond, "중복 포함 (연속 신호 모두)",
-            minutes_per_bar, market_code, bb_window, bb_dev,
-            sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-            bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-            cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
-        res_dedup = simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-            bb_cond, "중복 제거 (연속 동일 결과 1개)",
-            minutes_per_bar, market_code, bb_window, bb_dev,
-            sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-            bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-            cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
+
+        # ✅ 바닥탐지/1차/2차 조건이 모두 '없음'이면 시뮬레이션 완전 스킵
+        _no_bottom = (isinstance(bottom_mode, str) and bottom_mode == "없음") or (bottom_mode is False)
+        _no_primary = (st.session_state.get("primary_strategy", "없음") == "없음")
+        _no_rsi = (rsi_mode == "없음")
+        _no_bb  = (bb_cond == "없음")
+        _no_cci = (cci_mode == "없음")
+        _no_sec = (sec_cond == "없음")
+        _skip_all = _no_bottom and _no_primary and _no_rsi and _no_bb and _no_cci and _no_sec
+
+        if _skip_all:
+            import pandas as pd  # safety
+            res_all = pd.DataFrame()
+            res_dedup = pd.DataFrame()
+        else:
+            res_all = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, "중복 포함 (연속 신호 모두)",
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
+            res_dedup = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
-    
+
         # -----------------------------
         # -----------------------------
         # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
