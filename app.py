@@ -260,7 +260,7 @@ def main():
 
         r1, r2, r3 = st.columns(3)
         with r1:
-            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
+            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준", "RSI·CCI·MACD 동시 골든크로스"], key="rsi_condition_main")
         with r2:
             rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
         with r3:
@@ -765,6 +765,30 @@ def main():
                                      set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
                 elif rsi_mode == "과매도 기준":
                     rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+                elif rsi_mode == "RSI·CCI·MACD 동시 골든크로스":
+                    # =========================================================
+                    # ✅ RSI·CCI·MACD 골든크로스 동시 발생 시 진입 인덱스
+                    #   - RSI13: 50선 상향 돌파
+                    #   - CCI:   0선 상향 돌파
+                    #   - MACD:  MACD > Signal (직전엔 MACD <= Signal)
+                    #   - 기본: 다음 캔들 / 2차 조건(sec_cond) 있으면 해당 캔들
+                    # =========================================================
+                    try:
+                        rsi_gc  = (df["RSI13"].shift(1) <= 50) & (df["RSI13"] > 50)
+                        cci_gc  = (df["CCI"].shift(1)  <= 0)  & (df["CCI"]   > 0)
+                        macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
+                        triple_gc = (rsi_gc & cci_gc & macd_gc)
+
+                        _tmp = []
+                        for i in df.index[triple_gc]:
+                            next_i = i + 1 if (i + 1) in df.index else i
+                            if sec_cond != "없음":
+                                _tmp.append(i)       # 2차 조건 즉시 성립 → 해당 캔들
+                            else:
+                                _tmp.append(next_i)  # 기본 → 다음 캔들
+                        rsi_idx = sorted(set(_tmp))
+                    except Exception:
+                        rsi_idx = []
                 else:
                     rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
                 def bb_ok(i):
