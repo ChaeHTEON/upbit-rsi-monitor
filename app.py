@@ -1308,8 +1308,8 @@ def main():
         # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
         # -----------------------------
         max_bars = 5000
-# ✅ 거래량 조건을 세션에 보관 (전역 참조용)
-st.session_state["volume_cond"] = volume_cond
+        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
+        st.session_state["volume_cond"] = volume_cond
 
         if res is not None and not res.empty:
             plot_res = (
