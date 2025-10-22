@@ -161,12 +161,10 @@ def main():
         "1분": ("minutes/1", 1),
         "3분": ("minutes/3", 3),
         "5분": ("minutes/5", 5),
-        "10분": ("minutes/10", 10),      # ✅ 추가
         "15분": ("minutes/15", 15),
         "30분": ("minutes/30", 30),
         "60분": ("minutes/60", 60),
-        "240분": ("minutes/240", 240),  # ✅ 추가
-        "일봉": ("days/1", 1440)
+        "일봉": ("days", 24 * 60),
     }
     
     # -----------------------------
@@ -221,57 +219,33 @@ def main():
     # -----------------------------
     # ② 조건 설정
     # -----------------------------
-    with st.expander("② 조건 설정", expanded=True):
-        c1, c2, c3, c4, c5 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3])
-        with c1:
-            lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
-        with c2:
-            threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-        with c3:
-            winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
-        with c4:
-            stoploss_pct = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
-        with c5:
-            volume_cond = st.selectbox(
-                "거래량 조건",
-                [
-                    "없음",
-                    "평균 이상",
-                    "평균 이하",
-                    "급등 (평균의 2배 이상)",
-                    "급감 (평균의 절반 이하)"
-                ],
-                key="volume_condition_main"
-            )
-        with c5:
-            lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
-
-        with c6:
-            threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
-            winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
-            hit_basis = "종가 기준"  # ✅ 고정
-        stoploss_pct  = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
-    # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
-    st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
-    primary_strategy = st.selectbox(
-        "매매기법 선택",
-        [
-            "없음",
-            "TGV",
-            "RVB",
-            "PR",
-            "LCT",
-            "4D_Sync",
-            "240m_Sync",
-            "Composite_Confirm",
-            "Divergence_RVB",
-            "Market_Divergence",
-            "MACD_GoldenCross",
-            "EMA100_Above",
-            "EMA100_Below"
-        ],
-        index=0
-    )
+    st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
+    c4, c5, c6 = st.columns(3)
+    with c4:
+        lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
+    with c5:
+        threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
+        winrate_thr   = st.slider("승률 기준(%)", 10, 100, 70, step=1)
+        hit_basis = "종가 기준"   # ✅ 고정
+    with c6:
+        # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
+        st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+        primary_strategy = st.selectbox(
+            "매매기법 선택",
+            [
+                "없음",
+                "TGV",
+                "RVB",
+                "PR",
+                "LCT",
+                "4D_Sync",
+                "240m_Sync",
+                "Composite_Confirm",
+                "Divergence_RVB",
+                "Market_Divergence"
+            ],
+            index=0
+        )
 
         # 선택한 전략명 저장 (전역에서 활용 가능)
         st.session_state["primary_strategy"] = primary_strategy
@@ -623,16 +597,9 @@ def main():
         except Exception:
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
-        # EMA 100선
-        out["EMA100"] = ta.trend.EMAIndicator(close=out["close"], window=100).ema_indicator()
-        # MACD (12,16,9)
-        _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
-        out["MACD"] = _macd.macd()
-        out["MACD_signal"] = _macd.macd_signal()
-        out["MACD_hist"] = _macd.macd_diff()
         return out
     
-    def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct, bb_cond, dedup_mode,
+    def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond, dedup_mode,
                  minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
                  hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
                  supply_levels: Optional[Set[float]] = None,
@@ -726,19 +693,6 @@ def main():
                     (df["RSI13"] >= 45)
                 ].tolist()
 
-            # --- 추가: MACD 골든크로스 (12,16,9) — 해당 캔들 종가 매수 ---
-            elif strategy == "MACD_GoldenCross":
-                macd  = df["MACD"]
-                macds = df["MACD_signal"]
-                cross = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
-                base_sig_idx = df.index[cross].tolist()
-
-            # --- 추가: EMA100 기준 위/아래 ---
-            elif strategy == "EMA100_Above":
-                base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
-            elif strategy == "EMA100_Below":
-                base_sig_idx = df.index[(df["close"] < df["EMA100"])].tolist()
-
             else:
                 # (전략 없음) — 기존 RSI/BB/CCI 조합 그대로 사용
                 if rsi_mode == "없음":
@@ -750,6 +704,7 @@ def main():
                     rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
                 else:
                     rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+
                 def bb_ok(i):
                     c = float(df.at[i, "close"])
                     o = float(df.at[i, "open"])
@@ -961,38 +916,23 @@ def main():
             max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
     
             target = base_price * (1.0 + thr / 100.0)
-            stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
             hit_idx = None
             for j in range(anchor_idx + 1, end_idx + 1):
                 c_ = float(df.at[j, "close"])
                 h_ = float(df.at[j, "high"])
-                l_ = float(df.at[j, "low"])
-                # ✅ 손절가 먼저 도달 시 즉시 실패 처리
-                if l_ <= stop_price:
-                    hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
-                    end_close = stop_price
-                    final_ret = (end_close / base_price - 1) * 100
-                    result = "실패"
-                    lock_end = hit_idx
-                    break
-                # ✅ 익절가 도달 시 성공 처리
                 price_for_hit = c_
                 if price_for_hit >= target * 0.9999:
                     hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
-                    end_close = target
-                    final_ret = thr
-                    result = "성공"
-                    lock_end = hit_idx
                     break
     
             if hit_idx is not None:
-                pass
+                bars_after = hit_idx - anchor_idx
+                reach_min = bars_after * minutes_per_bar
+                end_time = df.at[hit_idx, "time"]
+                end_close = target
+                final_ret = thr
+                result = "성공"
+                lock_end = hit_idx
             else:
                 bars_after = lookahead
                 end_idx = anchor_idx + bars_after
@@ -1158,7 +1098,6 @@ def main():
                 simulate_kwargs.get("rsi_high", 70),
                 simulate_kwargs.get("lookahead", 10),
                 simulate_kwargs.get("threshold_pct", 1.0),
-                simulate_kwargs.get("stoploss_pct", 0.4),
                 simulate_kwargs.get("bb_cond", "없음"),
                 simulate_kwargs.get("dup_mode", "중복 제거 (연속 동일 결과 1개)"),
                 minutes_per_bar,
@@ -1281,7 +1220,7 @@ def main():
     
         # ===== 시뮬레이션 (중복 포함/제거) =====
         res_all = simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
             bb_cond, "중복 포함 (연속 신호 모두)",
             minutes_per_bar, market_code, bb_window, bb_dev,
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
@@ -1289,7 +1228,7 @@ def main():
             cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
         )
         res_dedup = simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct,
             bb_cond, "중복 제거 (연속 동일 결과 1개)",
             minutes_per_bar, market_code, bb_window, bb_dev,
             sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
@@ -1340,16 +1279,15 @@ def main():
         # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
         # ✅ 수정: 보조지표 가로/세로 균등 정렬 + RSI 범례 표시 + 높이 1.5배 확대
         fig = make_subplots(
-            rows=5, cols=1, shared_xaxes=True,
+            rows=4, cols=1, shared_xaxes=True,
             specs=[
                 [{"secondary_y": True}],   # 가격
                 [{"secondary_y": False}],  # CCI
                 [{"secondary_y": False}],  # RSI
-                [{"secondary_y": False}],  # 거래량
-                [{"secondary_y": False}]   # MACD
+                [{"secondary_y": False}]   # 거래량
             ],
-            # 보조지표 비율 조정 (MACD 추가)
-            row_heights=[0.60, 0.18, 0.18, 0.12, 0.12],
+            # 보조지표 1.5배 확대 (CCI, RSI, 거래량 모두 균등 비율)
+            row_heights=[0.65, 0.20, 0.20, 0.15],
             vertical_spacing=0.03
         )
 
@@ -1376,7 +1314,7 @@ def main():
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["RSI13"],
-                name="RSI(13)",
+                name="RSI(13)", mode="lines",
                 line=dict(color="darkorange", width=2.2),
                 showlegend=True
             ),
@@ -1393,22 +1331,6 @@ def main():
                 ),
                 row=3, col=1
             )
-
-        # ✅ RSI 골든크로스 별표 추가 (CCI 구조 동일)
-        try:
-            rsi_ = df_plot["RSI13"] if "RSI13" in df_plot.columns else df["RSI13"]
-            rsi_s = df_plot["RSI9"] if "RSI9" in df_plot.columns else df["RSI13"].rolling(9).mean()
-            cross_up = (rsi_.shift(1) <= rsi_s.shift(1)) & (rsi_ > rsi_s)
-            xs = df_plot.loc[cross_up, "time"]
-            ys = df_plot.loc[cross_up, "RSI13"]
-            if len(xs) > 0:
-                fig.add_trace(go.Scatter(
-                    x=xs, y=ys, mode="markers",
-                    name="RSI 골든★",
-                    marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
-                ), row=3, col=1)
-        except Exception:
-            pass
 
         # RSI 기준선 (30/70 강조선)
         fig.add_hline(y=30, line=dict(color="red", dash="solid", width=1.5), row=3, col=1)
@@ -1453,6 +1375,13 @@ def main():
             df["vol_threshold"] = df["vol_mean"] * 2.5
         fig.add_trace(
             go.Scatter(
+                x=df["time"], y=df["vol_mean"],
+                name="거래량 평균(20봉)", mode="lines", line=dict(color="blue", width=1.3)
+            ),
+            row=4, col=1
+        )
+        fig.add_trace(
+            go.Scatter(
                 x=df["time"], y=df["vol_threshold"],
                 name="TGV 기준(2.5배)", mode="lines",
                 line=dict(color="red", width=1.3, dash="dot")
@@ -1460,39 +1389,6 @@ def main():
             row=4, col=1
         )
         fig.update_yaxes(title_text="거래량", row=4, col=1)
-
-        # ----- MACD(12,16,9) 보조지표 (row5) -----
-        try:
-            # 히스토그램
-            fig.add_trace(
-                go.Bar(x=df["time"], y=df["MACD_hist"], name="MACD Hist"),
-                row=5, col=1
-            )
-            # MACD / Signal
-            fig.add_trace(
-                go.Scatter(x=df["time"], y=df["MACD"], name="MACD", mode="lines"),
-                row=5, col=1
-            )
-            fig.add_trace(
-                go.Scatter(x=df["time"], y=df["MACD_signal"], name="Signal", mode="lines",
-                           line=dict(dash="dot")),
-                row=5, col=1
-            )
-            # 0선
-            fig.add_hline(y=0, line=dict(width=1, dash="dot"), row=5, col=1)
-            # 골든크로스 ★ (보조패널)
-            macd_  = df["MACD"]; macds_ = df["MACD_signal"]
-            cross_ = (macd_.shift(1) <= macds_.shift(1)) & (macd_ > macds_)
-            xs_ = df.loc[cross_, "time"]; ys_ = df.loc[cross_, "MACD"]
-            if len(xs_) > 0:
-                fig.add_trace(
-                    go.Scatter(x=xs_, y=ys_, mode="markers", name="MACD 골든★(보조)",
-                               marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))),
-                    row=5, col=1
-                )
-            fig.update_yaxes(title_text="MACD", row=5, col=1)
-        except Exception:
-            pass
 
         # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
         st.selectbox("봉종류 선택", ["캔들", "라인", "OHLC"], key="chart_type")
@@ -1581,16 +1477,7 @@ def main():
             line=dict(color="#8D99AE", width=1.4, dash="dot"), name="BB 중앙",
             customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
         ), row=1, col=1)
-
-        # ----- EMA(100) 라인 (row1) -----
-        try:
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
-                line=dict(width=1.4), name="EMA(100)"
-            ), row=1, col=1)
-        except Exception:
-            pass
-
+    
         # ===== 신호마커/점선/⭐ 표시 (신호 결과 기반) =====
         if not plot_res.empty:
             for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
@@ -1599,12 +1486,11 @@ def main():
                     continue
                 xs, ys = [], []
                 for _, r in sub.iterrows():
-                    t = pd.to_datetime(r["신호시간"])
-                    if t not in df_plot["time"].values:
-                        continue
-                    xs.append(t)
-                    ys.append(float(df_plot.loc[df_plot["time"] == t, "close"].iloc[0]))
-                if len(xs) > 0:
+                    t0 = pd.to_datetime(r["신호시간"])
+                    if t0 in df_plot["time"].values:
+                        xs.append(t0)
+                        ys.append(float(df_plot.loc[df_plot["time"] == t0, "open"].iloc[0]))
+                if xs:
                     fig.add_trace(go.Scatter(
                         x=xs, y=ys, mode="markers",
                         name=f"신호({_label})",
@@ -1620,6 +1506,12 @@ def main():
     
                 y0 = float(df_plot.loc[df_plot["time"] == t0, "close"].iloc[0])
                 y1 = float(df_plot.loc[df_plot["time"] == t1, "close"].iloc[0])
+    
+                fig.add_trace(go.Scatter(
+                    x=[t0, t1], y=[y0, y1], mode="lines",
+                    line=dict(color="rgba(0,0,0,0.5)", width=1.2, dash="dot"),
+                    showlegend=False, hoverinfo="skip"
+                ), row=1, col=1)
     
                 if row_["결과"] == "성공":
                     fig.add_trace(go.Scatter(
@@ -1645,22 +1537,6 @@ def main():
                         showlegend=not legend_emitted["중립"]
                     ), row=1, col=1)
                     legend_emitted["중립"] = True
-
-        # ----- MACD(12,16,9) 골든크로스 ★ (row1, 가격 위) -----
-        try:
-            macd = df_plot["MACD"]
-            macds = df_plot["MACD_signal"]
-            cross_idx = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
-            xs = df_plot.loc[cross_idx, "time"]
-            ys = df_plot.loc[cross_idx, "close"]
-            if len(xs) > 0:
-                fig.add_trace(go.Scatter(
-                    x=xs, y=ys, mode="markers",
-                    name="MACD 골든★",
-                    marker=dict(size=11, symbol="star", line=dict(width=1, color="black"))
-                ), row=1, col=1)
-        except Exception:
-            pass
     
         # ===== RSI 라인 (row1, y2) =====
         fig.add_trace(go.Scatter(
@@ -1674,7 +1550,7 @@ def main():
             name="RSI(13)"
         ), row=1, col=1, secondary_y=True)
     
-# ===== CCI 하단 차트 (row2) =====
+        # ===== CCI 하단 차트 (row2) =====
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["CCI"], mode="lines",
             line=dict(width=1.6),
@@ -1693,22 +1569,6 @@ def main():
                 yref="y3", y0=yv, y1=yv,
                 line=dict(color=colr, width=1, dash="dot")
             )
-    
-        # ----- CCI 골든크로스 ★ (row2) -----
-        try:
-            cci_ = df_plot["CCI"]
-            cci_s = df_plot["CCI_sig"]
-            cross_up = (cci_.shift(1) <= cci_s.shift(1)) & (cci_ > cci_s)
-            xs = df_plot.loc[cross_up, "time"]
-            ys = df_plot.loc[cross_up, "CCI"]
-            if len(xs) > 0:
-                fig.add_trace(go.Scatter(
-                    x=xs, y=ys, mode="markers",
-                    name="CCI 골든★",
-                    marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
-                ), row=2, col=1)
-        except Exception:
-            pass
     
         # ===== 업비트 스타일 십자선/툴팁 모드 & AutoScale =====
         fig.update_layout(
@@ -1922,8 +1782,8 @@ def main():
                 try:
                     simulate_kwargs = dict(
                         rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
-                        lookahead=lookahead, threshold_pct=threshold_pct, stoploss_pct=stoploss_pct,
-                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일...과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+                        lookahead=lookahead, threshold_pct=threshold_pct,
+                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
                         sec_cond=sec_cond, bottom_mode=bottom_mode,
                         manual_supply_levels=manual_supply_levels,
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
@@ -2085,7 +1945,7 @@ def main():
                             continue
                         df_p  = add_indicators(df_p, bb_window, bb_dev, cci_window, cci_signal)
                         res_p = simulate(
-                            df_p, rsi_mode, rsi_low, rsi_high, p["lookahead"], threshold_pct, stoploss_pct,
+                            df_p, rsi_mode, rsi_low, rsi_high, p["lookahead"], threshold_pct,
                             bb_cond, ("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
                             p["mpb"], p["symbol"], bb_window, bb_dev,
                             sec_cond=sec_cond, hit_basis="종가 기준",
@@ -2225,7 +2085,7 @@ def main():
                             df_sel = add_indicators(df_raw_sel, bb_window, bb_dev, cci_window, cci_signal)
                             res_detail = simulate(
                                 df_sel, sel["RSI"], rsi_low, rsi_high,
-                                int(sel["측정N(봉)"]), threshold_pct, stoploss_pct,
+                                int(sel["측정N(봉)"]), threshold_pct,
                                 sel["BB"], dedup_label,
                                 mpb_s, sweep_market, bb_window, bb_dev,
                                 sec_cond=sel["2차조건"], hit_basis="종가 기준",
@@ -2751,24 +2611,13 @@ def main():
         def check_rsi_oversold_rebound_signal(df, symbol, tf):
             if len(df) < 5: return
             rsi = calc_rsi(df["close"])
-
-            # ✅ RSI 골든크로스 감지 (RSI vs 9봉 이동평균선)
-            rsi_signal = rsi.rolling(9).mean()
-            cross_up = (rsi.shift(1) < rsi_signal.shift(1)) & (rsi > rsi_signal)
-            if cross_up.iloc[-1]:
-                msg = f"⭐ RSI 골든크로스 [{symbol}, {tf}분] → {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
-                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
-                          "strategy": "RSI_골든크로스", "msg": msg, "checked": False}
-                st.session_state["alerts_live"].insert(0, _entry)
-                st.session_state["alert_history"].insert(0, _entry)
-
-            # 기존 RSI 과매도 반등 조건 유지
             if rsi.iloc[-2] < 30 <= rsi.iloc[-1]:
                 msg = f"📈 RSI 과매도 반등 [{symbol}, {tf}분] → {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
                 _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
                           "strategy": "RSI_과매도반등", "msg": msg, "checked": False}
                 st.session_state["alerts_live"].insert(0, _entry)
                 st.session_state["alert_history"].insert(0, _entry)
+
         def check_rsi_overbought_drop_signal(df, symbol, tf):
             if len(df) < 5: return
             rsi = calc_rsi(df["close"])
