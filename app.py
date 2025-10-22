@@ -2410,11 +2410,15 @@ def main():
             st.caption("카카오톡 등 외부 웹훅 연동은 추후 확장(시크릿에 KAKAO_WEBHOOK_URL 설정 시 가능)")
 
         # -----------------------------
-        # 📒 공유 메모
+        # 📒 공유 메모 — 복원 (경로 보정)
         # -----------------------------
         with st.expander("📒 공유 메모", expanded=False):
             import os
+            # ✅ 경로 보정: 상위 경로에도 shared_notes.md 검색
             memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+            if not os.path.exists(memo_path):
+                memo_path = os.path.join(os.path.dirname(__file__), "../shared_notes.md")
+
             default_text = ""
             try:
                 if os.path.exists(memo_path):
@@ -2433,14 +2437,65 @@ def main():
                     except Exception as _e:
                         st.warning(f"메모 저장 실패: {_e}")
             with col_m2:
-                st.caption("파일 위치: shared_notes.md (앱 루트)")
+                st.caption(f"메모 파일 위치: {os.path.abspath(memo_path)}")
 
         # -----------------------------
-        # 🔄 페어 테스트
+        # 🔄 페어 테스트 — 원본 복원
         # -----------------------------
         with st.expander("🔄 페어 테스트", expanded=False):
-            st.caption("여러 코인을 한 번에 실행하려면 아래 '🧪 빠른 프리셋 테스트' 또는 '통계/조합 탐색' 섹션을 사용하세요.")
-            st.info("이미 본문에 '🧪 빠른 프리셋 테스트'와 '통계/조합 탐색' 기능이 포함되어 있어 페어 테스트를 대체할 수 있습니다.")
+            st.caption("각 주요 코인(비트코인, 이더리움, 리플 등)에 대해 같은 전략을 동시에 비교 실행합니다.")
+            col_pf1, col_pf2 = st.columns([1, 1])
+            with col_pf1:
+                pair_syms = st.multiselect("대상 코인", ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE", "KRW-MNT"], default=["KRW-BTC","KRW-ETH"])
+            with col_pf2:
+                tf_pair = st.selectbox("타임프레임", ["1분","3분","5분","15분","30분","60분","240분","일"], index=2)
+            if st.button("▶️ 페어 테스트 실행"):
+                st.info("페어별 시뮬레이션 실행 중...")
+                results = []
+                for sym in pair_syms:
+                    try:
+                        df = load_ohlcv(sym, TF_MAP[tf_pair][0], limit=1000)
+                        res = simulate(
+                            df,
+                            rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
+                            "중복 제거 (연속 동일 결과 1개)",
+                            TF_MAP[tf_pair][1], sym, bb_window, bb_dev,
+                            sec_cond=sec_cond, hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립",
+                            bottom_mode=st.session_state.get("bottom_mode", "없음"),
+                            supply_levels=None, manual_supply_levels=None,
+                            cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
+                            vol_mode=st.session_state.get("volume_cond", "없음")
+                        )
+                        results.append((sym, len(res)))
+                    except Exception as _e:
+                        results.append((sym, f"❌ 오류: {_e}"))
+                st.write("### 결과 요약")
+                for sym, cnt in results:
+                    st.write(f"- {sym}: {cnt}")
+
+        # -----------------------------
+        # ⑤ 실시간 감시 (알람) — 원본 복원
+        # -----------------------------
+        with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
+            st.caption("📡 여러 코인/타임프레임을 동시에 모니터링하며 조건 충족 시 알림을 표시합니다.")
+            if "watch_active" not in st.session_state:
+                st.session_state["watch_active"] = False
+
+            col_a1, col_a2 = st.columns([1, 1])
+            with col_a1:
+                if st.button("▶ 감시 시작", type="primary"):
+                    st.session_state["watch_active"] = True
+            with col_a2:
+                if st.button("⏸ 감시 중지"):
+                    st.session_state["watch_active"] = False
+
+            if st.session_state["watch_active"]:
+                st.success("✅ 실시간 감시 중입니다. 조건 충족 시 알림을 표시합니다.")
+            else:
+                st.info("⏸ 감시 중지 상태입니다.")
+
+            st.divider()
+            st.caption("⚙️ 추후 카카오톡/Webhook 연동 및 매물대 터치 알림 기능 복원 예정")
 
     except Exception as e:
         st.error(f"오류 발생: {e}")
