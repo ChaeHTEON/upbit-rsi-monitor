@@ -229,30 +229,11 @@ def main():
     # ② 조건 설정
     # -----------------------------
     with st.expander("② 조건 설정", expanded=True):
-        c1, c2, c3, c4, c5, c6 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3, 1.3])
+        # --- 1차: 기본 조합 및 매매기법 선택 ---
+        c1, c2, c3 = st.columns(3)
         with c1:
-            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
-        with c2:
-            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하한선", "중앙선", "상한선"], key="bb_condition_main")
-        with c3:
-            cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"], key="cci_condition_main")
-        with c4:
-            volume_cond = st.selectbox(
-                "거래량 조건",
-                [
-                    "없음",
-                    "평균 이상",
-                    "평균 이하",
-                    "급등 (평균의 2배 이상)",
-                    "급감 (평균의 절반 이하)"
-                ]
-            )
-        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
-        st.session_state["volume_cond"] = volume_cond
-        with c5:
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
-        with c6:
-            # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
+        with c2:
             st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
             primary_strategy = st.selectbox(
                 "매매기법 선택",
@@ -276,169 +257,178 @@ def main():
             st.session_state["primary_strategy"] = primary_strategy
             if primary_strategy != "없음":
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
+        with c3:
+            bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False,
+                                      help="RSI≤과매도 & BB 하한선 터치/하회 & CCI≤-100 동시 만족 시 신호")
 
+        # --- 2차: RSI / BB / CCI / 거래량 조건 ---
+        st.markdown("---")
         r1, r2, r3 = st.columns(3)
-    r1, r2, r3 = st.columns(3)
-    with r1:
-        st.caption("RSI 조건은 상단에서 선택됨")
-    with r2:
-        rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
-    with r3:
-        rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
-    
-    c7, c8, c9 = st.columns(3)
-    with c7:
-        st.caption("볼린저밴드 조건은 상단에서 선택됨")
-    with c8:
-        bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
-    with c9:
-        bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
-    
-    # --- 바닥탐지 + CCI 1차 조건 컨트롤 ---
-    c10, c11, c12 = st.columns(3)
-    with c10:
-        bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False, help="RSI≤과매도 & BB 하한선 터치/하회 & CCI≤-100 동시 만족 시 신호")
-    with c11:
-        cci_window = st.number_input("CCI 기간", min_value=5, max_value=100, value=14, step=1)
-    with c12:
-        cci_signal = st.number_input("CCI 신호(평균)", min_value=1, max_value=50, value=9, step=1)
-    
-    c13, c14, c15 = st.columns(3)
-    with c14:
-        cci_over = st.number_input("CCI 과매수 기준", min_value=0, max_value=300, value=100, step=5)
-    with c15:
-        cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
-    with c13:
-        st.caption("CCI 조건은 상단에서 선택됨")
-    st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
-    sec_cond = st.selectbox(
-        "2차 조건 선택",
-        [
-            "없음",
-            "양봉 2개 (범위 내)",
-            "양봉 2개 연속 상승",
-            "BB 기반 첫 양봉 50% 진입",
-            "매물대 터치 후 반등(위→아래→반등)",
-            "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"
-        ]
-    )
-    
-    # ✅ 매물대 반등 조건일 때만 N봉 입력 노출
-    if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-        maemul_n = st.number_input("매물대 반등 조건: 이전 캔들 수", min_value=5, max_value=500, value=50, step=5)
-        st.session_state["maemul_n"] = maemul_n
-    
-    # ✅ 볼린저 옵션 미체크 시 안내 문구
-    if sec_cond == "BB 기반 첫 양봉 50% 진입" and bb_cond == "없음":
-        st.info("ℹ️ 볼린저 밴드를 활성화해야 이 조건이 정상 작동합니다.")
-    
-    # ✅ 매물대 조건 UI (CSV 저장/불러오기 + GitHub 커밋)
-    import os, base64, requests
-    
-    CSV_FILE = os.path.join(os.path.dirname(__file__), "supply_levels.csv")
-    if not os.path.exists(CSV_FILE):
-        pd.DataFrame(columns=["market", "level"]).to_csv(CSV_FILE, index=False)
-    
-    def load_supply_levels(market_code):
-        df = pd.read_csv(CSV_FILE)
-        df_market = df[df["market"] == market_code]
-        return df_market["level"].tolist()
-    
-    def save_supply_levels(market_code, levels):
-        df = pd.read_csv(CSV_FILE)
-        df = df[df["market"] != market_code]
-        new_df = pd.DataFrame({"market": [market_code]*len(levels), "level": levels})
-        df = pd.concat([df, new_df], ignore_index=True)
-        df.to_csv(CSV_FILE, index=False)
-    
-    def _get_secret(key, default=None):
-        try:
-            return st.secrets[key]
-        except Exception:
-            return os.environ.get(key, default)
-    
-    def github_commit_csv(local_file=CSV_FILE):
-        token  = _get_secret("GITHUB_TOKEN")
-        repo   = _get_secret("GITHUB_REPO")
-        branch = _get_secret("GITHUB_BRANCH", "main")
-        if not (token and repo):
-            return False, "no_token"
-    
-        url  = f"https://api.github.com/repos/{repo}/contents/{os.path.basename(local_file)}"
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json"
-        }
-    
-        with open(local_file, "rb") as f:
-            b64_content = base64.b64encode(f.read()).decode()
-    
-        # 현재 SHA 조회
-        sha = None
-        r_get = requests.get(url, headers=headers, timeout=8)
-        if r_get.status_code == 200:
-            sha = r_get.json().get("sha")
-    
-        data = {
-            "message": "Update supply_levels.csv from Streamlit",
-            "content": b64_content,
-            "branch": branch
-        }
-        if sha:
-            data["sha"] = sha
-    
-        r_put = requests.put(url, headers=headers, json=data, timeout=8)
-        return r_put.status_code in (200, 201), r_put.text
-    
-    # ✅ 원격에 파일 존재 여부만 확인
-    def github_file_exists(basename: str):
-        token  = _get_secret("GITHUB_TOKEN")
-        repo   = _get_secret("GITHUB_REPO")
-        branch = _get_secret("GITHUB_BRANCH", "main")
-        if not (token and repo):
-            return False, "no_token"
-        url = f"https://api.github.com/repos/{repo}/contents/{basename}"
-        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-        try:
-            r = requests.get(url, headers=headers, params={"ref": branch}, timeout=8)
-            if r.status_code == 200:
-                return True, None
-            if r.status_code == 404:
-                return False, None
-            return False, f"status_{r.status_code}"
-        except Exception as e:
-            return False, f"error:{e}"
-    
-    manual_supply_levels = []
-    if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-        current_levels = load_supply_levels(market_code)
-        st.markdown("**매물대 가격대 입력 (GitHub 최초 1회 업로드, 이후 로컬 저장만)**")
-        supply_df = st.data_editor(
-            pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
-            num_rows="dynamic",
-            use_container_width=True,
-            height=180
+        with r1:
+            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
+        with r2:
+            rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
+        with r3:
+            rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
+
+        c7, c8, c9 = st.columns(3)
+        with c7:
+            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하한선", "중앙선", "상한선"], key="bb_condition_main")
+        with c8:
+            bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
+        with c9:
+            bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
+
+        c10, c11, c12 = st.columns(3)
+        with c10:
+            cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"], key="cci_condition_main")
+        with c11:
+            cci_window = st.number_input("CCI 기간", min_value=5, max_value=100, value=14, step=1)
+        with c12:
+            cci_signal = st.number_input("CCI 신호(평균)", min_value=1, max_value=50, value=9, step=1)
+
+        c13, c14, c15 = st.columns(3)
+        with c13:
+            cci_over = st.number_input("CCI 과매수 기준", min_value=0, max_value=300, value=100, step=5)
+        with c14:
+            cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
+        with c15:
+            # ✅ 거래량 조건 (기존.py 구조대로 2차 레이어에 배치)
+            volume_cond = st.selectbox(
+                "거래량 조건",
+                [
+                    "없음",
+                    "평균 이상",
+                    "평균 이하",
+                    "급등 (평균의 2배 이상)",
+                    "급감 (평균의 절반 이하)"
+                ]
+            )
+            st.session_state["volume_cond"] = volume_cond
+
+        # --- 3차: 보조 옵션 및 2차 조건 ---
+        st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
+        sec_cond = st.selectbox(
+            "2차 조건 선택",
+            [
+                "없음",
+                "양봉 2개 (범위 내)",
+                "양봉 2개 연속 상승",
+                "BB 기반 첫 양봉 50% 진입",
+                "매물대 터치 후 반등(위→아래→반등)",
+                "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"
+            ]
         )
-        manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
-        if st.button("💾 매물대 저장"):
-            # 1) 로컬 저장
+
+        if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
+            maemul_n = st.number_input("매물대 반등 조건: 이전 캔들 수", min_value=5, max_value=500, value=50, step=5)
+            st.session_state["maemul_n"] = maemul_n
+
+        if sec_cond == "BB 기반 첫 양봉 50% 진입" and bb_cond == "없음":
+            st.info("ℹ️ 볼린저 밴드를 활성화해야 이 조건이 정상 작동합니다.")
+
+        # ✅ 매물대 편집 UI (기존 위치 유지)
+        import os, base64, requests
+        CSV_FILE = os.path.join(os.path.dirname(__file__), "supply_levels.csv")
+        if not os.path.exists(CSV_FILE):
+            pd.DataFrame(columns=["market", "level"]).to_csv(CSV_FILE, index=False)
+
+        def load_supply_levels(market_code):
+            df = pd.read_csv(CSV_FILE)
+            df_market = df[df["market"] == market_code]
+            return df_market["level"].tolist()
+
+        def save_supply_levels(market_code, levels):
+            df = pd.read_csv(CSV_FILE)
+            df = df[df["market"] != market_code]
+            new_df = pd.DataFrame({"market": [market_code]*len(levels), "level": levels})
+            df = pd.concat([df, new_df], ignore_index=True)
+            df.to_csv(CSV_FILE, index=False)
+
+        def _get_secret(key, default=None):
             try:
-                save_supply_levels(market_code, manual_supply_levels)
-                # 2) GitHub에는 '최초 1회'만 업로드
-                exists, err = github_file_exists(os.path.basename(CSV_FILE))
-                if err == "no_token":
-                    st.info("메모는 로컬에 저장되었습니다. (GitHub 토큰/레포 설정이 없어 업로드 생략)")
-                elif exists:
-                    st.success("로컬 저장 완료. (GitHub에는 이미 파일이 있어 이번에는 업로드하지 않습니다.)")
-                else:
-                    ok, msg = github_commit_csv(CSV_FILE)
-                    if ok:
-                        st.success("로컬 저장 완료 + GitHub 최초 업로드 완료!")
+                return st.secrets[key]
+            except Exception:
+                return os.environ.get(key, default)
+
+        def github_commit_csv(local_file=CSV_FILE):
+            token  = _get_secret("GITHUB_TOKEN")
+            repo   = _get_secret("GITHUB_REPO")
+            branch = _get_secret("GITHUB_BRANCH", "main")
+            if not (token and repo):
+                return False, "no_token"
+
+            url  = f"https://api.github.com/repos/{repo}/contents/{os.path.basename(local_file)}"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json"
+            }
+
+            with open(local_file, "rb") as f:
+                b64_content = base64.b64encode(f.read()).decode()
+
+            sha = None
+            r_get = requests.get(url, headers=headers, timeout=8)
+            if r_get.status_code == 200:
+                sha = r_get.json().get("sha")
+
+            data = {
+                "message": "Update supply_levels.csv from Streamlit",
+                "content": b64_content,
+                "branch": branch
+            }
+            if sha:
+                data["sha"] = sha
+
+            r_put = requests.put(url, headers=headers, json=data, timeout=8)
+            return r_put.status_code in (200, 201), r_put.text
+
+        def github_file_exists(basename: str):
+            token  = _get_secret("GITHUB_TOKEN")
+            repo   = _get_secret("GITHUB_REPO")
+            branch = _get_secret("GITHUB_BRANCH", "main")
+            if not (token and repo):
+                return False, "no_token"
+            url = f"https://api.github.com/repos/{repo}/contents/{basename}"
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+            try:
+                r = requests.get(url, headers=headers, params={"ref": branch}, timeout=8)
+                if r.status_code == 200:
+                    return True, None
+                if r.status_code == 404:
+                    return False, None
+                return False, f"status_{r.status_code}"
+            except Exception as e:
+                return False, f"error:{e}"
+
+        manual_supply_levels = []
+        if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
+            current_levels = load_supply_levels(market_code)
+            st.markdown("**매물대 가격대 입력 (GitHub 최초 1회 업로드, 이후 로컬 저장만)**")
+            supply_df = st.data_editor(
+                pd.DataFrame({"매물대": current_levels if current_levels else [0]}),
+                num_rows="dynamic",
+                use_container_width=True,
+                height=180
+            )
+            manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
+            if st.button("💾 매물대 저장"):
+                try:
+                    save_supply_levels(market_code, manual_supply_levels)
+                    exists, err = github_file_exists(os.path.basename(CSV_FILE))
+                    if err == "no_token":
+                        st.info("메모는 로컬에 저장되었습니다. (GitHub 토큰/레포 설정이 없어 업로드 생략)")
+                    elif exists:
+                        st.success("로컬 저장 완료. (GitHub에는 이미 파일이 있어 이번에는 업로드하지 않습니다.)")
                     else:
-                        st.warning(f"로컬 저장은 되었지만 GitHub 최초 업로드 실패: {msg}")
-            except Exception as _e:
-                st.warning(f"매물대 저장 실패: {_e}")
-    
+                        ok, msg = github_commit_csv(CSV_FILE)
+                        if ok:
+                            st.success("로컬 저장 완료 + GitHub 최초 업로드 완료!")
+                        else:
+                            st.warning(f"로컬 저장은 되었지만 GitHub 최초 업로드 실패: {msg}")
+                except Exception as _e:
+                    st.warning(f"매물대 저장 실패: {_e}")
+
     st.session_state["bb_cond"] = bb_cond
     st.markdown("---")
     
