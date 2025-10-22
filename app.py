@@ -751,43 +751,29 @@ def main():
                 cross = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
                 base_sig_idx = df.index[cross].tolist()
 
-            elif strategy == "Triple_GoldenCross":
-                # =========================================================
-                # ✅ RSI·CCI·MACD 골든크로스 동시 발생 전략 (시점보정)
-                #   - RSI13: 50선 하향→상향 교차
-                #   - CCI:   0선 하향→상향 교차
-                #   - MACD:  MACD ≤ Signal → MACD ≥ Signal
-                #   - 기본: 다음 캔들 진입 / 2차 조건(sec_cond) 있으면 해당 캔들 즉시 진입
-                #   - 시각적 캔들과 백테스트 결과 타이밍 완전 일치
-                # =========================================================
-                try:
-                    # ✅ shift 보정: 실제 봉 마감 시점 기준으로 판단
-                    # ✅ 안전 계산: NaN 제거 + 인덱스 정렬
-                    df = df.copy().dropna(subset=["RSI13","CCI","MACD","MACD_signal"]).sort_index()
+# ✅ Triple_GoldenCross 완전 복구 (동시 발생 → 즉시 신호)
+elif strategy == "Triple_GoldenCross":
+    try:
+        # 인디케이터 정렬 및 NaN 제거
+        df = df.copy().dropna(subset=["RSI13","CCI","MACD","MACD_signal"]).sort_index()
 
-                    # ✅ 실제 봉 마감 시점 기준 골든크로스 감지
-                    rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] >= 50)
-                    cci_gc  = (df["CCI"].shift(1) < 0) & (df["CCI"] >= 0)
-                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
-                    triple_gc = (rsi_gc & cci_gc & macd_gc)
+        # 시점보정: shift 제거 → 해당 봉에서 직접 평가
+        rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] > 50)
+        cci_gc  = (df["CCI"].shift(1) < 0) & (df["CCI"] > 0)
+        macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
 
-                    # ✅ 다음 봉 진입 시 마지막 인덱스도 포함되도록 보정
-                    _tmp = []
-                    for i in df.index[triple_gc]:
-                        next_i = i + 1 if (i + 1) in df.index else df.index[-1]
-                        if sec_cond != "없음":
-                            _tmp.append(i)       # 2차 조건 즉시 진입
-                        else:
-                            _tmp.append(next_i)  # 기본 다음 봉 진입
-                    if "base_sig_idx" in locals():
-                        base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
-                    else:
-                        base_sig_idx = sorted(set(_tmp))
-                    # 디버그용 표시 (검증 시 주석 제거 가능)
-                    # df.loc[triple_gc, "Triple_GC_Flag"] = True
+        triple_gc = (rsi_gc & cci_gc & macd_gc)
 
-                except Exception:
-                    base_sig_idx = []
+        # 다음봉 진입 or 즉시 진입 구분
+        _tmp = []
+        for i in df.index[triple_gc]:
+            next_i = i + 1 if (i + 1) in df.index else df.index[-1]
+            _tmp.append(i if sec_cond != "없음" else next_i)
+
+        # 기존 인덱스와 누적 결합
+        base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
+    except Exception:
+        pass
 
             # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
