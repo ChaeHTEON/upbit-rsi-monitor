@@ -2400,37 +2400,40 @@ def main():
         # (경량형 ⑤ 섹션 전체 삭제)
         # 아래에 이미 존재하는 "⑤ 실시간 감시 (알람) — 원본 복원" 섹션만 남깁니다.
 
-    # -----------------------------
-    # 📒 공유 메모
-    # -----------------------------
-    with st.expander("📒 공유 메모", expanded=False):
-        import os
-        memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
-        default_text = ""
-        try:
-            if os.path.exists(memo_path):
-                with open(memo_path, "r", encoding="utf-8") as f:
-                    default_text = f.read()
-        except Exception:
+        # -----------------------------
+        # 📒 공유 메모 — 복원 (경로 보정)
+        # -----------------------------
+        with st.expander("📒 공유 메모", expanded=False):
+            import os
+            memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+            if not os.path.exists(memo_path):
+                memo_path = os.path.join(os.path.dirname(__file__), "../shared_notes.md")
+
             default_text = ""
+            try:
+                if os.path.exists(memo_path):
+                    with open(memo_path, "r", encoding="utf-8") as f:
+                        default_text = f.read()
+            except Exception:
+                default_text = ""
 
-        st.markdown(default_text or "_(메모가 비어 있습니다)_")
-        st.markdown("---")
+            # ✅ 마크다운 미리보기(가독성)
+            st.markdown(default_text or "_(메모가 비어 있습니다)_")
 
-        memo_text = st.text_area("메모 내용 (편집)", value=default_text, height=200)
-        col_m1, col_m2 = st.columns([1,1])
-        with col_m1:
-            if st.button("💾 메모 저장"):
-                try:
-                    with open(memo_path, "w", encoding="utf-8") as f:
-                        f.write(memo_text)
-                    st.success("메모 저장 완료")
-                except Exception as _e:
-                    st.warning(f"메모 저장 실패: {_e}")
-        with col_m2:
-            st.caption(f"메모 파일 위치: {os.path.abspath(memo_path)}")
-
-    # -----------------------------
+            st.markdown("---")
+            memo_text = st.text_area("메모 내용 (편집)", value=default_text, height=200)
+            col_m1, col_m2 = st.columns([1,1])
+            with col_m1:
+                if st.button("💾 메모 저장"):
+                    try:
+                        with open(memo_path, "w", encoding="utf-8") as f:
+                            f.write(memo_text)
+                        st.success("메모 저장 완료")
+                    except Exception as _e:
+                        st.warning(f"메모 저장 실패: {_e}")
+            with col_m2:
+                st.caption(f"메모 파일 위치: {os.path.abspath(memo_path)}")
+        # -----------------------------
     # 🔄 페어 테스트
     # -----------------------------
     with st.expander("🔄 페어 테스트", expanded=False):
