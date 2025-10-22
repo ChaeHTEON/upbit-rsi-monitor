@@ -263,6 +263,7 @@ def main():
         if primary_strategy != "없음":
             st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
+    st.markdown('<div class="section-title">② 조건 설정</div>', unsafe_allow_html=True)
     r1, r2, r3 = st.columns(3)
     with r1:
         rsi_mode = st.selectbox(
@@ -459,18 +460,14 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
+        tf_key = f"{unit}min"
     else:
         url = "https://api.upbit.com/v1/candles/days"
-        url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
-    else:
-        url = "https://api.upbit.com/v1/candles/days"
-        else:
-            url = "https://api.upbit.com/v1/candles/days"
-            tf_key = "day"
-    
-        # CSV 경로 설정
-        data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
-        cache_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+        tf_key = "day"
+
+    # CSV 경로 설정
+    data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
+    cache_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
     
         # ✅ CSV 파일 파싱 오류 자동 복구 추가
         if os.path.exists(cache_path):
