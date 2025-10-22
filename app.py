@@ -274,6 +274,14 @@ def main():
         with c9:
             bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
+        # ✅ 거래량 조건 (volume_cond 정의 추가)
+        volume_cond = st.selectbox(
+            "거래량 조건",
+            ["없음", "평균 이상", "평균 이하", "급등 (평균의 2배 이상)", "급감 (평균의 절반 이하)"],
+            index=0,
+            help="거래량이 일정 조건을 만족할 때만 신호 발생 필터링"
+        )
+
         # ✅ 바닥탐지 모드 선택 (bottom_mode 정의 추가)
         bottom_mode = st.selectbox(
             "바닥탐지 모드",
