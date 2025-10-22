@@ -461,6 +461,9 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
     else:
         url = "https://api.upbit.com/v1/candles/days"
+        url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
+    else:
+        url = "https://api.upbit.com/v1/candles/days"
         else:
             url = "https://api.upbit.com/v1/candles/days"
             tf_key = "day"
