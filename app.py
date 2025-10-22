@@ -2379,3 +2379,7 @@ def main():
             st.dataframe(styled_tbl, use_container_width=True)
     except Exception as e:
         st.error(f"오류 발생: {e}")
+
+if __name__ == "__main__":
+    main()
+
