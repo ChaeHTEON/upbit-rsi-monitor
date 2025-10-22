@@ -437,13 +437,13 @@ def main():
             except Exception as _e:
                 st.warning(f"매물대 저장 실패: {_e}")
     
-    st.session_state["bb_cond"] = bb_cond
-    st.markdown("---")
-    
-    # -----------------------------
-    # 데이터 수집/지표/시뮬레이션 함수
-    # -----------------------------
-    _session = requests.Session()
+st.session_state["bb_cond"] = bb_cond
+st.markdown("---")
+
+# -----------------------------
+# 데이터 수집/지표/시뮬레이션 함수
+# -----------------------------
+_session = requests.Session()
     _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
     _session.mount("https://", HTTPAdapter(max_retries=_retries))
     
