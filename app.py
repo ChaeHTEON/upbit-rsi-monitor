@@ -2433,7 +2433,8 @@ def main():
                         st.warning(f"메모 저장 실패: {_e}")
             with col_m2:
                 st.caption(f"메모 파일 위치: {os.path.abspath(memo_path)}")
-        # -----------------------------
+                
+    # -----------------------------
     # 🔄 페어 테스트
     # -----------------------------
     with st.expander("🔄 페어 테스트", expanded=False):
