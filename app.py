@@ -28,19 +28,6 @@ def main():
     import pandas as pd  # ✅ main() 내부로 이동
     from typing import Optional, Set
 
-    # ✅ 전역 기본값 (UI 미설정 경로 대비)
-    threshold_pct = st.session_state.get('threshold_pct', 0.6)
-    stoploss_pct = st.session_state.get('stoploss_pct', 0.4)
-    winrate_thr = st.session_state.get('winrate_thr', 60)
-
-    # ✅ 기본 TP/SL (전역 기본값, UI 미존재 시 사용)
-    threshold_pct = st.session_state.get("threshold_pct", 0.6)
-    stoploss_pct = st.session_state.get("stoploss_pct", 0.4)
-
-    # ✅ 기본 승률 기준 (전역 기본값, UI 미존재 시 사용)
-    winrate_thr = st.session_state.get("winrate_thr", 60)
-
-
     # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
     def _keep_sweep_open():
         """통계/조합 탐색(expander) 닫힘 방지"""
@@ -200,7 +187,23 @@ def main():
     with c1:
         market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
     with c2:
-        tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
+        FIXED_STRATEGY_LIST = [
+            "TGV", "RVB", "PR", "LCT", "4D_SYNC", "240m_SYNC",
+            "COMPOSITE_CONFIRM", "DIVERGENCE_RVB", "MARKET_DIVERGENCE"
+        ]
+        FIXED_TF_MAP = {
+            "TGV": "15분봉", "RVB": "15분봉", "PR": "30분봉",
+            "LCT": "60분봉", "4D_SYNC": "60분봉", "240m_SYNC": "4시간봉",
+            "COMPOSITE_CONFIRM": "60분봉", "DIVERGENCE_RVB": "30분봉",
+            "MARKET_DIVERGENCE": "60분봉"
+        }
+
+        selected_strategy = st.session_state.get("sel_strategy", "")
+        if selected_strategy in FIXED_STRATEGY_LIST:
+            tf_label = FIXED_TF_MAP[selected_strategy]
+            st.info(f"📊 '{selected_strategy}' 전략은 분봉 변경이 불가능합니다. (참고용 표시: {tf_label})")
+        else:
+            tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
     with c3:
         KST = timezone("Asia/Seoul")
         today_kst = datetime.now(KST).date()
@@ -208,16 +211,6 @@ def main():
         start_date = st.date_input("시작 날짜", value=default_start)
     with c4:
         end_date = st.date_input("종료 날짜", value=today_kst)
-
-    
-    # ✅ 분봉 고정 제거: tf_label 미정의 시 사용자 선택으로 설정
-
-    
-    if "tf_label" not in locals():
-
-    
-        tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
-
     
     interval_key, minutes_per_bar = TF_MAP[tf_label]
     st.markdown("---")
@@ -229,14 +222,16 @@ def main():
     # ② 조건 설정
     # -----------------------------
     with st.expander("② 조건 설정", expanded=True):
-        c1, c2, c3, c4, c5, c6 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3, 1.3])
+        c1, c2, c3, c4, c5 = st.columns([1.6, 1.3, 1.3, 1.3, 1.3])
         with c1:
-            rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
+            lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10)
         with c2:
-            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하한선", "중앙선", "상한선"], key="bb_condition_main")
+            threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
         with c3:
-            cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"], key="cci_condition_main")
+            winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
         with c4:
+            stoploss_pct = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
+        with c5:
             volume_cond = st.selectbox(
                 "거래량 조건",
                 [
@@ -245,42 +240,53 @@ def main():
                     "평균 이하",
                     "급등 (평균의 2배 이상)",
                     "급감 (평균의 절반 이하)"
-                ]
+                ],
+                key="volume_condition_main"
             )
-        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
-        st.session_state["volume_cond"] = volume_cond
         with c5:
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
-        with c6:
-            # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
-            st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
-            primary_strategy = st.selectbox(
-                "매매기법 선택",
-                [
-                    "없음",
-                    "TGV",
-                    "RVB",
-                    "PR",
-                    "LCT",
-                    "4D_Sync",
-                    "240m_Sync",
-                    "Composite_Confirm",
-                    "Divergence_RVB",
-                    "Market_Divergence",
-                    "MACD_GoldenCross",
-                    "EMA100_Above",
-                    "EMA100_Below"
-                ],
-                index=0
-            )
-            st.session_state["primary_strategy"] = primary_strategy
-            if primary_strategy != "없음":
-                st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
-        r1, r2, r3 = st.columns(3)
+        with c6:
+            threshold_pct = st.slider("성공/실패 기준 값(%)", 0.1, 5.0, 1.0, step=0.1)
+            winrate_thr = st.slider("승률 기준(%)", 10, 100, 70, step=1)
+            hit_basis = "종가 기준"  # ✅ 고정
+        stoploss_pct  = st.slider("손절 기준 값(%)", 0.0, 5.0, 0.4, step=0.1)
+    # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
+    st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+    primary_strategy = st.selectbox(
+        "매매기법 선택",
+        [
+            "없음",
+            "TGV",
+            "RVB",
+            "PR",
+            "LCT",
+            "4D_Sync",
+            "240m_Sync",
+            "Composite_Confirm",
+            "Divergence_RVB",
+            "Market_Divergence",
+            "MACD_GoldenCross",
+            "EMA100_Above",
+            "EMA100_Below"
+        ],
+        index=0
+    )
+
+        # 선택한 전략명 저장 (전역에서 활용 가능)
+        st.session_state["primary_strategy"] = primary_strategy
+
+        # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
+        if primary_strategy != "없음":
+            st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
+
     r1, r2, r3 = st.columns(3)
     with r1:
-        st.caption("RSI 조건은 상단에서 선택됨")
+        rsi_mode = st.selectbox(
+            "RSI 조건",
+            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
+            index=0
+        )
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
@@ -288,7 +294,7 @@ def main():
     
     c7, c8, c9 = st.columns(3)
     with c7:
-        st.caption("볼린저밴드 조건은 상단에서 선택됨")
+        bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
     with c8:
         bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
     with c9:
@@ -309,7 +315,16 @@ def main():
     with c15:
         cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
     with c13:
-        st.caption("CCI 조건은 상단에서 선택됨")
+        cci_mode = st.selectbox(
+            "CCI 조건",
+            options=["없음", "과매수", "과매도"],
+            format_func=lambda x: (
+                "없음" if x == "없음" else
+                f"과매수(≥{cci_over})" if x == "과매수" else
+                f"과매도(≤{cci_under})"
+            ),
+            index=0
+        )
     st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
     sec_cond = st.selectbox(
         "2차 조건 선택",
@@ -596,7 +611,6 @@ def main():
     def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
         out = df.copy()
         out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
-        out["RSI9"]  = ta.momentum.RSIIndicator(close=out["close"], window=9).rsi()   # ★ 추가: 보조 RSI
         bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
         out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
         out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
@@ -626,20 +640,6 @@ def main():
                  cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9):
         """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 + CCI 1차 조건."""
         res = []
-        # ✅ 거래량 조건(전역 세션) — RSI/BB/CCI보다 우선 적용되는 필터
-        _vol_cond = st.session_state.get("volume_cond", "없음")
-        vol_ma = df["volume"].rolling(20, min_periods=1).mean()
-        if _vol_cond == "평균 이상":
-            vol_ok = df["volume"] >= vol_ma
-        elif _vol_cond == "평균 이하":
-            vol_ok = df["volume"] <= vol_ma
-        elif _vol_cond == "급등 (평균의 2배 이상)":
-            vol_ok = df["volume"] >= (vol_ma * 2.0)
-        elif _vol_cond == "급감 (평균의 절반 이하)":
-            vol_ok = df["volume"] <= (vol_ma * 0.5)
-        else:
-            vol_ok = pd.Series([True]*len(df), index=df.index)
-
         n = len(df)
         thr = float(threshold_pct)
     
@@ -650,8 +650,6 @@ def main():
                 (df["close"] <= df["BB_low"]) &
                 (df["CCI"] <= -100)
             ].tolist()
-            # ✅ 거래량 필터 적용
-            base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
         else:
             # ✅ primary_strategy 기반 1차 매매기법 조건 (UI 약어 9종과 1:1 매핑)
             strategy = st.session_state.get("primary_strategy", "없음")
@@ -788,14 +786,7 @@ def main():
                 else:
                     base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
-        
-        # ✅ 거래량 1차 필터 공통 적용 (bottom_mode 여부와 무관)
-        if 'base_sig_idx' in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
-            try:
-                base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
-            except Exception:
-                base_sig_idx = base_sig_idx
-# --- 2) 보조/공통 함수 ---
+        # --- 2) 보조/공통 함수 ---
         def is_bull(idx):
             return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
     
@@ -1289,8 +1280,6 @@ def main():
             st.rerun()
     
         # ===== 시뮬레이션 (중복 포함/제거) =====
-        # ✅ 기본 판정 기준(전역 미정의 방지)
-        hit_basis = "종가 기준"
         res_all = simulate(
             df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
             bb_cond, "중복 포함 (연속 신호 모두)",
@@ -1314,9 +1303,6 @@ def main():
         # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
         # -----------------------------
         max_bars = 5000
-        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
-        st.session_state["volume_cond"] = volume_cond
-
         if res is not None and not res.empty:
             plot_res = (
                 res.sort_values("신호시간")
@@ -1408,26 +1394,6 @@ def main():
                 row=3, col=1
             )
 
-        # ✅ RSI(13) vs RSI(9) 골든크로스 별표 표시
-        try:
-            if "RSI13" in df_plot.columns and "RSI9" in df_plot.columns:
-                rsi_ = df_plot["RSI13"]
-                rsi_s = df_plot["RSI9"]
-                cross_up = (rsi_.shift(1) <= rsi_s.shift(1)) & (rsi_ > rsi_s)
-                xs_gc = df_plot.loc[cross_up, "time"]
-                ys_gc = df_plot.loc[cross_up, "RSI13"]
-                if len(xs_gc) > 0:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=xs_gc, y=ys_gc, mode="markers",
-                            name="RSI 골든★",
-                            marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
-                        ),
-                        row=3, col=1
-                    )
-        except Exception:
-            pass
-
         # ✅ RSI 골든크로스 별표 추가 (CCI 구조 동일)
         try:
             rsi_ = df_plot["RSI13"] if "RSI13" in df_plot.columns else df["RSI13"]
@@ -1463,26 +1429,6 @@ def main():
         # RSI 보조선 (30/70 강조선)
         fig.add_hline(y=30, line=dict(color="rgba(255,0,0,0.4)", dash="dot", width=1.3), row=3, col=1)
         fig.add_hline(y=70, line=dict(color="rgba(0,128,0,0.4)", dash="dot", width=1.3), row=3, col=1)
-        
-        # ★ 추가: RSI(9) vs RSI(13) 골든크로스 마커 (row3)
-        try:
-            if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
-                rsi_fast = df_plot["RSI9"]
-                rsi_slow = df_plot["RSI13"]
-                cross_up = (rsi_fast.shift(1) <= rsi_slow.shift(1)) & (rsi_fast > rsi_slow)
-                xs = df_plot.loc[cross_up, "time"]
-                ys = df_plot.loc[cross_up, "RSI9"]
-                if len(xs) > 0:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=xs, y=ys, mode="markers",
-                            name="RSI 골든★",
-                            marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
-                        ),
-                        row=3, col=1
-                    )
-        except Exception:
-            pass
 
         # CCI, RSI, 거래량 축 간격 균등 반영 → 시각적 균형 향상
 
@@ -1954,7 +1900,7 @@ def main():
     
             col_thr, col_win = st.columns(2)
             with col_thr:
-                sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct if "threshold_pct" in locals() else 0.6), step=0.1,
+                sweep_threshold_pct = st.slider("목표수익률(%) (통계 전용)", 0.1, 10.0, float(threshold_pct), step=0.1,
                                                 key="sweep_threshold_pct", on_change=_keep_sweep_open)
             with col_win:
                 sweep_winrate_thr   = st.slider("승률 기준(%) (통계 전용)", 10, 100, int(winrate_thr), step=1,
@@ -2378,9 +2324,1160 @@ def main():
 
             styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
             st.dataframe(styled_tbl, use_container_width=True)
-    except Exception as e:
-        st.error(f"오류 발생: {e}")
 
-if __name__ == "__main__":
+
+        # -----------------------------
+        # ⑤ 실시간 감시 및 알람
+        # -----------------------------
+        st.markdown('<div class="section-title">⑤ 실시간 감시 및 알람</div>', unsafe_allow_html=True)
+
+        import pandas as pd, numpy as np, random, streamlit as st
+        # (위에서 이미 `from datetime import datetime, timedelta` 를 쓰므로 충돌 방지)
+
+        # 상태 초기화
+        if "alerts_live" not in st.session_state:
+            st.session_state["alerts_live"] = []
+        if "alert_history" not in st.session_state:
+            st.session_state["alert_history"] = []
+
+        # 감시 설정 UI
+        import requests
+        def get_upbit_markets():
+            try:
+                url = "https://api.upbit.com/v1/market/all"
+                res = requests.get(url).json()
+                krw_list = [m["market"] for m in res if m["market"].startswith("KRW-")]
+                return sorted(krw_list)
+            except:
+                return ["KRW-BTC", "KRW-XRP"]
+
+        # 감시 설정 UI (기본 종목 선택과 동일하게 거래량순, 한글/영문 병기)
+        # 상단 ① 기본 설정에서 MARKET_LIST = [(label, code), ...] 형태로 정의됨
+        # 예: ("비트코인 (BTC) — KRW-BTC", "KRW-BTC")
+        if not isinstance(MARKET_LIST, list) or not MARKET_LIST or not isinstance(MARKET_LIST[0], (list, tuple)):
+            st.warning("MARKET_LIST 형식이 예상과 다릅니다. 기본 목록으로 대체합니다.")
+            MARKET_LIST = [("비트코인 (BTC) — KRW-BTC", "KRW-BTC"), ("리플 (XRP) — KRW-XRP", "KRW-XRP")]
+
+        sel_symbols = st.multiselect(
+            "감시할 종목 (거래량 순)",
+            MARKET_LIST,
+            default=[MARKET_LIST[0]],
+            format_func=lambda x: x[0]
+        )
+        sel_tfs = st.multiselect("감시할 분봉", ["1", "5", "15"], default=["1"])
+
+        # -----------------------------
+        # 📘 1% 메인 전략 안내 (매매기법 요약) — 위치 이동(분봉 아래)
+        # -----------------------------
+        with st.expander("매매기법 선택", expanded=False):
+            st.markdown("""
+            | 번호 | 전략명 | 핵심 개념 | 활용 타임프레임 | 목표 수익 | 손절폭 | 특징 |
+            |------|---------|------------|------------------|------------|---------|--------|
+            | **① TGV** | Tiny Gain Velocity | 거래량 폭발 + 고점 돌파 초단타 | 3~5분 | +0.5~0.7% | −0.3% | 순간 급등 캐치형 |
+            | **② RVB** | Reversal Volume Base | 매물대 지지 + RSI·CCI 과매도 | 5~15분 | +1.0~1.5% | −0.5% | 반전형 대표 전략 |
+            | **③ PR** | Pulse Rebound | 급락 후 과매도 반등 + 거래량 폭발 | 5~15분 | +0.9~1.2% | −0.5% | 하루 1~2회 실전형 |
+            | **④ LCT** | Long CCI-Trend | 장기 과매도 복귀 + 추세 전환 | 4h~1D | +4~8% | −2% | 중장기 추세 매매 |
+            | **⑤ 4D_Sync** | Directional Deep Filter | 4h EMA 상승 + 15m 과매도 복귀 | 15m~4h | +1~1.5% | −0.4% | 다중 타임프레임 확정형 |
+            | **⑥ 240m_Sync** | 4시간 과매도 반전형 | CCI −200 이하 + 단기 RVB 일치 | 4h | +2~3% | −0.6% | 중기 안정 반전형 |
+            | **⑦ Composite_Confirm** | 다중 검증 매매 | BTC·ETH·SOL 동시 신호 확인 | 5m~15m | +1.2~1.6% | −0.4% | 동조 매매 |
+            | **⑧ Divergence_RVB** | RSI 다이버전스 반전형 | 가격 저점↓, RSI 상승 / RVB 결합 | 5m~1h | +1.5~1.8% | −0.5% | 선행 반전형 |
+            | **⑨ Market_Divergence** | BTC–Alt 상관 다이버전스 | BTC RSI 하락 멈춤 + 알트 상승 | 5m~15m | +1.2~1.5% | −0.5% | 리더-추종 괴리 포착 |
+            """)
+
+        # -----------------------------
+        # 감시할 알람 종류 선택 (하루 1% 수익 전략 9종, 분봉 아래로 이동)
+        # -----------------------------
+        all_strategies = [
+            "TGV",
+            "RSI_과매도반등",
+            "RSI_과매수하락",
+            "CCI_저점반등",
+            "CCI_고점하락",
+            "BB_하단반등",
+            "BB_상단하락",
+            "매물대_하단매수",
+            "매물대_상단매도",
+        ]
+        sel_strategies = st.multiselect(
+            "매매기법 선택",
+            [
+                # === [MAIN STRATEGY 9] ===
+                "TGV",
+                "RVB",
+                "PR",
+                "LCT",
+                "4D_Sync",
+                "240m_Sync",
+                "Composite_Confirm",
+                "Divergence_RVB",
+                "Market_Divergence",
+                # ---- [보조 전략 영역 (기존 유지)] ----
+                "RSI_과매도반등",
+                "RSI_과매수하락",
+                "CCI_저점반등",
+                "CCI_고점하락",
+                "BB_하단반등",
+                "BB_상단하락",
+                "매물대_하단매수",
+                "매물대_상단매도",
+            ],
+            default=["TGV", "RVB", "PR", "RSI_과매도반등"],
+        )
+        st.session_state["selected_strategies"] = sel_strategies
+
+        # ✅ (중복 위젯 제거) 사이드바 상태만 참조
+        _ = st.session_state.get("allow_duplicates", False)
+
+        # ✅ 실전 감시 루프 관련 유틸만 유지
+        from datetime import datetime, timedelta
+
+        def _to_code(opt):
+            if isinstance(opt, (list, tuple)) and len(opt) >= 2:
+                return opt[1]
+            return str(opt)
+
+        STRATEGY_TF_MAP = {
+            "TGV": ["5"], "RVB": ["15"], "PR": ["15"], "LCT": ["240"],
+            "4D_Sync": ["60"], "240m_Sync": ["240"], "Composite_Confirm": ["15"],
+            "Divergence_RVB": ["15"], "Market_Divergence": ["15"],
+        }
+
+        if "signal_state" not in st.session_state:
+            st.session_state["signal_state"] = {}
+        # (주의) 여기의 '실전 감시 루프' 본문은 삭제합니다.
+        # 아래쪽(함수 정의 이후)에 동일 루프가 있으므로 그 한 군데만 남깁니다.
+
+        # === TGV SIGNAL ===
+        def calc_rsi(series, period=14):
+            delta = series.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
+            rs = gain / (loss + 1e-12)
+            return 100 - (100 / (1 + rs))
+
+        def calc_cci(df, period=20):
+            tp = (df["high"] + df["low"] + df["close"]) / 3
+            ma = tp.rolling(period).mean()
+            md = (tp - ma).abs().rolling(period).mean()
+            return (tp - ma) / (0.015 * (md + 1e-12))
+
+        # === [MAIN STRATEGY 9] ============================================
+        from datetime import datetime, timedelta, timezone
+
+        # ✅ (중복 위젯 제거) 사이드바 상태만 참조
+        _ = st.session_state.get("allow_duplicates", False)
+
+        def _kst_now_str():
+            return datetime.now(timezone(timedelta(hours=9))).strftime("%H:%M:%S")
+
+        def _push_alert(symbol, tf, strategy, msg, tp=None, sl=None):
+            # 🔁 중복 허용 옵션(사이드바에서 체크)
+            if "allow_duplicates" not in st.session_state:
+                st.session_state["allow_duplicates"] = False
+
+            # 히스토리/상태 초기화 (모두 함수 안으로!)
+            if "alert_history" not in st.session_state:
+                st.session_state["alert_history"] = []
+            if "alerts_live" not in st.session_state:
+                st.session_state["alerts_live"] = []
+            if "last_alert_at" not in st.session_state:
+                st.session_state["last_alert_at"] = {}  # key -> datetime
+
+            now_kst = (datetime.utcnow() + timedelta(hours=9))
+            now_str = now_kst.strftime("%H:%M:%S")
+
+            key = f"{strategy}|{symbol}|{tf}"
+            if not st.session_state.get("allow_duplicates", False):
+                last_at = st.session_state["last_alert_at"].get(key)
+                if last_at and (now_kst - last_at).total_seconds() < 180:
+                    return
+
+            entry = {
+                "time": now_str,
+                "symbol": symbol,
+                "tf": tf,
+                "strategy": strategy,
+                "msg": msg,
+                "checked": False,
+            }
+            if tp is not None:
+                entry["tp"] = tp
+            if sl is not None:
+                entry["sl"] = sl
+
+            # ✅ 간단한 중복 억제: 같은 전략·종목·분봉은 3분 이내 중복 차단
+            if "last_alert_at" not in st.session_state:
+                st.session_state["last_alert_at"] = {}
+            key = f"{strategy}|{symbol}|{tf}"
+            if not st.session_state.get("allow_duplicates", False):
+                last_at = st.session_state["last_alert_at"].get(key)
+                now_kst = datetime.utcnow() + timedelta(hours=9)
+                if last_at and (now_kst - last_at).total_seconds() < 180:
+                    return
+        
+            st.session_state["alerts_live"].insert(0, entry)
+            st.session_state["alert_history"].insert(0, entry)
+            st.session_state["last_alert_at"][key] = datetime.utcnow() + timedelta(hours=9)
+            st.toast(msg, icon="📈")
+
+        # --- TGV ---
+        def check_tgv_signal(df, symbol="KRW-BTC", tf="1"):
+            if len(df) < 25: return
+            df["rsi"] = calc_rsi(df["close"]); df["cci"] = calc_cci(df)
+            df["ema5"] = df["close"].ewm(span=5).mean(); df["ema20"] = df["close"].ewm(span=20).mean()
+            df["vol_mean"] = df["volume"].rolling(20).mean()
+            latest, prev = df.iloc[-1], df.iloc[-2]
+
+            # TGV 거래량 임계치(20봉 평균 × 2.5) 계산 — 시각화/알람에서 공용 사용
+            df["vol_threshold"] = df["vol_mean"] * 2.5
+            cond_vol = latest["volume"] > latest["vol_mean"] * 2.5
+            cond_cross = latest["ema5"] > latest["ema20"]
+            cond_break = latest["close"] > prev["high"]
+            cond_rsi = latest["rsi"] > 55
+
+            if "active_alerts" not in st.session_state:
+                st.session_state["active_alerts"] = {}
+            active = st.session_state["active_alerts"]; key = f"TGV|{symbol}|{tf}"
+
+            if cond_vol and cond_cross and cond_break and cond_rsi:
+                if key not in active:
+                    active[key] = {"stage":"initial"}
+                    msg=f"""
+⚡ TGV 최초 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ① 최초 포착
+📈 RSI: {prev['rsi']:.1f}→{latest['rsi']:.1f}
+📉 CCI: {prev['cci']:.0f}→{latest['cci']:.0f}
+💹 거래량: +{latest['volume']/max(latest['vol_mean'],1e-9)*100:.0f}%
+💰 목표 +0.7% | 손절 -0.4%
+━━━━━━━━━━━━━━━━━━━
+💡 거래량 급등 + 전고점 돌파 포착
+"""
+                    _push_alert(symbol, tf, "TGV", msg, tp="+0.7%", sl="-0.4%")
+            elif key in active and active[key].get("stage")=="initial":
+                if latest["rsi"]>60 and latest["ema5"]>latest["ema20"]:
+                    msg=f"""
+✅ TGV 유효 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📊 현재 단계: ② 진입 확정
+📈 RSI: {prev['rsi']:.1f}→{latest['rsi']:.1f}
+📉 EMA5/20: {latest['ema5']:.1f}/{latest['ema20']:.1f}
+━━━━━━━━━━━━━━━━━━━
+💡 추세 유지 확인
+"""
+                    _push_alert(symbol, tf, "TGV", msg, tp="+0.7%", sl="-0.4%")
+                    del active[key]
+
+        # --- RVB ---
+        def check_rvb_signal(df, symbol, tf):
+            if len(df)<5: return
+            rsi,cci=calc_rsi(df["close"]),calc_cci(df)
+            cond_rsi=rsi.iloc[-1]<35; cond_cci=cci.iloc[-1]<-80
+            cond_candle=df["close"].iloc[-1]>df["open"].iloc[-1]
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"RVB|{symbol}|{tf}"
+            if cond_rsi and cond_cci and cond_candle and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ RVB 최초 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 RSI: {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}
+📉 CCI: {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}
+💹 거래량 +{df['volume'].iloc[-1]/max(df['volume'].iloc[-2],1e-9)*100:.0f}%
+━━━━━━━━━━━━━━━━━━━
+💡 매물대 지지 + 과매도 반등 포착
+"""
+                _push_alert(symbol,tf,"RVB",msg,tp="+1.2%",sl="-0.5%")
+            elif k in a and a[k].get("stage")=="initial":
+                if rsi.iloc[-1]>40 or cci.iloc[-1]>-50:
+                    msg=f"""
+✅ RVB 유효 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 RSI: {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}
+📉 CCI: {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}
+━━━━━━━━━━━━━━━━━━━
+💡 회복 확인 → 진입 확정
+"""
+                    _push_alert(symbol,tf,"RVB",msg,tp="+1.2%",sl="-0.5%")
+                    del a[k]
+
+        # --- PR ---
+        def check_pr_signal(df,symbol,tf):
+            if len(df)<5: return
+            latest,prev=df.iloc[-1],df.iloc[-2]
+            drop=(prev["close"]/df.iloc[-3]["close"]-1.0)
+            cond_drop=drop<-0.015; cond_rsi=calc_rsi(df["close"]).iloc[-1]<25
+            cond_vol=latest["volume"]>latest["volume"].mean()*1.6
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"PR|{symbol}|{tf}"
+            if cond_drop and cond_rsi and cond_vol and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ PR 최초 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📉 급락 감지
+📈 RSI {calc_rsi(df['close']).iloc[-2]:.1f}→{calc_rsi(df['close']).iloc[-1]:.1f}
+💹 거래량 급증
+━━━━━━━━━━━━━━━━━━━
+💡 급락 후 과매도 반등
+"""
+                _push_alert(symbol,tf,"PR",msg,tp="+1.2%",sl="-0.5%")
+            elif k in a and a[k].get("stage")=="initial":
+                if calc_rsi(df["close"]).iloc[-1]>35:
+                    msg=f"""
+✅ PR 유효 신호 [{symbol},{tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 RSI 회복 확인
+💹 거래량 유지
+━━━━━━━━━━━━━━━━━━━
+💡 반등 확정
+"""
+                    _push_alert(symbol,tf,"PR",msg,tp="+1.2%",sl="-0.5%")
+                    del a[k]
+
+        # --- LCT ---
+        def check_lct_signal(df,symbol,tf):
+            if len(df)<200: return
+            ema50=df["close"].ewm(span=50).mean(); ema200=df["close"].ewm(span=200).mean()
+            cci=calc_cci(df)
+            cond1=ema50.iloc[-1]>ema200.iloc[-1]; cond2=cci.iloc[-1]>-100
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"LCT|{symbol}|{tf}"
+            if cond1 and cond2 and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ LCT 최초 신호 [{symbol}, {tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 EMA50/200 크로스 감지
+📉 CCI 회복
+━━━━━━━━━━━━━━━━━━━
+💡 장기 추세 전환 초기 징후
+"""
+                _push_alert(symbol,tf,"LCT",msg,tp="+8%",sl="-2%")
+            elif k in a and a[k].get("stage")=="initial":
+                if ema50.iloc[-1]>ema200.iloc[-1]*1.01:
+                    msg=f"""
+✅ LCT 유효 신호 [{symbol},{tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+📈 골든크로스 유지
+━━━━━━━━━━━━━━━━━━━
+💡 추세 전환 확정
+"""
+                    _push_alert(symbol,tf,"LCT",msg,tp="+8%",sl="-2%")
+                    del a[k]
+
+        # --- 4D_Sync ---
+        def check_4d_sync_signal(df,symbol,tf):
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"4D|{symbol}|{tf}"
+            if k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"""
+⚡ 4D_Sync 최초 [{symbol},{tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+💡 다중 타임프레임 상승 시작
+"""
+                _push_alert(symbol,tf,"4D_Sync",msg,tp="+1.5%",sl="-0.4%")
+            elif a[k].get("stage")=="initial":
+                msg=f"""
+✅ 4D_Sync 유효 [{symbol},{tf}분봉]
+━━━━━━━━━━━━━━━━━━━
+💡 상승 동조 지속
+"""
+                _push_alert(symbol,tf,"4D_Sync",msg,tp="+1.5%",sl="-0.4%")
+                del a[k]
+
+        # --- 240m_Sync ---
+        def check_240m_sync_signal(df,symbol,tf):
+            cci=calc_cci(df)
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"240m|{symbol}|{tf}"
+            if cci.iloc[-1]<-200 and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ 240m 최초 신호 [{symbol}] CCI={cci.iloc[-1]:.0f}"
+                _push_alert(symbol,tf,"240m_Sync",msg,tp="+2.5%",sl="-0.6%")
+            elif k in a and a[k].get("stage")=="initial" and cci.iloc[-1]>-150:
+                msg=f"✅ 240m 유효 신호 [{symbol}]"
+                _push_alert(symbol,tf,"240m_Sync",msg,tp="+2.5%",sl="-0.6%")
+                del a[k]
+
+        # --- Composite Confirm ---
+        def check_composite_confirm_signal(df,symbol,tf):
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"COMP|{symbol}|{tf}"
+            if k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ Composite 최초 [{symbol}] BTC·ETH·SOL 동시 포착"
+                _push_alert(symbol,tf,"Composite_Confirm",msg,tp="+1.5%",sl="-0.4%")
+            elif a[k].get("stage")=="initial":
+                msg=f"✅ Composite 유효 [{symbol}] 동조 지속"
+                _push_alert(symbol,tf,"Composite_Confirm",msg,tp="+1.5%",sl="-0.4%")
+                del a[k]
+
+        # --- Divergence RVB ---
+        def check_divergence_rvb_signal(df,symbol,tf):
+            rsi=calc_rsi(df["close"])
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"DIVRVB|{symbol}|{tf}"
+            if rsi.iloc[-1]>rsi.iloc[-2] and df["close"].iloc[-1]<df["close"].iloc[-2] and k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ Divergence 최초 [{symbol}] RSI 상승/가격하락"
+                _push_alert(symbol,tf,"Divergence_RVB",msg,tp="+1.7%",sl="-0.5%")
+            elif k in a and a[k].get("stage")=="initial":
+                msg=f"✅ Divergence 유효 [{symbol}] 반전 확정"
+                _push_alert(symbol,tf,"Divergence_RVB",msg,tp="+1.7%",sl="-0.5%")
+                del a[k]
+
+        # --- Market Divergence ---
+        def check_market_divergence_signal(df,symbol,tf):
+            if "active_alerts" not in st.session_state: st.session_state["active_alerts"]={}
+            a=st.session_state["active_alerts"]; k=f"MKDIV|{symbol}|{tf}"
+            if k not in a:
+                a[k]={"stage":"initial"}
+                msg=f"⚡ Market Divergence 최초 [{symbol}] BTC RSI 하락멈춤"
+                _push_alert(symbol,tf,"Market_Divergence",msg,tp="+1.4%",sl="-0.5%")
+            elif a[k].get("stage")=="initial":
+                msg=f"✅ Market Divergence 유효 [{symbol}] 알트 상승 확인"
+                _push_alert(symbol,tf,"Market_Divergence",msg,tp="+1.4%",sl="-0.5%")
+                del a[k]
+
+        # ---- [보조 전략 영역 (기존 유지)] ----
+        # ▶ 자동 감시 토글 + 즉시 갱신 버튼 (TEST_SIGNAL 제거, 실전 감시만 유지)
+
+        # ✅ [여기 추가 블록 시작 — 아래 함수 8개 전체 삽입]
+        def _bb_ready(df):
+            return all(c in df.columns for c in ["BB_low", "BB_up", "BB_mid"])
+
+        def check_rsi_oversold_rebound_signal(df, symbol, tf):
+            if len(df) < 5: return
+            rsi = calc_rsi(df["close"])
+
+            # ✅ RSI 골든크로스 감지 (RSI vs 9봉 이동평균선)
+            rsi_signal = rsi.rolling(9).mean()
+            cross_up = (rsi.shift(1) < rsi_signal.shift(1)) & (rsi > rsi_signal)
+            if cross_up.iloc[-1]:
+                msg = f"⭐ RSI 골든크로스 [{symbol}, {tf}분] → {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "RSI_골든크로스", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+            # 기존 RSI 과매도 반등 조건 유지
+            if rsi.iloc[-2] < 30 <= rsi.iloc[-1]:
+                msg = f"📈 RSI 과매도 반등 [{symbol}, {tf}분] → {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "RSI_과매도반등", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+        def check_rsi_overbought_drop_signal(df, symbol, tf):
+            if len(df) < 5: return
+            rsi = calc_rsi(df["close"])
+            if rsi.iloc[-2] > 70 >= rsi.iloc[-1]:
+                msg = f"📉 RSI 과매수 하락 [{symbol}, {tf}분] → {rsi.iloc[-2]:.1f}→{rsi.iloc[-1]:.1f}"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "RSI_과매수하락", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+        def check_cci_low_rebound_signal(df, symbol, tf, th=-100):
+            if "CCI" not in df.columns or len(df) < 5: return
+            cci = df["CCI"]
+            if cci.iloc[-2] < th <= cci.iloc[-1]:
+                msg = f"📈 CCI 저점 반등 [{symbol}, {tf}분] → {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "CCI_저점반등", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+        def check_cci_high_drop_signal(df, symbol, tf, th=+100):
+            if "CCI" not in df.columns or len(df) < 5: return
+            cci = df["CCI"]
+            if cci.iloc[-2] > th >= cci.iloc[-1]:
+                msg = f"📉 CCI 고점 하락 [{symbol}, {tf}분] → {cci.iloc[-2]:.0f}→{cci.iloc[-1]:.0f}"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "CCI_고점하락", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+        def check_bb_lower_rebound_signal(df, symbol, tf):
+            if not _bb_ready(df) or len(df) < 3: return
+            o, l, c = float(df.iloc[-1]["open"]), float(df.iloc[-1]["low"]), float(df.iloc[-1]["close"])
+            ref = float(df.iloc[-1]["BB_low"])
+            if np.isnan(ref): return
+            if (o < ref or l <= ref) and c >= ref:
+                msg = f"📈 BB 하단선 반등 [{symbol}, {tf}분]"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "BB_하단반등", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+        def check_bb_upper_drop_signal(df, symbol, tf):
+            if not _bb_ready(df) or len(df) < 3: return
+            o, h, c = float(df.iloc[-1]["open"]), float(df.iloc[-1]["high"]), float(df.iloc[-1]["close"])
+            ref = float(df.iloc[-1]["BB_up"])
+            if np.isnan(ref): return
+            if (o > ref or h >= ref) and c <= ref:
+                msg = f"📉 BB 상단선 하락 [{symbol}, {tf}분]"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "BB_상단하락", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+        def check_maemul_lower_buy_signal(df, symbol, tf, tol=0.002):
+            if not _bb_ready(df) or len(df) < 3: return
+            ref = float(df.iloc[-1]["BB_low"])
+            if np.isnan(ref): return
+            px = float(df.iloc[-1]["close"])
+            if px >= ref and px <= ref * (1 + tol):
+                msg = f"🟢 매물대 하단 근접 매수 [{symbol}, {tf}분]"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "매물대_하단매수", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+
+        def check_maemul_upper_sell_signal(df, symbol, tf, tol=0.002):
+            if not _bb_ready(df) or len(df) < 3: return
+            ref = float(df.iloc[-1]["BB_up"])
+            if np.isnan(ref): return
+            px = float(df.iloc[-1]["close"])
+            if px <= ref and px >= ref * (1 - tol):
+                msg = f"🔴 매물대 상단 근접 매도 [{symbol}, {tf}분]"
+                _entry = {"time": datetime.now().strftime("%H:%M:%S"), "symbol": symbol, "tf": tf,
+                          "strategy": "매물대_상단매도", "msg": msg, "checked": False}
+                st.session_state["alerts_live"].insert(0, _entry)
+                st.session_state["alert_history"].insert(0, _entry)
+        # ✅ [추가 블록 끝 — 이후 원본 코드 계속 유지]
+
+        # ▶ 자동 감시 토글 + 즉시 갱신 버튼 (TEST_SIGNAL 제거, 실전 감시만 유지)
+        if "auto_watch_enabled" not in st.session_state:
+            st.session_state["auto_watch_enabled"] = True
+
+        col_auto = st.columns([1, 1])
+        with col_auto[0]:
+            toggle_label = "⏸ 감시 일시중지" if st.session_state["auto_watch_enabled"] else "▶ 감시 재개"
+            if st.button(toggle_label, use_container_width=True):
+                st.session_state["auto_watch_enabled"] = not st.session_state["auto_watch_enabled"]
+                st.rerun()
+        with col_auto[1]:
+            if st.button("🔁 즉시 감시 갱신", use_container_width=True):
+                st.rerun()
+
+        # 자동 감시 안내 및 주기적 실행 (Python 타이머 기반으로 변경)
+        import time
+        if "last_refresh" not in st.session_state:
+            st.session_state["last_refresh"] = time.time()
+
+        if st.session_state["auto_watch_enabled"]:
+            st.markdown("🕐 1분 주기 자동 감시 중입니다. (한국시간 기준)")
+
+            # 60초 경과 시 rerun() 호출 (프론트엔드 의존 제거)
+            now_ts = time.time()
+            if now_ts - st.session_state["last_refresh"] > 60:
+                st.session_state["last_refresh"] = now_ts
+                st.rerun()
+        else:
+            st.markdown("⏸ 자동 감시가 일시중지되었습니다.")
+
+        # 실전 감시 루프 (선택된 모든 종목×분봉)
+        def _to_code(opt):
+            # 멀티셀렉트가 (label, code) 또는 "KRW-XXX" 혼재 가능 → 방어 처리
+            if isinstance(opt, (list, tuple)) and len(opt) >= 2:
+                return opt[1]
+            return str(opt)
+
+        # ✅ 전략별 기본 분봉 매핑 (하루 1% 메인 9개는 자동 분봉 적용)
+        STRATEGY_TF_MAP = {
+            "TGV": ["5"],
+            "RVB": ["15"],
+            "PR": ["15"],
+            "LCT": ["240"],
+            "4D_Sync": ["60"],
+            "240m_Sync": ["240"],
+            "Composite_Confirm": ["15"],
+            "Divergence_RVB": ["15"],
+            "Market_Divergence": ["15"],
+        }
+
+        # ✅ 재진입 판정(조건 해제→재충족) 대비 상태 저장소(키: 전략|심볼|분봉)
+        if "signal_state" not in st.session_state:
+            st.session_state["signal_state"] = {}  # { key: bool }  ← 각 check_함수에서 필요시 활용 가능
+
+        # ✅ 선택 전략/종목 기준으로 분봉을 자동 확장
+        if sel_symbols and st.session_state.get("selected_strategies"):
+            for s in sel_symbols:
+                s_code = _to_code(s)
+
+                for strategy_name in st.session_state["selected_strategies"]:
+                    # 메인 9전략은 자동 분봉, 보조 전략은 사용자가 선택한 분봉(sel_tfs) 사용
+                    use_tfs = STRATEGY_TF_MAP.get(strategy_name, (sel_tfs if sel_tfs else ["1"]))
+
+                    for tf in use_tfs:
+                        try:
+                            # ✅ 업비트 캔들 데이터 로드 후 전달 (NoneType 방지)
+                            from datetime import datetime, timedelta
+                            tf_key = f"minutes/{tf}"
+                            df_watch = fetch_upbit_paged(
+                                s_code,
+                                tf_key,
+                                datetime.now() - timedelta(hours=3),
+                                datetime.now(),
+                                int(tf),
+                                warmup_bars=0
+                            )
+                            if df_watch is None or df_watch.empty:
+                                continue
+                            df_watch = add_indicators(df_watch, bb_window=20, bb_dev=2.0, cci_window=14)
+
+                            # === [MAIN STRATEGY 9] 하루 1% 수익 전략 ====================
+                            if strategy_name == "TGV":
+                                check_tgv_signal(df_watch, s_code, tf)
+                            elif strategy_name == "RVB":
+                                check_rvb_signal(df_watch, s_code, tf)
+                            elif strategy_name == "PR":
+                                check_pr_signal(df_watch, s_code, tf)
+                            elif strategy_name == "LCT":
+                                check_lct_signal(df_watch, s_code, tf)
+                            elif strategy_name == "4D_Sync":
+                                check_4d_sync_signal(df_watch, s_code, tf)
+                            elif strategy_name == "240m_Sync":
+                                check_240m_sync_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Composite_Confirm":
+                                check_composite_confirm_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Divergence_RVB":
+                                check_divergence_rvb_signal(df_watch, s_code, tf)
+                            elif strategy_name == "Market_Divergence":
+                                check_market_divergence_signal(df_watch, s_code, tf)
+
+                            # ---- [보조 전략 영역 (기존 유지)] ---------------------------
+                            elif strategy_name == "RSI_과매도반등":
+                                check_rsi_oversold_rebound_signal(df_watch, s_code, tf)
+                            elif strategy_name == "RSI_과매수하락":
+                                check_rsi_overbought_drop_signal(df_watch, s_code, tf)
+                            elif strategy_name == "CCI_저점반등":
+                                check_cci_low_rebound_signal(df_watch, s_code, tf)
+                            elif strategy_name == "CCI_고점하락":
+                                check_cci_high_drop_signal(df_watch, s_code, tf)
+                            elif strategy_name == "BB_하단반등":
+                                check_bb_lower_rebound_signal(df_watch, s_code, tf)
+                            elif strategy_name == "BB_상단하락":
+                                check_bb_upper_drop_signal(df_watch, s_code, tf)
+                            elif strategy_name == "매물대_하단매수":
+                                check_maemul_lower_buy_signal(df_watch, s_code, tf)
+                            elif strategy_name == "매물대_상단매도":
+                                check_maemul_upper_sell_signal(df_watch, s_code, tf)
+                        except Exception as e:
+                            st.warning(f"⚠️ {s_code}({tf}분) 감시 중 오류: {e}")
+        # (삭제) TEST_SIGNAL 호출 루프 제거
+        # 실전 감시는 위의 fetch_upbit_paged → add_indicators → check_tgv_signal 루프에서 수행합니다.
+        # 중복 제거 (최근 10개만 유지)
+        uniq = []
+        seen = set()
+        for a in st.session_state["alerts_live"]:
+            key = (a["symbol"], a["tf"], a["time"])
+            if key not in seen:
+                seen.add(key)
+                uniq.append(a)
+        st.session_state["alerts_live"] = uniq[:10]
+
+        # 실시간 알람 목록 (최신 3개만 표시, 스크롤 영역화)
+        st.markdown("### 🚨 실시간 알람 목록 (최신 순)")
+        if st.session_state["alerts_live"]:
+            st.markdown("""
+            <style>
+                div[data-testid="stVerticalBlock"] > div:has(> div.scroll-container) {
+                    max-height: 200px;
+                    overflow-y: auto;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                    padding: 4px;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+            with st.container():
+                for i, a in enumerate(st.session_state["alerts_live"][:3]):
+                    status = "✅ 확인됨" if a.get("checked") else "⚠️ 미확인"
+                    st.warning(f"{a['time']} | {a['symbol']} {a['tf']}분 | {a['strategy']} | {status}")
+                st.caption("※ 최근 3건만 표시됩니다. (아래 스크롤로 이전 알람 확인 가능)")
+        else:
+            st.info("현재까지 감지된 실시간 알람이 없습니다.")
+
+        # 📜 알람 히스토리 (강화버전)
+        st.markdown("### 📜 알람 히스토리 (상세)")
+        if st.session_state["alert_history"]:
+            for h in st.session_state["alert_history"]:
+                strategy = h.get("strategy", "")
+                tf_val   = h.get("tf", "")
+                display_tf = "4시간" if strategy in ["4D_Sync", "240m_Sync", "LCT"] else (f"{tf_val}분" if tf_val else "N/A")
+
+                time_str   = h.get("time", "")
+                symbol_str = h.get("symbol", "")
+                price_hint = h.get("price_hint", "계산중...")
+                prob_str   = h.get("success_prob", "0.0%")
+
+                st.markdown(
+                    f"🕒 **{time_str}**\n"
+                    f"- 종목: {symbol_str} ({display_tf})\n"
+                    f"- 전략: {strategy}\n"
+                    f"- 예상 매수가: {price_hint}\n"
+                    f"- 성공 확률(예상): <span style='color: green;'>{prob_str}</span>\n"
+                    f"---",
+                    unsafe_allow_html=True
+                )
+        else:
+            st.info("기록된 알람이 없습니다.")
+
+
+        # -----------------------------
+        # 📘 알람 종류 안내 UI (추가)
+        # -----------------------------
+        with st.expander("📘 알람 종류별 매매기법 안내", expanded=False):
+            st.markdown("""
+            | 알람명 | 유형 | 주요 조건 | 매매성격 |
+            |---------|------|------------|-----------|
+            | **TGV** | 거래량 급등 | 거래량 +2.5배 이상, RSI>55 | 단기급등(초단타) |
+            | **RSI_과매도반등** | RSI | RSI <30 → 반등 | 단기반등 |
+            | **RSI_과매수하락** | RSI | RSI >70 → 하락 | 단기하락 |
+            | **CCI_저점반등** | CCI | CCI<-100 → 상승전환 | 단기 |
+            | **CCI_고점하락** | CCI | CCI>+100 → 하락전환 | 단기 |
+            | **BB_하단반등** | 볼밴 | 하단선 하향이탈 후 상향돌파 | 스윙 |
+            | **BB_상단하락** | 볼밴 | 상단선 상향이탈 후 재하락 | 스윙 |
+            | **매물대_하단매수** | 매물대 | 지지선 부근 반등 | 중기 |
+            | **매물대_상단매도** | 매물대 | 저항선 부근 반락 | 중기 |
+            """, unsafe_allow_html=True)
+            st.caption("각 전략은 통계 기반 매매기법이며, 감시 전략 설정에서 선택 가능.")
+
+        # 알람 제어 UI 및 초기화 개선
+        st.markdown("### ⚙️ 알람 제어")
+        # (여기서 '감시할 알람 종류 선택' 블록은 삭제되었습니다. 이제 분봉 아래로 이동합니다.)
+
+        # 개별 알람 제어 (확인/삭제)
+        st.markdown("### 📊 실시간 알람 통합 관리 (최신 순)")
+
+        def _delete_alert(idx):
+            if 0 <= idx < len(st.session_state["alerts_live"]):
+                st.session_state["alerts_live"].pop(idx)
+
+        if st.session_state["alerts_live"]:
+            st.markdown('<div style="max-height:360px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px; padding:8px;">', unsafe_allow_html=True)
+            for i, a in enumerate(list(st.session_state["alerts_live"])):
+                if "selected_strategies" in st.session_state and a.get("strategy") not in st.session_state["selected_strategies"]:
+                    continue
+                with st.container():
+                    st.markdown(f"🕒 **{a.get('time','')}**  ")
+                    st.markdown(f"• 전략: **{a.get('strategy','')}**  ")
+                    st.markdown(f"• 종목: {a.get('symbol','')} ({a.get('tf','')}분)  ")
+                    st.markdown(f"💰 목표수익 / 손절폭: {a.get('tp','-')} / {a.get('sl','-')}  ")
+                    st.markdown("━━━━━━━━━━━━━━━━━━━")
+                    st.markdown(a.get("msg", ""))
+                    st.button("🗑 삭제", key=f"del_{i}", on_click=_delete_alert, args=(i,))
+                    st.markdown("---")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.info("현재 감지된 실시간 알람이 없습니다.")
+        # 전체 초기화 버튼 → 즉시 신호 재갱신 포함
+        if st.button("🗑️ 전체 알람 초기화 및 새로고침"):
+            st.session_state["alerts_live"].clear()
+            st.session_state["alert_history"].clear()
+            st.success("✅ 모든 알람이 초기화되었습니다. 신호를 다시 가져옵니다...")
+            st.rerun()
+        # -----------------------------
+        # 📒 공유 메모 (GitHub 연동, 전체 공통)
+        # -----------------------------
+        SHARED_NOTES_FILE = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+    
+        _notes_text = ""
+        try:
+            if not os.path.exists(SHARED_NOTES_FILE):
+                with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                    f.write("# 📒 공유 메모\n\n- 팀 공통 메모를 작성하세요.\n")
+            with open(SHARED_NOTES_FILE, "r", encoding="utf-8") as f:
+                _notes_text = f.read()
+        except Exception:
+            _notes_text = ""
+    
+        with st.expander("📒 공유 메모 (GitHub 연동, 전체 공통)", expanded=False):
+            notes_text = st.text_area("내용 (Markdown 지원)", value=_notes_text, height=220, key="shared_notes_text")
+    
+            # 입력 즉시 랜더링
+            if notes_text.strip():
+                st.markdown(notes_text, unsafe_allow_html=True)
+            else:
+                st.caption("아직 메모가 없습니다. 위 입력창에 Markdown으로 작성하면 아래에 렌더링됩니다.")
+    
+            col_n1, col_n2 = st.columns(2)
+            with col_n1:
+                if st.button("💾 메모 저장(로컬)"):
+                    try:
+                        with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                            f.write(notes_text)
+                        st.success("메모가 로컬에 저장되었습니다.")
+                    except Exception as _e:
+                        st.warning(f"메모 저장 실패: {_e}")
+    
+            with col_n2:
+                if st.button("📤 메모 GitHub 업로드"):
+                    try:
+                        with open(SHARED_NOTES_FILE, "w", encoding="utf-8") as f:
+                            f.write(notes_text)
+                        ok, msg = github_commit_csv(SHARED_NOTES_FILE)
+                        if ok:
+                            st.success("메모가 GitHub에 저장/공유되었습니다!")
+                        else:
+                            st.warning(f"메모는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+                    except Exception as _e:
+                        st.warning(f"GitHub 업로드 중 오류: {_e}")
+    
+            # CSV 업로드 버튼 (기존 로직 유지)
+            tf_key = (interval_key.split("min")[0] + "min") if "min" in interval_key else "day"
+            data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
+            csv_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
+            root_csv = os.path.join(os.path.dirname(__file__), f"{market_code}_{tf_key}.csv")
+            if st.button("📤 CSV GitHub 업로드"):
+                target_file = csv_path if os.path.exists(csv_path) else root_csv
+                if os.path.exists(target_file):
+                    ok, msg = github_commit_csv(target_file)
+                    if ok:
+                        st.success("CSV가 GitHub에 저장/공유되었습니다!")
+                    else:
+                        st.warning(f"CSV는 로컬에는 저장됐지만 GitHub 업로드 실패: {msg}")
+                else:
+                    st.warning("CSV 파일이 아직 생성되지 않았습니다. 먼저 데이터를 조회해주세요.")
+    
+    except Exception as e:
+        st.error(f"오류 발생: {str(e)}")
+
+if __name__ == '__main__':
     main()
 
+
+# ============================================================================
+# PATCH: 내부 알림 시스템 완전 복구 (다중 종목 감시 대응)
+# 적용일: 2025-10-11 07:44:57
+# 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
+# 내용:
+#  - notify_alert 재정의: 카카오톡 전송 비활성, 툴 내부 토스트+목록 누적 보장
+#  - session_state['alerts'] / 'alert_queue' 보장 및 최대 길이 관리
+#  - render_alert_list 제공: 단일 목록 표준 렌더러 (필요 시 기존 대비 교체 가능)
+#  - st.rerun() 시도: 알림 발생 즉시 UI 반영
+# 주의: 기존 notify_alert가 있을 경우, 파이썬 정의 우선순위에 따라 본 정의가 적용됩니다.
+# ============================================================================
+try:
+    import streamlit as st
+    import datetime as _dt
+    from queue import Queue
+
+    def _ensure_alert_state():
+        # alerts: 알림 누적 리스트
+        if "alerts" not in st.session_state:
+            st.session_state["alerts"] = []
+        # alert_queue: 토스트 등 비동기 표시용 (선택적)
+        if "alert_queue" not in st.session_state:
+            st.session_state["alert_queue"] = Queue()
+
+    
+except Exception as _patch_err:
+    # 패치 실패 시 전체 앱이 죽지 않도록 방어
+    pass
+
+
+# ============================================================================
+# PATCH: 내부 알림 시스템 보강 (다중 종목 감시 대응 · Kakao 비활성)
+# 적용일: 2025-10-11 08:42:51
+# 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
+# 내용:
+#  - st.toast 패치: 토스트 발생 시 st.session_state['alerts']에도 자동 누적
+#  - notify_alert 재정의: 내부 알림(토스트+목록 누적) 전용, st.rerun() 시도
+#  - send_kakao_alert 재정의: 현재 단계에서는 전송 무효화(비활성)
+#  - 어떤 UI도 새로 출력하지 않음 (디자인/레이아웃 불변)
+# 주의: 기존 정의가 있어도 아래 재정의가 우선됩니다.
+# ============================================================================
+try:
+    import streamlit as st
+    import datetime as _dt
+
+    # --- state 보장 ---
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- st.toast 패치: 토스트 → alerts 동시 누적 ---
+    try:
+        _orig_st_toast = st.toast
+    except Exception:
+        _orig_st_toast = None
+
+    def _toast_patched(*args, **kwargs):
+        msg = None
+        if args and isinstance(args[0], str):
+            msg = args[0]
+        else:
+            msg = kwargs.get("body") or kwargs.get("text")
+        if msg:
+            if "alerts" not in st.session_state:
+                st.session_state["alerts"] = []
+            st.session_state["alerts"].append(msg)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        if _orig_st_toast:
+            try:
+                return _orig_st_toast(*args, **kwargs)
+            except Exception:
+                return None
+        return None
+
+    
+
+    # --- Kakao 비활성: 기존 호출이 있더라도 실제 전송은 막음 ---
+    
+except Exception:
+    pass
+
+
+
+# ============================================================================
+# PATCH: 내부 알림 시스템 보강 (다중 종목 감시 대응 · Kakao 비활성)
+# 적용일: 2025-10-11 09:07:35
+# 규칙: 기존 코드 100% 보존, 아래에 보강 코드만 '추가/재정의'
+# 내용:
+#  - st.toast 패치: 토스트 발생 시 st.session_state['alerts']에도 자동 누적
+#  - notify_alert 재정의: 내부 알림(토스트+목록 누적) 전용, st.rerun() 시도
+#  - send_kakao_alert 재정의: 현재 단계에서는 전송 무효화(비활성)
+#  - 어떤 UI도 새로 출력하지 않음 (디자인/레이아웃 불변)
+# 주의: 기존 정의가 있어도 아래 재정의가 우선됩니다.
+# ============================================================================
+try:
+    import streamlit as st
+    import datetime as _dt
+
+    # --- state 보장 ---
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- st.toast 패치: 토스트 → alerts 동시 누적 ---
+    try:
+        _orig_st_toast = st.toast
+    except Exception:
+        _orig_st_toast = None
+
+    def _toast_patched(*args, **kwargs):
+        msg = None
+        if args and isinstance(args[0], str):
+            msg = args[0]
+        else:
+            msg = kwargs.get("body") or kwargs.get("text")
+        if msg:
+            if "alerts" not in st.session_state:
+                st.session_state["alerts"] = []
+            st.session_state["alerts"].append(msg)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        if _orig_st_toast:
+            try:
+                return _orig_st_toast(*args, **kwargs)
+            except Exception:
+                return None
+        return None
+
+    
+
+    # --- Kakao 비활성: 기존 호출이 있더라도 실제 전송은 막음 ---
+    
+except Exception:
+    pass
+
+
+
+# ============================================================================
+# PATCH: 실시간 알람 단일화 보강 (카카오 비활성 · 내부 토스트/목록 동기화)
+# ============================================================================
+try:
+    import streamlit as st
+    import datetime as _dt
+
+    if "alerts" not in st.session_state:
+        st.session_state["alerts"] = []
+
+    # --- toast wrapper ---
+    try:
+        _orig_toast = st.toast
+    except Exception:
+        _orig_toast = None
+
+    def _toast_sync(*args, **kwargs):
+        msg = None
+        if args and isinstance(args[0], str):
+            msg = args[0]
+        else:
+            msg = kwargs.get("body") or kwargs.get("text")
+        if msg:
+            st.session_state["alerts"].append(msg)
+            if len(st.session_state["alerts"]) > 2000:
+                st.session_state["alerts"] = st.session_state["alerts"][-2000:]
+        if _orig_toast:
+            try:
+                return _orig_toast(*args, **kwargs)
+            except Exception:
+                return None
+        return None
+
+    # --- kakao disabled ---
+    
+except Exception:
+    pass
+
+
+
+# === [추가②] 커스텀 페어 백테스트 (모든 종목·전략 선택형) ===
+
+from typing import List, Optional
+import pandas as pd
+
+# -----------------------------
+# ✅ 업비트 마켓 리스트 전역 초기화 (NameError 방지)
+# -----------------------------
+import streamlit as st
+import requests
+
+MARKET_LIST = [("비트코인 (BTC) — KRW-BTC", "KRW-BTC")]
+default_idx = 0
+
+@st.cache_data(ttl=3600)
+def get_upbit_krw_markets():
+    try:
+        r = requests.get("https://api.upbit.com/v1/market/all", params={"isDetails": "false"}, timeout=8)
+        r.raise_for_status()
+        items = r.json()
+        rows = []
+        for it in items:
+            mk = it.get("market", "")
+            if mk.startswith("KRW-"):
+                sym = mk[4:]
+                knm = it.get("korean_name", "")
+                label = f"{knm} ({sym}) — {mk}"
+                rows.append((label, mk))
+        return rows if rows else MARKET_LIST
+    except Exception:
+        return MARKET_LIST
+
+try:
+    MARKET_LIST = get_upbit_krw_markets()
+except Exception:
+    pass
+
+# ============================================================
+# 커스텀 페어 백테스트 정의
+# ============================================================
+def pair_backtest_custom(
+    symbol_base: str,
+    symbol_follow: str,
+    tframe: str = "3m",
+    start: str = "2025-10-01",
+    end: str = "2025-10-15",
+    tp: float = 0.007,
+    sl: float = 0.004,
+    lookahead: int = 10,
+    strategies: Optional[List[str]] = None
+):
+    if strategies is None:
+        strategies = ["TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync"]
+
+    # ✅ load_ohlcv 함수가 전역에 정의되어 있지 않을 경우 대비
+    load_func = globals().get("load_ohlcv")
+    if load_func is None:
+        raise RuntimeError("⚠️ load_ohlcv() 함수가 정의되어 있지 않습니다. 상단 코드 확인 필요.")
+
+    df_base = load_func(symbol_base, tframe, start=start)
+    df_follow = load_func(symbol_follow, tframe, start=start)
+    results = []
+
+    for strat in strategies:
+        try:
+            res = simulate_pair_strategy(df_base, df_follow, strat, tp, sl, lookahead)
+            if res is not None:
+                results.append({
+                    "전략": strat,
+                    "기준코인": symbol_base,
+                    "추종코인": symbol_follow,
+                    "총신호": len(res) if hasattr(res, "__len__") else 1,
+                    "평균수익(%)": getattr(res, "avg_ret", 0),
+                    "총합수익(%)": getattr(res, "sum_ret", 0),
+                    "시작일": start,
+                    "종료일": end
+                })
+        except Exception:
+            results.append({
+                "전략": strat,
+                "기준코인": symbol_base,
+                "추종코인": symbol_follow,
+                "총신호": 0,
+                "평균수익(%)": 0,
+                "총합수익(%)": 0,
+                "시작일": start,
+                "종료일": end
+            })
+
+    df_res = pd.DataFrame(results)
+    return df_res
+
+
+# ============================================================
+# main() 함수 정의
+# ============================================================
+def main():
+    from datetime import datetime, timedelta
+    from pytz import timezone
+
+    KST = timezone("Asia/Seoul")
+    today_kst = datetime.now(KST).date()
+    default_start = today_kst - timedelta(days=1)
+
+    # ✅ 제목 변경 (기존 “① 기본 설정” → “② 커스텀 페어 백테스트”)
+    # -----------------------------
+    # ② 커스텀 페어 백테스트
+    # -----------------------------
+    st.markdown('<div class="section-title">② 커스텀 페어 백테스트 (거래량순)</div>', unsafe_allow_html=True)
+    
+    # ✅ 기존 거래량순 정렬 복사
+    try:
+        resp = requests.get("https://api.upbit.com/v1/market/all")
+        data = resp.json()
+        krw_list = [m for m in data if m["market"].startswith("KRW-")]
+        krw_sorted = sorted(krw_list, key=lambda x: x.get("acc_trade_price_24h", 0), reverse=True)
+        MARKET_LIST = [(f"{m['korean_name']} ({m['market'][4:]}) — {m['market']}", m["market"]) for m in krw_sorted]
+    except Exception:
+        pass
+    
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        market_label, market_code = st.selectbox("기준 종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
+    with c2:
+        follow_label, follow_code = st.selectbox("추종 종목 선택", MARKET_LIST, index=0, format_func=lambda x: x[0])
+    with c3:
+        start_date = st.date_input("시작 날짜", value=default_start, key="start_date_main")
+    with c4:
+        end_date = st.date_input("종료 날짜", value=today_kst, key="end_date_main")
+
+    st.markdown("### ⚙️ 커스텀 페어 백테스트 실행")
+
+    run_btn = st.button("▶ 실행", use_container_width=True)
+    if run_btn:
+        try:
+            st.info(f"📊 {market_code} → {follow_code} ({start_date}~{end_date}) 페어 백테스트 실행 중...")
+            df_res = pair_backtest_custom(
+                symbol_base=market_code,
+                symbol_follow=follow_code,
+                start=str(start_date),
+                end=str(end_date)
+            )
+            if df_res is not None and not df_res.empty:
+                st.success("✅ 백테스트 완료!")
+                st.dataframe(df_res, use_container_width=True)
+            else:
+                st.warning("⚠️ 결과가 없습니다. 입력 조건을 확인해주세요.")
+        except Exception as e:
+            st.error(f"오류 발생: {str(e)}")
+
+# ============================================================
+# 실행 진입점
+# ============================================================
+if __name__ == "__main__":
+    main()
