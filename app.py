@@ -273,6 +273,14 @@ def main():
             bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
         with c9:
             bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
+
+        # ✅ 바닥탐지 모드 선택 (bottom_mode 정의 추가)
+        bottom_mode = st.selectbox(
+            "바닥탐지 모드",
+            ["없음", "RSI", "MACD"],
+            index=0,
+            help="RSI, MACD 등 선택 시 해당 방식으로 바닥탐지 수행"
+        )
     
         c10, c11, c12 = st.columns(3)
         with c10:
