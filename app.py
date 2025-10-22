@@ -457,6 +457,7 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
     else:
         start_cutoff = start_dt
 
+    # ✅ URL 및 tf_key 설정
     if "minutes/" in interval_key:
         unit = interval_key.split("/")[1]
         url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
@@ -465,19 +466,21 @@ def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_b
         url = "https://api.upbit.com/v1/candles/days"
         tf_key = "day"
 
-    # CSV 경로 설정
+    # ✅ CSV 경로 설정
     data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
     cache_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
-    
-        # ✅ CSV 파일 파싱 오류 자동 복구 추가
-        if os.path.exists(cache_path):
+
+    # ✅ CSV 파일 파싱 오류 자동 복구 추가
+    if os.path.exists(cache_path):
+        try:
+            df_cache_test = pd.read_csv(cache_path, nrows=5)
+        except Exception as e:
+            st.warning(f"⚠️ 캐시 파일 파싱 오류: {e}")
             try:
-                df_cache_test = pd.read_csv(cache_path, nrows=5)
-            except Exception as e:
-                st.warning(f"⚠️ 캐시 파일 파싱 오류: {e}")
-                try:
-                    os.remove(cache_path)
-                    st.info(f"🧹 손상된 캐시 파일 삭제 완료 → 새로 다운로드 예정 ({os.path.basename(cache_path)})")
+                os.remove(cache_path)
+                st.info("🔄 손상된 캐시 파일을 삭제했습니다. 새로 수집을 진행합니다.")
+            except Exception as e2:
+                st.error(f"캐시 파일 삭제 실패: {e2}")
                 except Exception as e2:
                     st.warning(f"⚠️ 캐시 파일 삭제 실패: {e2}")
     
