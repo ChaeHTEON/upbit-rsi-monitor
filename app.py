@@ -779,7 +779,10 @@ def main():
                             _tmp.append(i)       # 2차 조건 즉시 진입
                         else:
                             _tmp.append(next_i)  # 기본 다음 봉 진입
-                    base_sig_idx = sorted(set(_tmp))
+                    if "base_sig_idx" in locals():
+                        base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
+                    else:
+                        base_sig_idx = sorted(set(_tmp))
                     # 디버그용 표시 (검증 시 주석 제거 가능)
                     # df.loc[triple_gc, "Triple_GC_Flag"] = True
 
