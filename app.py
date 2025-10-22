@@ -1273,7 +1273,9 @@ def main():
         def _toggle_opt_view():
             st.session_state.opt_view = not st.session_state.get("opt_view", False)
             st.rerun()
-    
+        # ✅ 기본 판정 기준(전역 미정의 방지)
+        hit_basis = "종가 기준"
+
         # ===== 시뮬레이션 (중복 포함/제거) =====
         res_all = simulate(
             df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
