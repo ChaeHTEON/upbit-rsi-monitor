@@ -2371,57 +2371,58 @@ def main():
             styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
             st.dataframe(styled_tbl, use_container_width=True)
 
-    # -----------------------------
-    # ⑤ 실시간 감시 (알람)
-    # -----------------------------
-    with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
-        st.caption("경량형 알람: 현재 설정 기준으로 화면 새로고침 시 조건을 만족하면 토스트 알림을 표시합니다.")
-        enable_alert = st.checkbox("감시 시작", value=False, help="체크 후 조건을 만족하는 신호가 있으면 화면 상단에 토스트 알림을 띄웁니다.")
-        if enable_alert:
-            try:
-                st.toast("🔔 실시간 감시 활성화 (경량). 조건 충족 시 알림을 띄웁니다.")
-            except Exception:
-                pass
-
-        st.divider()
-        st.caption("카카오톡 등 외부 웹훅 연동은 추후 확장(시크릿에 KAKAO_WEBHOOK_URL 설정 시 가능)")
-
-    # -----------------------------
-    # 📒 공유 메모
-    # -----------------------------
-    with st.expander("📒 공유 메모", expanded=False):
-        import os
-        memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
-        default_text = ""
-        try:
-            if os.path.exists(memo_path):
-                with open(memo_path, "r", encoding="utf-8") as f:
-                    default_text = f.read()
-        except Exception:
-            default_text = ""
-        memo_text = st.text_area("메모 내용", value=default_text, height=200)
-        col_m1, col_m2 = st.columns([1,1])
-        with col_m1:
-            if st.button("💾 메모 저장"):
+        # -----------------------------
+        # ⑤ 실시간 감시 (알람)
+        # -----------------------------
+        with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
+            st.caption("경량형 알람: 현재 설정 기준으로 화면 새로고침 시 조건을 만족하면 토스트 알림을 표시합니다.")
+            enable_alert = st.checkbox("감시 시작", value=False, help="체크 후 조건을 만족하는 신호가 있으면 화면 상단에 토스트 알림을 띄웁니다.")
+            if enable_alert:
                 try:
-                    with open(memo_path, "w", encoding="utf-8") as f:
-                        f.write(memo_text)
-                    st.success("메모 저장 완료")
-                except Exception as _e:
-                    st.warning(f"메모 저장 실패: {_e}")
-        with col_m2:
-            st.caption("파일 위치: shared_notes.md (앱 루트)")
+                    st.toast("🔔 실시간 감시 활성화 (경량). 조건 충족 시 알림을 띄웁니다.")
+                except Exception:
+                    pass
 
-    # -----------------------------
-    # 🔄 페어 테스트
-    # -----------------------------
-    with st.expander("🔄 페어 테스트", expanded=False):
-        st.caption("여러 코인을 한 번에 실행하려면 아래 '🧪 빠른 프리셋 테스트' 또는 '통계/조합 탐색' 섹션을 사용하세요.")
-        st.info("이미 본문에 '🧪 빠른 프리셋 테스트'와 '통계/조합 탐색' 기능이 포함되어 있어 페어 테스트를 대체할 수 있습니다.")
+            st.divider()
+            st.caption("카카오톡 등 외부 웹훅 연동은 추후 확장(시크릿에 KAKAO_WEBHOOK_URL 설정 시 가능)")
+
+        # -----------------------------
+        # 📒 공유 메모
+        # -----------------------------
+        with st.expander("📒 공유 메모", expanded=False):
+            import os
+            memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+            default_text = ""
+            try:
+                if os.path.exists(memo_path):
+                    with open(memo_path, "r", encoding="utf-8") as f:
+                        default_text = f.read()
+            except Exception:
+                default_text = ""
+            memo_text = st.text_area("메모 내용", value=default_text, height=200)
+            col_m1, col_m2 = st.columns([1,1])
+            with col_m1:
+                if st.button("💾 메모 저장"):
+                    try:
+                        with open(memo_path, "w", encoding="utf-8") as f:
+                            f.write(memo_text)
+                        st.success("메모 저장 완료")
+                    except Exception as _e:
+                        st.warning(f"메모 저장 실패: {_e}")
+            with col_m2:
+                st.caption("파일 위치: shared_notes.md (앱 루트)")
+
+        # -----------------------------
+        # 🔄 페어 테스트
+        # -----------------------------
+        with st.expander("🔄 페어 테스트", expanded=False):
+            st.caption("여러 코인을 한 번에 실행하려면 아래 '🧪 빠른 프리셋 테스트' 또는 '통계/조합 탐색' 섹션을 사용하세요.")
+            st.info("이미 본문에 '🧪 빠른 프리셋 테스트'와 '통계/조합 탐색' 기능이 포함되어 있어 페어 테스트를 대체할 수 있습니다.")
 
     except Exception as e:
         st.error(f"오류 발생: {e}")
 
 if __name__ == "__main__":
     main()
+
 
