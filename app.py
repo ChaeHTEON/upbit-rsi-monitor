@@ -283,12 +283,18 @@ def main():
         )
 
         # ✅ 바닥탐지 모드 선택 (bottom_mode 정의 추가)
+        if "bottom_mode" not in st.session_state:
+            st.session_state["bottom_mode"] = "없음"
+
         bottom_mode = st.selectbox(
             "바닥탐지 모드",
             ["없음", "RSI", "MACD"],
-            index=0,
+            index=["없음", "RSI", "MACD"].index(st.session_state["bottom_mode"]),
             help="RSI, MACD 등 선택 시 해당 방식으로 바닥탐지 수행"
         )
+
+        # 선택 변경 시 세션 동기화
+        st.session_state["bottom_mode"] = bottom_mode
     
         c10, c11, c12 = st.columns(3)
         with c10:
