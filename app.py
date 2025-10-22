@@ -200,23 +200,7 @@ def main():
     with c1:
         market_label, market_code = st.selectbox("종목 선택", MARKET_LIST, index=default_idx, format_func=lambda x: x[0])
     with c2:
-        FIXED_STRATEGY_LIST = [
-            "TGV", "RVB", "PR", "LCT", "4D_SYNC", "240m_SYNC",
-            "COMPOSITE_CONFIRM", "DIVERGENCE_RVB", "MARKET_DIVERGENCE"
-        ]
-        FIXED_TF_MAP = {
-            "TGV": "15분봉", "RVB": "15분봉", "PR": "30분봉",
-            "LCT": "60분봉", "4D_SYNC": "60분봉", "240m_SYNC": "4시간봉",
-            "COMPOSITE_CONFIRM": "60분봉", "DIVERGENCE_RVB": "30분봉",
-            "MARKET_DIVERGENCE": "60분봉"
-        }
-
-        selected_strategy = st.session_state.get("sel_strategy", "")
-        if selected_strategy in FIXED_STRATEGY_LIST:
-            tf_label = FIXED_TF_MAP[selected_strategy]
-            st.info(f"📊 '{selected_strategy}' 전략은 분봉 변경이 불가능합니다. (참고용 표시: {tf_label})")
-        else:
-            tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
+        tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
     with c3:
         KST = timezone("Asia/Seoul")
         today_kst = datetime.now(KST).date()
@@ -224,6 +208,16 @@ def main():
         start_date = st.date_input("시작 날짜", value=default_start)
     with c4:
         end_date = st.date_input("종료 날짜", value=today_kst)
+
+    
+    # ✅ 분봉 고정 제거: tf_label 미정의 시 사용자 선택으로 설정
+
+    
+    if "tf_label" not in locals():
+
+    
+        tf_label = st.selectbox("봉종류 선택", list(TF_MAP.keys()), index=2)
+
     
     interval_key, minutes_per_bar = TF_MAP[tf_label]
     st.markdown("---")
@@ -239,7 +233,7 @@ def main():
         with c1:
             rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
         with c2:
-            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하단", "중단", "상단"], key="bb_condition_main")
+            bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하한선", "중앙선", "상한선"], key="bb_condition_main")
         with c3:
             cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"], key="cci_condition_main")
         with c4:
@@ -794,7 +788,14 @@ def main():
                 else:
                     base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
-        # --- 2) 보조/공통 함수 ---
+        
+        # ✅ 거래량 1차 필터 공통 적용 (bottom_mode 여부와 무관)
+        if 'base_sig_idx' in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
+            try:
+                base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
+            except Exception:
+                base_sig_idx = base_sig_idx
+# --- 2) 보조/공통 함수 ---
         def is_bull(idx):
             return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
     
