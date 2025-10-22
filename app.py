@@ -2207,6 +2207,15 @@ def main():
                     else:
                         df_all["승률(%)"] = 0.0
 
+                # ✅ '합계수익률(%)' 컬럼이 없으면 안전 생성 (최종/평균 수익률 기반 → 없으면 0)
+                if "합계수익률(%)" not in df_all.columns:
+                    if "최종수익률(%)" in df_all.columns:
+                        df_all["합계수익률(%)"] = df_all["최종수익률(%)"]
+                    elif "평균수익률(%)" in df_all.columns:
+                        df_all["합계수익률(%)"] = df_all["평균수익률(%)"]
+                    else:
+                        df_all["합계수익률(%)"] = 0.0
+
                 wr_num = float(winrate_thr)
                 mask_success = (df_all["결과"] == "성공") & (df_all["승률(%)"] >= wr_num) & (df_all["합계수익률(%)"] > 0)
                 mask_neutral = (df_all["결과"] == "중립") & (df_all["합계수익률(%)"] > 0)
@@ -2275,13 +2284,15 @@ def main():
     
                     if "BB_승수" in df_show:
                         df_show["BB_승수"] = df_show["BB_승수"].map(lambda v: _fmt_number(v, ":.1f"))
+                    # ✅ 존재하는 컬럼만 서브셋으로 적용 (KeyError 방지)
+                    _subset_cols = [c for c in ["평균수익률(%)","합계수익률(%)"] if c in df_show.columns]
                     styled_tbl = df_show.style.apply(
                         lambda col: [
                             ("color:#E53935; font-weight:600;" if r=="성공"
                              else "color:#FF9800; font-weight:600;" if r=="중립" else "")
                             for r in df_show["결과"]
                         ],
-                        subset=["평균수익률(%)","합계수익률(%)"]
+                        subset=_subset_cols
                     )
                     st.dataframe(styled_tbl, use_container_width=True)
     
