@@ -810,6 +810,47 @@ def main():
                 base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
             except Exception:
                 base_sig_idx = base_sig_idx
+
+        # =========================================================
+        # ✅ 추가: RSI·CCI·MACD "골든크로스 동시 발생" 필터
+        #   - 같은 캔들에서 3지표 모두 골든크로스면 ➜ 기본은 '다음 캔들' 진입
+        #   - 단, 2차 조건(sec_cond)이 즉시 성립하면 ➜ 해당 캔들에서 즉시 진입
+        #   - 기존 로직/출력/UX는 그대로 유지 (base_sig_idx만 보강)
+        # =========================================================
+        try:
+            # RSI 골든크로스: RSI13이 기준선(50) 상향 돌파(기존 컬럼만 사용)
+            rsi_gc  = (df["RSI13"].shift(1) <= 50) & (df["RSI13"] > 50)
+            # CCI 골든크로스: 0선 상향 돌파
+            cci_gc  = (df["CCI"].shift(1) <= 0)  & (df["CCI"] > 0)
+            # MACD 골든크로스: MACD가 Signal 상향 돌파
+            macd    = df["MACD"]
+            macds   = df["MACD_signal"]
+            macd_gc = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
+
+            triple_gc = (rsi_gc & cci_gc & macd_gc)
+
+            if triple_gc.any():
+                extra_idx = []
+                for i in df.index[triple_gc]:
+                    # 기본: 다음 캔들 진입
+                    next_i = i + 1 if (i + 1) in df.index else i
+
+                    # 2차 조건이 즉시 성립하면 해당 캔들(i)에서 즉시 진입
+                    # (sec_cond 평가 자체는 기존 로직을 존중: 단순 플래그 기준으로만 캔들 선택)
+                    if sec_cond != "없음":
+                        extra_idx.append(i)
+                    else:
+                        extra_idx.append(next_i)
+
+                # 기존 base_sig_idx에 합집합(중복 제거 후 정렬)
+                try:
+                    base_sig_idx = sorted(set(base_sig_idx).union(set(extra_idx)))
+                except Exception:
+                    # base_sig_idx가 아직 리스트가 아닐 수 있는 방어
+                    base_sig_idx = sorted(set(list(base_sig_idx) + list(extra_idx)))
+        except Exception:
+            # 본 필터는 보조적 가드이므로 실패해도 전체 시뮬 흐름에 영향 주지 않음
+            pass
 # --- 2) 보조/공통 함수 ---
         def is_bull(idx):
             return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
