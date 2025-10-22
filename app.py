@@ -436,7 +436,7 @@ def main():
                         st.warning(f"로컬 저장은 되었지만 GitHub 최초 업로드 실패: {msg}")
             except Exception as _e:
                 st.warning(f"매물대 저장 실패: {_e}")
-    
+
 st.session_state["bb_cond"] = bb_cond
 st.markdown("---")
 
@@ -444,20 +444,20 @@ st.markdown("---")
 # 데이터 수집/지표/시뮬레이션 함수
 # -----------------------------
 _session = requests.Session()
-    _retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
-    _session.mount("https://", HTTPAdapter(max_retries=_retries))
-    
-    def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
-        """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함 + GitHub 커밋 지원)."""
-        import tempfile, shutil
-    
-        if warmup_bars and warmup_bars > 0:
-            start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
-        else:
-            start_cutoff = start_dt
-    
-        if "minutes/" in interval_key:
-            unit = interval_key.split("/")[1]
+_retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+_session.mount("https://", HTTPAdapter(max_retries=_retries))
+
+def fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars: int = 0):
+    """Upbit 캔들 페이징 수집 (CSV 저장/보충 포함 + GitHub 커밋 지원)."""
+    import tempfile, shutil
+
+    if warmup_bars and warmup_bars > 0:
+        start_cutoff = start_dt - timedelta(minutes=warmup_bars * minutes_per_bar)
+    else:
+        start_cutoff = start_dt
+
+    if "minutes/" in interval_key:
+        unit = interval_key.split("/")[1]
             url = f"https://api.upbit.com/v1/candles/minutes/{unit}"
             tf_key = f"{unit}min"
         else:
