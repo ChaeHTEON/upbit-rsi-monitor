@@ -32,6 +32,9 @@ def main():
     threshold_pct = st.session_state.get("threshold_pct", 0.6)
     stoploss_pct = st.session_state.get("stoploss_pct", 0.4)
 
+    # ✅ 기본 승률 기준 (전역 기본값, UI 미존재 시 사용)
+    winrate_thr = st.session_state.get("winrate_thr", 60)
+
 
     # ✅ 통계/조합 탐색 UI 자동 확장 유지 콜백
     def _keep_sweep_open():
@@ -276,11 +279,7 @@ def main():
         r1, r2, r3 = st.columns(3)
     r1, r2, r3 = st.columns(3)
     with r1:
-        rsi_mode = st.selectbox(
-            "RSI 조건",
-            ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"],
-            index=0
-        )
+        st.caption("RSI 조건은 상단에서 선택됨")
     with r2:
         rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
     with r3:
@@ -288,7 +287,7 @@ def main():
     
     c7, c8, c9 = st.columns(3)
     with c7:
-        bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "상한선", "중앙선", "하한선"], index=0)
+        st.caption("볼린저밴드 조건은 상단에서 선택됨")
     with c8:
         bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
     with c9:
@@ -309,16 +308,7 @@ def main():
     with c15:
         cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
     with c13:
-        cci_mode = st.selectbox(
-            "CCI 조건",
-            options=["없음", "과매수", "과매도"],
-            format_func=lambda x: (
-                "없음" if x == "없음" else
-                f"과매수(≥{cci_over})" if x == "과매수" else
-                f"과매도(≤{cci_under})"
-            ),
-            index=0
-        )
+        st.caption("CCI 조건은 상단에서 선택됨")
     st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
     sec_cond = st.selectbox(
         "2차 조건 선택",
@@ -635,6 +625,20 @@ def main():
                  cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9):
         """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 + CCI 1차 조건."""
         res = []
+        # ✅ 거래량 조건(전역 세션) — RSI/BB/CCI보다 우선 적용되는 필터
+        _vol_cond = st.session_state.get("volume_cond", "없음")
+        vol_ma = df["volume"].rolling(20, min_periods=1).mean()
+        if _vol_cond == "평균 이상":
+            vol_ok = df["volume"] >= vol_ma
+        elif _vol_cond == "평균 이하":
+            vol_ok = df["volume"] <= vol_ma
+        elif _vol_cond == "급등 (평균의 2배 이상)":
+            vol_ok = df["volume"] >= (vol_ma * 2.0)
+        elif _vol_cond == "급감 (평균의 절반 이하)":
+            vol_ok = df["volume"] <= (vol_ma * 0.5)
+        else:
+            vol_ok = pd.Series([True]*len(df), index=df.index)
+
         n = len(df)
         thr = float(threshold_pct)
     
@@ -645,6 +649,8 @@ def main():
                 (df["close"] <= df["BB_low"]) &
                 (df["CCI"] <= -100)
             ].tolist()
+            # ✅ 거래량 필터 적용
+            base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
         else:
             # ✅ primary_strategy 기반 1차 매매기법 조건 (UI 약어 9종과 1:1 매핑)
             strategy = st.session_state.get("primary_strategy", "없음")
@@ -1273,9 +1279,7 @@ def main():
         def _toggle_opt_view():
             st.session_state.opt_view = not st.session_state.get("opt_view", False)
             st.rerun()
-        # ✅ 기본 판정 기준(전역 미정의 방지)
-        hit_basis = "종가 기준"
-
+    
         # ===== 시뮬레이션 (중복 포함/제거) =====
         res_all = simulate(
             df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
@@ -1306,6 +1310,8 @@ def main():
                    .drop_duplicates(subset=["anchor_i"], keep="first")
                    .reset_index(drop=True)
             )
+        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
+        st.session_state["volume_cond"] = volume_cond
         else:
             plot_res = pd.DataFrame()
 
