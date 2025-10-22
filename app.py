@@ -1283,7 +1283,7 @@ def main():
     
         bb_txt = bb_cond if bb_cond != "없음" else "없음"
         sec_txt = f"{sec_cond}"
-        bottom_txt = "ON" if bottom_mode else "OFF"
+        bottom_txt = "ON" if (isinstance(bottom_mode, str) and bottom_mode != "없음") else "OFF"
         cci_txt = ("없음" if cci_mode == "없음"
                    else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
     
@@ -2397,81 +2397,78 @@ def main():
         # -----------------------------
         # ⑤ 실시간 감시 (알람)
         # -----------------------------
-        with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
-            st.caption("경량형 알람: 현재 설정 기준으로 화면 새로고침 시 조건을 만족하면 토스트 알림을 표시합니다.")
-            enable_alert = st.checkbox("감시 시작", value=False, help="체크 후 조건을 만족하는 신호가 있으면 화면 상단에 토스트 알림을 띄웁니다.")
-            if enable_alert:
-                try:
-                    st.toast("🔔 실시간 감시 활성화 (경량). 조건 충족 시 알림을 띄웁니다.")
-                except Exception:
-                    pass
-
-            st.divider()
-            st.caption("카카오톡 등 외부 웹훅 연동은 추후 확장(시크릿에 KAKAO_WEBHOOK_URL 설정 시 가능)")
+        # (경량형 ⑤ 섹션 전체 삭제)
+        # 아래에 이미 존재하는 "⑤ 실시간 감시 (알람) — 원본 복원" 섹션만 남깁니다.
 
         # -----------------------------
         # 📒 공유 메모 — 복원 (경로 보정)
         # -----------------------------
-        with st.expander("📒 공유 메모", expanded=False):
-            import os
-            # ✅ 경로 보정: 상위 경로에도 shared_notes.md 검색
-            memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
-            if not os.path.exists(memo_path):
-                memo_path = os.path.join(os.path.dirname(__file__), "../shared_notes.md")
+with st.expander("📒 공유 메모", expanded=False):
+    import os
+    memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+    if not os.path.exists(memo_path):
+        memo_path = os.path.join(os.path.dirname(__file__), "../shared_notes.md")
 
-            default_text = ""
+    default_text = ""
+    try:
+        if os.path.exists(memo_path):
+            with open(memo_path, "r", encoding="utf-8") as f:
+                default_text = f.read()
+    except Exception:
+        default_text = ""
+
+    # ✅ 마크다운 미리보기(가독성)
+    st.markdown(default_text or "_(메모가 비어 있습니다)_")
+
+    st.markdown("---")
+    memo_text = st.text_area("메모 내용 (편집)", value=default_text, height=200)
+    col_m1, col_m2 = st.columns([1,1])
+    with col_m1:
+        if st.button("💾 메모 저장"):
             try:
-                if os.path.exists(memo_path):
-                    with open(memo_path, "r", encoding="utf-8") as f:
-                        default_text = f.read()
-            except Exception:
-                default_text = ""
-            memo_text = st.text_area("메모 내용", value=default_text, height=200)
-            col_m1, col_m2 = st.columns([1,1])
-            with col_m1:
-                if st.button("💾 메모 저장"):
-                    try:
-                        with open(memo_path, "w", encoding="utf-8") as f:
-                            f.write(memo_text)
-                        st.success("메모 저장 완료")
-                    except Exception as _e:
-                        st.warning(f"메모 저장 실패: {_e}")
-            with col_m2:
-                st.caption(f"메모 파일 위치: {os.path.abspath(memo_path)}")
-
+                with open(memo_path, "w", encoding="utf-8") as f:
+                    f.write(memo_text)
+                st.success("메모 저장 완료")
+            except Exception as _e:
+                st.warning(f"메모 저장 실패: {_e}")
+    with col_m2:
+        st.caption(f"메모 파일 위치: {os.path.abspath(memo_path)}")
         # -----------------------------
         # 🔄 페어 테스트 — 원본 복원
         # -----------------------------
-        with st.expander("🔄 페어 테스트", expanded=False):
-            st.caption("각 주요 코인(비트코인, 이더리움, 리플 등)에 대해 같은 전략을 동시에 비교 실행합니다.")
-            col_pf1, col_pf2 = st.columns([1, 1])
-            with col_pf1:
-                pair_syms = st.multiselect("대상 코인", ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE", "KRW-MNT"], default=["KRW-BTC","KRW-ETH"])
-            with col_pf2:
-                tf_pair = st.selectbox("타임프레임", ["1분","3분","5분","15분","30분","60분","240분","일"], index=2)
-            if st.button("▶️ 페어 테스트 실행"):
-                st.info("페어별 시뮬레이션 실행 중...")
-                results = []
-                for sym in pair_syms:
-                    try:
-                        df = load_ohlcv(sym, TF_MAP[tf_pair][0], limit=1000)
-                        res = simulate(
-                            df,
-                            rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, bb_cond,
-                            "중복 제거 (연속 동일 결과 1개)",
-                            TF_MAP[tf_pair][1], sym, bb_window, bb_dev,
-                            sec_cond=sec_cond, hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립",
-                            bottom_mode=st.session_state.get("bottom_mode", "없음"),
-                            supply_levels=None, manual_supply_levels=None,
-                            cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
-                            vol_mode=st.session_state.get("volume_cond", "없음")
-                        )
-                        results.append((sym, len(res)))
-                    except Exception as _e:
-                        results.append((sym, f"❌ 오류: {_e}"))
-                st.write("### 결과 요약")
-                for sym, cnt in results:
-                    st.write(f"- {sym}: {cnt}")
+with st.expander("🔄 페어 테스트", expanded=False):
+    st.caption("여러 코인에 동일 전략을 일괄 적용하여 결과를 비교합니다.")
+    col_pf1, col_pf2 = st.columns([1, 1])
+    with col_pf1:
+        pair_syms = st.multiselect("대상 코인", ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"], default=["KRW-BTC","KRW-ETH"])
+    with col_pf2:
+        tf_pair = st.selectbox("타임프레임", ["1분","3분","5분","15분","30분","60분","240분","일봉"], index=2)
+    if st.button("▶️ 페어 테스트 실행"):
+        st.info("페어별 시뮬레이션 실행 중...")
+        results = []
+        for sym in pair_syms:
+            try:
+                interval_pair, mpb_pair = TF_MAP[tf_pair]
+                df_p = fetch_upbit_paged(sym, interval_pair, start_dt, end_dt, mpb_pair, warmup_bars)
+                if df_p is None or df_p.empty:
+                    results.append((sym, "데이터 없음"))
+                    continue
+                df_p = add_indicators(df_p, bb_window, bb_dev, cci_window, cci_signal)
+                res_p = simulate(
+                    df_p, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                    bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                    mpb_pair, sym, bb_window, bb_dev,
+                    sec_cond=sec_cond, hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립",
+                    bottom_mode=(bottom_mode if isinstance(bottom_mode, str) and bottom_mode!="없음" else False),
+                    supply_levels=None, manual_supply_levels=manual_supply_levels,
+                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                )
+                results.append((sym, 0 if res_p is None else len(res_p)))
+            except Exception as _e:
+                results.append((sym, f"❌ 오류: {_e}"))
+        st.write("### 결과 요약")
+        for sym, cnt in results:
+            st.write(f"- {sym}: {cnt}")
 
         # -----------------------------
         # ⑤ 실시간 감시 (알람) — 원본 복원
