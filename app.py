@@ -248,6 +248,8 @@ def main():
                     "급감 (평균의 절반 이하)"
                 ]
             )
+        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
+        st.session_state["volume_cond"] = volume_cond
         with c5:
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
         with c6:
@@ -1281,6 +1283,8 @@ def main():
             st.rerun()
     
         # ===== 시뮬레이션 (중복 포함/제거) =====
+        # ✅ 기본 판정 기준(전역 미정의 방지)
+        hit_basis = "종가 기준"
         res_all = simulate(
             df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
             bb_cond, "중복 포함 (연속 신호 모두)",
@@ -1304,16 +1308,17 @@ def main():
         # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
         # -----------------------------
         max_bars = 5000
+# ✅ 거래량 조건을 세션에 보관 (전역 참조용)
+st.session_state["volume_cond"] = volume_cond
+
         if res is not None and not res.empty:
             plot_res = (
                 res.sort_values("신호시간")
                    .drop_duplicates(subset=["anchor_i"], keep="first")
                    .reset_index(drop=True)
             )
-        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
-        st.session_state["volume_cond"] = volume_cond
-        else:
-            plot_res = pd.DataFrame()
+else:
+    plot_res = pd.DataFrame()
 
         df_view = df.copy()
         if len(df_view) > max_bars:
