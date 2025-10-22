@@ -427,9 +427,10 @@ def main():
         with t3:
             winrate_thr = st.slider("승률 기준(%)", 10, 100, int(st.session_state.get("winrate_thr", 60)), step=1, key="winrate_thr")
         # 세션 저장 (다른 섹션에서 재사용)
-        st.session_state["threshold_pct"] = threshold_pct
-        st.session_state["stoploss_pct"]  = stoploss_pct
-        st.session_state["winrate_thr"]   = winrate_thr
+        # Streamlit이 자동으로 session_state를 관리하므로 별도 저장 불필요
+        # st.session_state["threshold_pct"] = threshold_pct
+        # st.session_state["stoploss_pct"]  = stoploss_pct
+        # st.session_state["winrate_thr"]   = winrate_thr
     
     st.session_state["bb_cond"] = bb_cond
     st.markdown("---")
