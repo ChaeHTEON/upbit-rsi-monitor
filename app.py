@@ -1317,8 +1317,8 @@ def main():
                    .drop_duplicates(subset=["anchor_i"], keep="first")
                    .reset_index(drop=True)
             )
-else:
-    plot_res = pd.DataFrame()
+        else:
+            plot_res = pd.DataFrame()
 
         df_view = df.copy()
         if len(df_view) > max_bars:
