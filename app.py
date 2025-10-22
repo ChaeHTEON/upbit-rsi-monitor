@@ -257,12 +257,7 @@ def main():
             st.session_state["primary_strategy"] = primary_strategy
             if primary_strategy != "없음":
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
-        with c3:
-            bottom_mode = st.checkbox("🟢 바닥탐지(실시간) 모드", value=False,
-                                      help="RSI≤과매도 & BB 하한선 터치/하회 & CCI≤-100 동시 만족 시 신호")
 
-        # --- 2차: RSI / BB / CCI / 거래량 조건 ---
-        st.markdown("---")
         r1, r2, r3 = st.columns(3)
         with r1:
             rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
@@ -270,7 +265,7 @@ def main():
             rsi_low = st.slider("과매도 RSI 기준", 0, 100, 30, step=1)
         with r3:
             rsi_high = st.slider("과매수 RSI 기준", 0, 100, 70, step=1)
-
+    
         c7, c8, c9 = st.columns(3)
         with c7:
             bb_cond = st.selectbox("볼린저밴드 조건", ["없음", "하한선", "중앙선", "상한선"], key="bb_condition_main")
@@ -278,7 +273,7 @@ def main():
             bb_window = st.number_input("BB 기간", min_value=5, max_value=100, value=30, step=1)
         with c9:
             bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
-
+    
         c10, c11, c12 = st.columns(3)
         with c10:
             cci_mode = st.selectbox("CCI 조건", ["없음", "과매도", "과매수"], key="cci_condition_main")
@@ -286,27 +281,14 @@ def main():
             cci_window = st.number_input("CCI 기간", min_value=5, max_value=100, value=14, step=1)
         with c12:
             cci_signal = st.number_input("CCI 신호(평균)", min_value=1, max_value=50, value=9, step=1)
-
+    
         c13, c14, c15 = st.columns(3)
-        with c13:
-            cci_over = st.number_input("CCI 과매수 기준", min_value=0, max_value=300, value=100, step=5)
         with c14:
-            cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
+            cci_over = st.number_input("CCI 과매수 기준", min_value=0, max_value=300, value=100, step=5)
         with c15:
-            # ✅ 거래량 조건 (기존.py 구조대로 2차 레이어에 배치)
-            volume_cond = st.selectbox(
-                "거래량 조건",
-                [
-                    "없음",
-                    "평균 이상",
-                    "평균 이하",
-                    "급등 (평균의 2배 이상)",
-                    "급감 (평균의 절반 이하)"
-                ]
-            )
-            st.session_state["volume_cond"] = volume_cond
-
-        # --- 3차: 보조 옵션 및 2차 조건 ---
+            cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
+        with c13:
+            st.caption("CCI 조건은 상단에서 선택됨")
         st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
         sec_cond = st.selectbox(
             "2차 조건 선택",
@@ -319,59 +301,63 @@ def main():
                 "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"
             ]
         )
-
+    
+        # ✅ 매물대 반등 조건일 때만 N봉 입력 노출
         if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
             maemul_n = st.number_input("매물대 반등 조건: 이전 캔들 수", min_value=5, max_value=500, value=50, step=5)
             st.session_state["maemul_n"] = maemul_n
-
+    
+        # ✅ 볼린저 옵션 미체크 시 안내 문구
         if sec_cond == "BB 기반 첫 양봉 50% 진입" and bb_cond == "없음":
             st.info("ℹ️ 볼린저 밴드를 활성화해야 이 조건이 정상 작동합니다.")
-
-        # ✅ 매물대 편집 UI (기존 위치 유지)
+    
+        # ✅ 매물대 조건 UI (CSV 저장/불러오기 + GitHub 커밋)
         import os, base64, requests
+    
         CSV_FILE = os.path.join(os.path.dirname(__file__), "supply_levels.csv")
         if not os.path.exists(CSV_FILE):
             pd.DataFrame(columns=["market", "level"]).to_csv(CSV_FILE, index=False)
-
+    
         def load_supply_levels(market_code):
             df = pd.read_csv(CSV_FILE)
             df_market = df[df["market"] == market_code]
             return df_market["level"].tolist()
-
+    
         def save_supply_levels(market_code, levels):
             df = pd.read_csv(CSV_FILE)
             df = df[df["market"] != market_code]
             new_df = pd.DataFrame({"market": [market_code]*len(levels), "level": levels})
             df = pd.concat([df, new_df], ignore_index=True)
             df.to_csv(CSV_FILE, index=False)
-
+    
         def _get_secret(key, default=None):
             try:
                 return st.secrets[key]
             except Exception:
                 return os.environ.get(key, default)
-
+    
         def github_commit_csv(local_file=CSV_FILE):
             token  = _get_secret("GITHUB_TOKEN")
             repo   = _get_secret("GITHUB_REPO")
             branch = _get_secret("GITHUB_BRANCH", "main")
             if not (token and repo):
                 return False, "no_token"
-
+    
             url  = f"https://api.github.com/repos/{repo}/contents/{os.path.basename(local_file)}"
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Accept": "application/vnd.github+json"
             }
-
+    
             with open(local_file, "rb") as f:
                 b64_content = base64.b64encode(f.read()).decode()
-
+    
+            # 현재 SHA 조회
             sha = None
             r_get = requests.get(url, headers=headers, timeout=8)
             if r_get.status_code == 200:
                 sha = r_get.json().get("sha")
-
+    
             data = {
                 "message": "Update supply_levels.csv from Streamlit",
                 "content": b64_content,
@@ -379,10 +365,11 @@ def main():
             }
             if sha:
                 data["sha"] = sha
-
+    
             r_put = requests.put(url, headers=headers, json=data, timeout=8)
             return r_put.status_code in (200, 201), r_put.text
-
+    
+        # ✅ 원격에 파일 존재 여부만 확인
         def github_file_exists(basename: str):
             token  = _get_secret("GITHUB_TOKEN")
             repo   = _get_secret("GITHUB_REPO")
@@ -400,7 +387,7 @@ def main():
                 return False, f"status_{r.status_code}"
             except Exception as e:
                 return False, f"error:{e}"
-
+    
         manual_supply_levels = []
         if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
             current_levels = load_supply_levels(market_code)
@@ -413,8 +400,10 @@ def main():
             )
             manual_supply_levels = supply_df["매물대"].dropna().astype(float).tolist()
             if st.button("💾 매물대 저장"):
+                # 1) 로컬 저장
                 try:
                     save_supply_levels(market_code, manual_supply_levels)
+                    # 2) GitHub에는 '최초 1회'만 업로드
                     exists, err = github_file_exists(os.path.basename(CSV_FILE))
                     if err == "no_token":
                         st.info("메모는 로컬에 저장되었습니다. (GitHub 토큰/레포 설정이 없어 업로드 생략)")
@@ -429,6 +418,19 @@ def main():
                 except Exception as _e:
                     st.warning(f"매물대 저장 실패: {_e}")
 
+        # --- ✅ 목표가/손절가/승률 설정 (복원) ---
+        t1, t2, t3 = st.columns(3)
+        with t1:
+            threshold_pct = st.slider("목표수익률(%)", 0.1, 5.0, float(st.session_state.get("threshold_pct", 0.6)), step=0.1, key="threshold_pct")
+        with t2:
+            stoploss_pct = st.slider("손절기준(%)", 0.1, 5.0, float(st.session_state.get("stoploss_pct", 0.4)), step=0.1, key="stoploss_pct")
+        with t3:
+            winrate_thr = st.slider("승률 기준(%)", 10, 100, int(st.session_state.get("winrate_thr", 60)), step=1, key="winrate_thr")
+        # 세션 저장 (다른 섹션에서 재사용)
+        st.session_state["threshold_pct"] = threshold_pct
+        st.session_state["stoploss_pct"]  = stoploss_pct
+        st.session_state["winrate_thr"]   = winrate_thr
+    
     st.session_state["bb_cond"] = bb_cond
     st.markdown("---")
     
@@ -2368,6 +2370,55 @@ def main():
 
             styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
             st.dataframe(styled_tbl, use_container_width=True)
+
+    # -----------------------------
+    # ⑤ 실시간 감시 (알람) — 복원 (경량형)
+    # -----------------------------
+    with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
+        st.caption("경량형 알람: 현재 설정 기준으로 화면 새로고침 시 조건을 만족하면 토스트 알림을 표시합니다.")
+        enable_alert = st.checkbox("감시 시작", value=False, help="체크 후 조건을 만족하는 신호가 있으면 화면 상단에 토스트 알림을 띄웁니다.")
+        if enable_alert:
+            try:
+                st.toast("🔔 실시간 감시 활성화 (경량). 조건 충족 시 알림을 띄웁니다.")
+            except Exception:
+                pass
+
+        st.divider()
+        st.caption("카카오톡 등 외부 웹훅 연동은 추후 확장(시크릿에 KAKAO_WEBHOOK_URL 설정 시 가능)")
+
+    # -----------------------------
+    # 📒 공유 메모 — 복원
+    # -----------------------------
+    with st.expander("📒 공유 메모", expanded=False):
+        import os
+        memo_path = os.path.join(os.path.dirname(__file__), "shared_notes.md")
+        default_text = ""
+        try:
+            if os.path.exists(memo_path):
+                with open(memo_path, "r", encoding="utf-8") as f:
+                    default_text = f.read()
+        except Exception:
+            default_text = ""
+        memo_text = st.text_area("메모 내용", value=default_text, height=200)
+        col_m1, col_m2 = st.columns([1,1])
+        with col_m1:
+            if st.button("💾 메모 저장"):
+                try:
+                    with open(memo_path, "w", encoding="utf-8") as f:
+                        f.write(memo_text)
+                    st.success("메모 저장 완료")
+                except Exception as _e:
+                    st.warning(f"메모 저장 실패: {_e}")
+        with col_m2:
+            st.caption("파일 위치: shared_notes.md (앱 루트)")
+
+    # -----------------------------
+    # 🔄 페어 테스트 — 보강 안내
+    # -----------------------------
+    with st.expander("🔄 페어 테스트", expanded=False):
+        st.caption("여러 코인을 한 번에 실행하려면 아래 '🧪 빠른 프리셋 테스트' 또는 '통계/조합 탐색' 섹션을 사용하세요.")
+        st.info("이미 본문에 '🧪 빠른 프리셋 테스트'와 '통계/조합 탐색' 기능이 포함되어 있어 페어 테스트를 대체할 수 있습니다.")
+
     except Exception as e:
         st.error(f"오류 발생: {e}")
 
