@@ -2230,7 +2230,13 @@ def main():
                 
                 if "성공률(%)" not in df_all.columns and "승률(%)" in df_all.columns:
                     df_all["성공률(%)"] = df_all["승률(%)"]
-    
+
+                # ✅ 누락 복원: df_keep 정의 (성공·중립 필터링)
+                df_keep = df_all[
+                    (df_all["결과"].isin(["성공", "중립"])) &
+                    (df_all["승률(%)"] >= float(winrate_thr))
+                ].copy()
+
                 if df_keep.empty:
                     st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
                 else:
@@ -2431,12 +2437,6 @@ def main():
             st.dataframe(styled_tbl, use_container_width=True)
 
         # -----------------------------
-        # ⑤ 실시간 감시 (알람)
-        # -----------------------------
-        # (경량형 ⑤ 섹션 전체 삭제)
-        # 아래에 이미 존재하는 "⑤ 실시간 감시 (알람) — 원본 복원" 섹션만 남깁니다.
-
-        # -----------------------------
         # 📒 공유 메모 — 복원 (경로 보정)
         # -----------------------------
         with st.expander("📒 공유 메모", expanded=False):
@@ -2488,7 +2488,7 @@ def main():
                     ["1분","3분","5분","15분","30분","60분","240분","일봉"],
                     index=2
                 )
-
+    
             if st.button("▶️ 페어 테스트 실행"):
                 st.info("페어별 시뮬레이션 실행 중...")
                 summary_rows = []
@@ -2528,17 +2528,64 @@ def main():
                             })
                     except Exception as _e:
                         st.warning(f"{sym} 오류: {_e}")
-
+    
                 if summary_rows:
                     st.dataframe(pd.DataFrame(summary_rows))
                 else:
                     st.info("데이터 없음")
 
-        # -----------------------------
-        # ⑤ 실시간 감시 (알람)
-        # -----------------------------
-        with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
-            st.caption("📡 여러 코인과 타임프레임을 주기적으로 감시하며 조건 충족 시 알림을 발생시킵니다.")
+    # -----------------------------
+    # ⑤ 실시간 감시 (알람)
+    # -----------------------------
+    with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
+        st.caption("📡 여러 코인과 타임프레임을 주기적으로 감시하며 조건 충족 시 알림을 발생시킵니다.")
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            watch_syms = st.multiselect(
+                "감시 코인", ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"],
+                default=["KRW-BTC","KRW-ETH"]
+            )
+        with col2:
+            watch_tfs = st.multiselect(
+                "타임프레임", ["1분","3분","5분","15분","30분","60분","240분","일봉"],
+                default=["15분","60분"]
+            )
+        refresh_sec = st.number_input("감시 주기(초)", min_value=10, max_value=300, value=60, step=10)
+
+        if st.button("▶ 감시 시작", type="primary"):
+            st.session_state["watch_active"] = True
+            st.toast("🔔 실시간 감시 시작")
+
+        if st.button("⏸ 감시 중지"):
+            st.session_state["watch_active"] = False
+            st.toast("⏸ 감시 중지")
+
+        if st.session_state.get("watch_active", False):
+            st.success("✅ 감시 중입니다. 조건 충족 시 알림 표시")
+            for sym in watch_syms:
+                for tf in watch_tfs:
+                    interval_pair, mpb_pair = TF_MAP[tf]
+                    df_w = fetch_upbit_paged(sym, interval_pair, start_dt, end_dt, mpb_pair, warmup_bars)
+                    if df_w is None or df_w.empty:
+                        continue
+                    df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+                    res_w = simulate(
+                        df_w, rsi_mode, rsi_low, rsi_high, lookahead,
+                        threshold_pct, stoploss_pct, bb_cond,
+                        "중복 제거 (연속 동일 결과 1개)",
+                        mpb_pair, sym, bb_window, bb_dev,
+                        sec_cond=sec_cond, hit_basis="종가 기준",
+                        miss_policy="(고정) 성공·실패·중립",
+                        bottom_mode=(bottom_mode if isinstance(bottom_mode, str) and bottom_mode!="없음" else False),
+                        supply_levels=None, manual_supply_levels=manual_supply_levels,
+                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                    )
+                    if res_w is not None and not res_w.empty:
+                        last_signal = res_w.iloc[-1]["결과"]
+                        if last_signal == "성공":
+                            st.toast(f"✅ {sym}({tf}) 신호 발생!")
+        else:
+            st.info("⏸ 감시 중지 상태입니다.")
             col1, col2 = st.columns([1, 1])
             with col1:
                 watch_syms = st.multiselect(
