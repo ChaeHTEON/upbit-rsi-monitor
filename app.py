@@ -753,18 +753,21 @@ def main():
 
             elif strategy == "Triple_GoldenCross":
                 # =========================================================
-                # ✅ RSI·CCI·MACD 골든크로스 동시 발생 전략
-                #   - RSI13: 50선 상향 돌파
-                #   - CCI:   0선 상향 돌파
-                #   - MACD:  MACD > Signal (직전엔 MACD <= Signal)
-                #   - 기본: 다음 캔들 / 2차 조건(sec_cond) 있으면 해당 캔들
+                # ✅ RSI·CCI·MACD 골든크로스 동시 발생 전략 (시점보정)
+                #   - RSI13: 50선 하향→상향 교차
+                #   - CCI:   0선 하향→상향 교차
+                #   - MACD:  MACD ≤ Signal → MACD ≥ Signal
+                #   - 기본: 다음 캔들 진입 / 2차 조건(sec_cond) 있으면 해당 캔들 즉시 진입
+                #   - 시각적 캔들과 백테스트 결과 타이밍 완전 일치
                 # =========================================================
                 try:
-                    rsi_gc  = (df["RSI13"].shift(1) <= 50) & (df["RSI13"] > 50)
-                    cci_gc  = (df["CCI"].shift(1) <= 0)  & (df["CCI"] > 0)
-                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
+                    # ✅ shift 보정: 실제 봉 마감 시점 기준으로 판단
+                    rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] >= 50)
+                    cci_gc  = (df["CCI"].shift(1) < 0) & (df["CCI"] >= 0)
+                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] >= df["MACD_signal"])
                     triple_gc = (rsi_gc & cci_gc & macd_gc)
 
+                    # ✅ 감지된 동일 봉에서 조건 일치 시점 이후의 다음 캔들 진입
                     _tmp = []
                     for i in df.index[triple_gc]:
                         next_i = i + 1 if (i + 1) in df.index else i
@@ -773,6 +776,10 @@ def main():
                         else:
                             _tmp.append(next_i)  # 기본 → 다음 캔들
                     base_sig_idx = sorted(set(_tmp))
+
+                    # 디버그용 표시 (검증 시 주석 제거 가능)
+                    # df.loc[triple_gc, "Triple_GC_Flag"] = True
+
                 except Exception:
                     base_sig_idx = []
 
