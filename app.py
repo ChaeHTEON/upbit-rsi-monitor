@@ -244,7 +244,7 @@ def main():
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
         with c6:
             # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
-            st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
         primary_strategy = st.selectbox(
             "매매기법 선택",
             [
@@ -265,20 +265,8 @@ def main():
             index=0
         )
         st.session_state["primary_strategy"] = primary_strategy
-
-        # 선택된 경우 하위조건(RSI, BB 등)은 자동으로 2차 조건화
         if primary_strategy != "없음":
             st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
-
-        # ✅ 매매기법(1차 규칙) 선택 — 기존 2차 조건 UI와 동일한 형태
-        st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
-        primary_strategy = st.selectbox(
-            "매매기법 선택",
-            [
-                "없음",
-                "TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync",
-                "Composite_Confirm", "Divergence_RVB", "Market_Divergence",
-                "MACD_GoldenCross", "EMA100_Above", "EMA100_Below"
             ],
             index=0
         )
@@ -1934,7 +1922,7 @@ def main():
         for label, data in [("중복 제거 (연속 동일 결과 1개)", res_dedup), ("중복 포함 (연속 신호 모두)", res_all)]:
             total, succ, fail, neu, win, total_final = _summarize(data)
             st.markdown(f"**{label}**")
-            m1, m2, m3, m4, m5, m6 = st.columns(6)
+            m1, m1, m2, m3, m4, m5, m6 = st.columns(6)
             m1.metric("신호 수", f"{total}")
             m2.metric("성공", f"{succ}")
             m3.metric("실패", f"{fail}")
