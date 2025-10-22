@@ -28,6 +28,11 @@ def main():
     import pandas as pd  # ✅ main() 내부로 이동
     from typing import Optional, Set
 
+    # ✅ 전역 기본값 (UI 미설정 경로 대비)
+    threshold_pct = st.session_state.get('threshold_pct', 0.6)
+    stoploss_pct = st.session_state.get('stoploss_pct', 0.4)
+    winrate_thr = st.session_state.get('winrate_thr', 60)
+
     # ✅ 기본 TP/SL (전역 기본값, UI 미존재 시 사용)
     threshold_pct = st.session_state.get("threshold_pct", 0.6)
     stoploss_pct = st.session_state.get("stoploss_pct", 0.4)
@@ -2372,3 +2377,5 @@ def main():
 
             styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
             st.dataframe(styled_tbl, use_container_width=True)
+    except Exception as e:
+        st.error(f"오류 발생: {e}")
