@@ -756,7 +756,7 @@ def main():
                 try:
                     # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지
                     n = len(df)
-                    eps = 1e-9  # 경계값 미세 오차 허용
+                    eps = 1e-6  # 경계값 오차 허용치 소폭 상향 (부동소수점 잡음 방지)
 
                     _tmp = []
                     # pos: 현재 캔들 인덱스 (직전값 필요하므로 1부터 시작)
@@ -767,24 +767,32 @@ def main():
                         sig_prev  = df["MACD_signal"].iat[pos-1]; sig_curr = df["MACD_signal"].iat[pos]
 
                         # NaN/warmup 스킵
-                        if pd.isna(rsi_prev) or pd.isna(rsi_curr) or pd.isna(cci_prev) or pd.isna(cci_curr) or pd.isna(macd_prev) or pd.isna(macd_curr) or pd.isna(sig_prev) or pd.isna(sig_curr):
+                        if (
+                            pd.isna(rsi_prev) or pd.isna(rsi_curr) or
+                            pd.isna(cci_prev) or pd.isna(cci_curr) or
+                            pd.isna(macd_prev) or pd.isna(macd_curr) or
+                            pd.isna(sig_prev) or pd.isna(sig_curr)
+                        ):
                             continue
 
-                        # ✅ 같은 캔들에서 "모두" 하향→상향 교차
-                        rsi_ok  = (rsi_prev < 50 - eps) and (rsi_curr >= 50 - eps)
-                        cci_ok  = (cci_prev < 0 - eps)  and (cci_curr >= 0 - eps)
-                        macd_ok = (macd_prev <= sig_prev + eps) and (macd_curr > sig_curr - eps)
+                        # ✅ 같은 캔들에서 "모두" 하향→상향 '명확 교차'
+                        #    - RSI: 49.x → 50+ (경계 근접 노이즈 허용)
+                        #    - CCI: -0.x → 0+  (경계 근접 노이즈 허용)
+                        #    - MACD: (MACD-Signal) 부호가 음→양으로 전환
+                        rsi_ok  = (rsi_prev < 50 - eps) and (rsi_curr >= 50 + eps*0.0)
+                        cci_ok  = (cci_prev <  0 - eps) and (cci_curr >=  0 + eps*0.0)
+
+                        macd_diff_prev = macd_prev - sig_prev
+                        macd_diff_curr = macd_curr - sig_curr
+                        macd_ok = (macd_diff_prev < -eps) and (macd_diff_curr >= eps*0.0)
 
                         if rsi_ok and cci_ok and macd_ok:
                             # 2차 조건이 있으면 현재 봉, 없으면 다음 봉 진입(최대 n-1)
                             enter_pos = pos if sec_cond != "없음" else min(pos + 1, n - 1)
                             _tmp.append(enter_pos)
 
-                    # 누적 병합(다른 전략과 동시 사용 시 덮어쓰기 방지)
-                    if "base_sig_idx" in locals():
-                        base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
-                    else:
-                        base_sig_idx = sorted(set(_tmp))
+                    # 🔒 이 전략에서 만든 인덱스만 사용 (다른 경로와 합치지 않음)
+                    base_sig_idx = sorted(set(_tmp))
                 except Exception:
                     base_sig_idx = []
 # --- 추가: EMA100 기준 위/아래 ---
