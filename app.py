@@ -757,20 +757,22 @@ def main():
                     # ✅ NaN 제거 및 정렬 (워밍업 제외)
                     df = df.copy().dropna(subset=["RSI13","CCI","MACD","MACD_signal"]).sort_index()
 
-                    # ✅ 실제 발생 봉 기준 교차 감지 (시점 보정)
-                    rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] > 50)
-                    cci_gc  = (df["CCI"].shift(1) < 0) & (df["CCI"] > 0)
-                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
+                    # ✅ RSI·CCI·MACD 골든크로스 정확 검출 (경계값 포함)
+                    #   - RSI13: 50선 하향→상향 (>= 50 포함)
+                    #   - CCI:   0선 하향→상향 (>= 0 포함)
+                    #   - MACD:  MACD_signal 하향→상향 돌파 (>= 포함)
+                    rsi_gc  = (df["RSI13"].shift(1) <= 50) & (df["RSI13"] >= 50)
+                    cci_gc  = (df["CCI"].shift(1)  <= 0)  & (df["CCI"]  >= 0)
+                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] >= df["MACD_signal"])
+
                     triple_gc = (rsi_gc & cci_gc & macd_gc)
 
-                    # ✅ 다음 봉 진입 or 해당 봉 진입 구분
+                    # ✅ 신호 봉 or 다음 봉 진입
                     _tmp = []
                     for i in df.index[triple_gc]:
+                        # 현재봉에서 3개 조건 동시에 발생 → 기본은 다음 봉 진입
                         next_i = i + 1 if (i + 1) in df.index else df.index[-1]
-                        if sec_cond != "없음":
-                            _tmp.append(i)
-                        else:
-                            _tmp.append(next_i)
+                        _tmp.append(i if sec_cond != "없음" else next_i)
 
                     # ✅ 기존 신호와 누적 결합 (덮어쓰기 방지)
                     if "base_sig_idx" in locals():
@@ -778,8 +780,8 @@ def main():
                     else:
                         base_sig_idx = sorted(set(_tmp))
 
-                    # ✅ 신호가 반영되도록 누적 리스트가 실제 루프 밖에서 유지됨
-                except Exception:
+                except Exception as e:
+                    print(f"[Triple_GoldenCross Error] {e}")
                     base_sig_idx = []
 
             # --- 추가: EMA100 기준 위/아래 ---
