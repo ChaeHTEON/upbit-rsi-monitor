@@ -757,10 +757,10 @@ def main():
                     # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지
                     n = len(df)
             
-                    # ✅ 골든크로스(하향→상향 포함) — 실제 경계 교차만 감지
-                    rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] >= 50)
-                    cci_gc  = (df["CCI"].shift(1)  < 0)  & (df["CCI"]  >= 0)
-                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] >= df["MACD_signal"])
+            # ✅ 골든크로스(정확한 시점 감지, 하향→상향) — shift 보정
+            rsi_gc  = (df["RSI13"].shift(0) < 50) & (df["RSI13"] >= 50)
+            cci_gc  = (df["CCI"].shift(0)  < 0)  & (df["CCI"]  >= 0)
+            macd_gc = (df["MACD"].shift(0) < df["MACD_signal"].shift(0)) & (df["MACD"] >= df["MACD_signal"])
             
                     triple_gc = (rsi_gc & cci_gc & macd_gc)
                     triple_gc = triple_gc.fillna(False)
