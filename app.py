@@ -756,23 +756,31 @@ def main():
                 try:
                     # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지
                     n = len(df)
+                    eps = 1e-9  # 경계값 미세 오차 허용
 
-                    # ✅ 골든크로스(정확한 시점 감지, 하향→상향)
-                    #    - '직전 봉은 기준선 아래' 그리고 '현재 봉은 기준선 위'
-                    rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] >= 50)
-                    cci_gc  = (df["CCI"].shift(1)  < 0)  & (df["CCI"]  >= 0)
-                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
-
-                    triple_gc = (rsi_gc & cci_gc & macd_gc).fillna(False)
-
-                    # ✅ 포지션 인덱스(0..n-1) 기준으로 ‘다음 캔들’ 계산
                     _tmp = []
-                    for pos in range(n):
-                        if bool(triple_gc.iloc[pos]):
-                            next_pos = pos + 1 if (pos + 1) < n else (n - 1)
-                            _tmp.append(pos if sec_cond != "없음" else next_pos)
+                    # pos: 현재 캔들 인덱스 (직전값 필요하므로 1부터 시작)
+                    for pos in range(1, n):
+                        rsi_prev  = df["RSI13"].iat[pos-1]; rsi_curr  = df["RSI13"].iat[pos]
+                        cci_prev  = df["CCI"].iat[pos-1];   cci_curr  = df["CCI"].iat[pos]
+                        macd_prev = df["MACD"].iat[pos-1];  macd_curr = df["MACD"].iat[pos]
+                        sig_prev  = df["MACD_signal"].iat[pos-1]; sig_curr = df["MACD_signal"].iat[pos]
 
-                    # ✅ 기존 신호와 누적 결합 (덮어쓰기 방지)
+                        # NaN/warmup 스킵
+                        if pd.isna(rsi_prev) or pd.isna(rsi_curr) or pd.isna(cci_prev) or pd.isna(cci_curr) or pd.isna(macd_prev) or pd.isna(macd_curr) or pd.isna(sig_prev) or pd.isna(sig_curr):
+                            continue
+
+                        # ✅ 같은 캔들에서 "모두" 하향→상향 교차
+                        rsi_ok  = (rsi_prev < 50 - eps) and (rsi_curr >= 50 - eps)
+                        cci_ok  = (cci_prev < 0 - eps)  and (cci_curr >= 0 - eps)
+                        macd_ok = (macd_prev <= sig_prev + eps) and (macd_curr > sig_curr - eps)
+
+                        if rsi_ok and cci_ok and macd_ok:
+                            # 2차 조건이 있으면 현재 봉, 없으면 다음 봉 진입(최대 n-1)
+                            enter_pos = pos if sec_cond != "없음" else min(pos + 1, n - 1)
+                            _tmp.append(enter_pos)
+
+                    # 누적 병합(다른 전략과 동시 사용 시 덮어쓰기 방지)
                     if "base_sig_idx" in locals():
                         base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
                     else:
