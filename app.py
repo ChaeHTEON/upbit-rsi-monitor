@@ -752,28 +752,35 @@ def main():
                 base_sig_idx = df.index[cross].tolist()
 
 # ✅ Triple_GoldenCross 완전 복구 (동시 발생 → 즉시 신호)
-elif strategy == "Triple_GoldenCross":
-    try:
-        # 인디케이터 정렬 및 NaN 제거
-        df = df.copy().dropna(subset=["RSI13","CCI","MACD","MACD_signal"]).sort_index()
+            elif strategy == "Triple_GoldenCross":
+                try:
+                    # ✅ NaN 제거 및 정렬 (워밍업 제외)
+                    df = df.copy().dropna(subset=["RSI13","CCI","MACD","MACD_signal"]).sort_index()
 
-        # 시점보정: shift 제거 → 해당 봉에서 직접 평가
-        rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] > 50)
-        cci_gc  = (df["CCI"].shift(1) < 0) & (df["CCI"] > 0)
-        macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
+                    # ✅ 실제 발생 봉 기준 교차 감지 (시점 보정)
+                    rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] > 50)
+                    cci_gc  = (df["CCI"].shift(1) < 0) & (df["CCI"] > 0)
+                    macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] > df["MACD_signal"])
+                    triple_gc = (rsi_gc & cci_gc & macd_gc)
 
-        triple_gc = (rsi_gc & cci_gc & macd_gc)
+                    # ✅ 다음 봉 진입 or 해당 봉 진입 구분
+                    _tmp = []
+                    for i in df.index[triple_gc]:
+                        next_i = i + 1 if (i + 1) in df.index else df.index[-1]
+                        if sec_cond != "없음":
+                            _tmp.append(i)
+                        else:
+                            _tmp.append(next_i)
 
-        # 다음봉 진입 or 즉시 진입 구분
-        _tmp = []
-        for i in df.index[triple_gc]:
-            next_i = i + 1 if (i + 1) in df.index else df.index[-1]
-            _tmp.append(i if sec_cond != "없음" else next_i)
+                    # ✅ 기존 신호와 누적 결합 (덮어쓰기 방지)
+                    if "base_sig_idx" in locals():
+                        base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
+                    else:
+                        base_sig_idx = sorted(set(_tmp))
 
-        # 기존 인덱스와 누적 결합
-        base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
-    except Exception:
-        pass
+                    # ✅ 신호가 반영되도록 누적 리스트가 실제 루프 밖에서 유지됨
+                except Exception:
+                    base_sig_idx = []
 
             # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
