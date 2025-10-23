@@ -754,34 +754,30 @@ def main():
 # ✅ Triple_GoldenCross 완전 복구 (동시 발생 → 즉시 신호)
             elif strategy == "Triple_GoldenCross":
                 try:
-                    # ✅ NaN 제거 및 정렬 (워밍업 제외)
-                    df = df.copy().dropna(subset=["RSI13","CCI","MACD","MACD_signal"]).sort_index()
+                    # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지가 핵심
+                    n = len(df)
 
-                    # ✅ RSI·CCI·MACD 골든크로스 정확 검출 (경계값 포함)
-                    #   - RSI13: 50선 하향→상향 (>= 50 포함)
-                    #   - CCI:   0선 하향→상향 (>= 0 포함)
-                    #   - MACD:  MACD_signal 하향→상향 돌파 (>= 포함)
+                    # ✅ 실제 발생 봉 기준 교차 감지 (경계값 포함)
                     rsi_gc  = (df["RSI13"].shift(1) <= 50) & (df["RSI13"] >= 50)
                     cci_gc  = (df["CCI"].shift(1)  <= 0)  & (df["CCI"]  >= 0)
                     macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] >= df["MACD_signal"])
 
                     triple_gc = (rsi_gc & cci_gc & macd_gc)
+                    triple_gc = triple_gc.fillna(False)
 
-                    # ✅ 신호 봉 or 다음 봉 진입
+                    # ✅ 포지션 인덱스(0..n-1)로 변환하여 '다음 캔들' 계산을 안전하게
                     _tmp = []
-                    for i in df.index[triple_gc]:
-                        # 현재봉에서 3개 조건 동시에 발생 → 기본은 다음 봉 진입
-                        next_i = i + 1 if (i + 1) in df.index else df.index[-1]
-                        _tmp.append(i if sec_cond != "없음" else next_i)
+                    for pos in range(n):
+                        if bool(triple_gc.iloc[pos]):
+                            next_pos = pos + 1 if (pos + 1) < n else (n - 1)
+                            _tmp.append(pos if sec_cond != "없음" else next_pos)
 
                     # ✅ 기존 신호와 누적 결합 (덮어쓰기 방지)
                     if "base_sig_idx" in locals():
                         base_sig_idx = sorted(set(base_sig_idx) | set(_tmp))
                     else:
                         base_sig_idx = sorted(set(_tmp))
-
-                except Exception as e:
-                    print(f"[Triple_GoldenCross Error] {e}")
+                except Exception:
                     base_sig_idx = []
 
             # --- 추가: EMA100 기준 위/아래 ---
