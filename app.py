@@ -951,7 +951,10 @@ def main():
     
         # --- 3) 하나의 신호 평가 ---
         def process_one(i0):
-            anchor_idx = i0 + 1
+            # ⚠️ i0는 '진입할 캔들' 인덱스입니다.
+            #     - 전략/2차조건에서 이미 '해당 봉' 또는 '다음 봉'으로 보정해 두었음
+            #     - 여기서 추가로 +1을 하면 진입이 한 봉 더 밀려 신호가 누락됩니다.
+            anchor_idx = i0
             if anchor_idx >= n:
                 return None, None
             signal_time = df.at[anchor_idx, "time"]
