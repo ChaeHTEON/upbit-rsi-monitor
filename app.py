@@ -757,9 +757,9 @@ def main():
                     # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지
                     n = len(df)
             
-                    # ✅ 골든크로스(경계값 포함) — “해당 봉”에서 직접 감지
-                    rsi_gc  = (df["RSI13"].shift(1) <= 50) & (df["RSI13"] >= 50)
-                    cci_gc  = (df["CCI"].shift(1)  <= 0)  & (df["CCI"]  >= 0)
+                    # ✅ 골든크로스(하향→상향 포함) — 실제 경계 교차만 감지
+                    rsi_gc  = (df["RSI13"].shift(1) < 50) & (df["RSI13"] >= 50)
+                    cci_gc  = (df["CCI"].shift(1)  < 0)  & (df["CCI"]  >= 0)
                     macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] >= df["MACD_signal"])
             
                     triple_gc = (rsi_gc & cci_gc & macd_gc)
