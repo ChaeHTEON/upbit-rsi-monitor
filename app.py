@@ -6,10 +6,10 @@
 # ✅ Triple_GoldenCross 완전 복구 (동시 발생 → 즉시 신호)
             elif strategy == "Triple_GoldenCross":
                 try:
-                    # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지가 핵심
+                    # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지
                     n = len(df)
 
-                    # ✅ 실제 발생 봉 기준 교차 감지 (경계값 포함)
+                    # ✅ 골든크로스(경계값 포함) — “해당 봉”에서 직접 감지
                     rsi_gc  = (df["RSI13"].shift(1) <= 50) & (df["RSI13"] >= 50)
                     cci_gc  = (df["CCI"].shift(1)  <= 0)  & (df["CCI"]  >= 0)
                     macd_gc = (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)) & (df["MACD"] >= df["MACD_signal"])
@@ -17,7 +17,7 @@
                     triple_gc = (rsi_gc & cci_gc & macd_gc)
                     triple_gc = triple_gc.fillna(False)
 
-                    # ✅ 포지션 인덱스(0..n-1)로 변환하여 '다음 캔들' 계산을 안전하게
+                    # ✅ 포지션 인덱스(0..n-1) 기준으로 ‘다음 캔들’ 계산
                     _tmp = []
                     for pos in range(n):
                         if bool(triple_gc.iloc[pos]):
