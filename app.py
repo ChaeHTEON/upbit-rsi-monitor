@@ -751,50 +751,11 @@ def main():
                 cross = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
                 base_sig_idx = df.index[cross].tolist()
 
-# ✅ Triple_GoldenCross 완전 복구 (동시 발생 → 즉시 신호)
-            elif strategy == "Triple_GoldenCross":
-                try:
-                    # ❗ df 재할당/정렬/드롭 금지: 원본 좌표계(포지션) 유지
-                    n = len(df)
-                    eps = 1e-6  # 경계값 오차 허용치 소폭 상향 (부동소수점 잡음 방지)
-
-                    _tmp = []
-                    # pos: 현재 캔들 인덱스 (직전값 필요하므로 1부터 시작)
-                    for pos in range(1, n):
-                        rsi_prev  = df["RSI13"].iat[pos-1]; rsi_curr  = df["RSI13"].iat[pos]
-                        cci_prev  = df["CCI"].iat[pos-1];   cci_curr  = df["CCI"].iat[pos]
-                        macd_prev = df["MACD"].iat[pos-1];  macd_curr = df["MACD"].iat[pos]
-                        sig_prev  = df["MACD_signal"].iat[pos-1]; sig_curr = df["MACD_signal"].iat[pos]
-
-                        # NaN/warmup 스킵
-                        if (
-                            pd.isna(rsi_prev) or pd.isna(rsi_curr) or
-                            pd.isna(cci_prev) or pd.isna(cci_curr) or
-                            pd.isna(macd_prev) or pd.isna(macd_curr) or
-                            pd.isna(sig_prev) or pd.isna(sig_curr)
-                        ):
-                            continue
-
-                        # ✅ 같은 캔들에서 "모두" 하향→상향 '명확 교차'
-                        #    - RSI: 49.x → 50+ (경계 근접 노이즈 허용)
-                        #    - CCI: -0.x → 0+  (경계 근접 노이즈 허용)
-                        #    - MACD: (MACD-Signal) 부호가 음→양으로 전환
-                        rsi_ok  = (rsi_prev < 50 - eps) and (rsi_curr >= 50 + eps*0.0)
-                        cci_ok  = (cci_prev <  0 - eps) and (cci_curr >=  0 + eps*0.0)
-
-                        macd_diff_prev = macd_prev - sig_prev
-                        macd_diff_curr = macd_curr - sig_curr
-                        macd_ok = (macd_diff_prev < -eps) and (macd_diff_curr >= eps*0.0)
-
-                        if rsi_ok and cci_ok and macd_ok:
-                            # 2차 조건이 있으면 현재 봉, 없으면 다음 봉 진입(최대 n-1)
-                            enter_pos = pos if sec_cond != "없음" else min(pos + 1, n - 1)
-                            _tmp.append(enter_pos)
-
-                    # 🔒 이 전략에서 만든 인덱스만 사용 (다른 경로와 합치지 않음)
-                    base_sig_idx = sorted(set(_tmp))
-                except Exception:
-                    base_sig_idx = []
+# --- 추가: EMA100 기준 위/아래 ---
+            elif strategy == "EMA100_Above":
+                base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
+            elif strategy == "EMA100_Below":
+                base_sig_idx = df.index[(df["close"] < df["EMA100"])].tolist()
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
                 base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
