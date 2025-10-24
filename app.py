@@ -249,7 +249,6 @@ def main():
                     "Divergence_RVB",
                     "Market_Divergence",
                     "MACD_GoldenCross",
-                    "Triple_GoldenCross",  # ✅ 신규 추가
                     "EMA100_Above",
                     "EMA100_Below"
                 ],
