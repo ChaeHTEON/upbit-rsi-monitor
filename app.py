@@ -532,7 +532,12 @@ def main():
                     break
                 to_time = (last_utc - timedelta(seconds=1))
         except Exception:
-            return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
+            # ✅ 예외 시 캐시 존재 여부 확인 후 안전 반환
+            if "df_cache" in locals() and isinstance(df_cache, pd.DataFrame):
+                return df_cache[(df_cache["time"] >= start_cutoff) & (df_cache["time"] <= end_dt)]
+            else:
+                # ✅ 캐시도 없는 경우 None 대신 빈 DataFrame 반환
+                return pd.DataFrame(columns=["time","open","high","low","close","volume"])
     
         if all_data:
             df_new = pd.DataFrame(all_data).rename(columns={
