@@ -485,18 +485,6 @@ def main():
         data_dir = os.path.join(os.path.dirname(__file__), "data_cache")
         cache_path = os.path.join(data_dir, f"{market_code}_{tf_key}.csv")
     
-        # 🔧 시간축 불연속 보정 추가 (캔들 끊김 방지)
-        try:
-            if os.path.exists(cache_path):
-                df_tmp = pd.read_csv(cache_path, parse_dates=["time"])
-                df_tmp = df_tmp.sort_values("time")
-                df_tmp = df_tmp.set_index("time")
-                df_tmp = df_tmp.asfreq(pd.infer_freq(df_tmp.index) or "T")
-                df_tmp = df_tmp.reset_index()
-                df_tmp.to_csv(cache_path, index=False)
-        except Exception:
-            pass
-    
         # ✅ CSV 파일 파싱 오류 자동 복구 추가
         if os.path.exists(cache_path):
             try:
@@ -2615,5 +2603,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
