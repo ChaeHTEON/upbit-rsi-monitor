@@ -612,15 +612,24 @@ def main():
                 df_all.to_csv(cache_path, index=False)
 
         # ✅ UTC→KST 변환 및 정렬 (비정상 평탄 구간 방지)
-        df_all["time"] = pd.to_datetime(df_all["time"]).dt.tz_localize("UTC").dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
+        df_all["time"] = (
+            pd.to_datetime(df_all["time"])
+            .dt.tz_localize("UTC")
+            .dt.tz_convert("Asia/Seoul")
+            .dt.tz_localize(None)
+        )
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
 
-        # ✅ 필터 기준도 KST로 맞추기
-        start_kst = pd.to_datetime(start_cutoff).tz_localize("Asia/Seoul").tz_localize(None)
-        end_kst = pd.to_datetime(end_dt).tz_localize("Asia/Seoul").tz_localize(None)
+        # ✅ 필터 기준을 완전 동일한 KST naive 로 변환
+        KST = timezone("Asia/Seoul")
+        start_kst = pd.Timestamp(start_cutoff).tz_localize(KST).tz_localize(None)
+        # 종료시각은 당일 23:59:59 로 보정
+        end_kst = pd.Timestamp(end_dt).tz_localize(KST).tz_localize(None) + timedelta(seconds=59)
 
         # ✅ 시간대 변환 후 정상 구간만 필터링
-        return df_all[(df_all["time"] >= start_kst) & (df_all["time"] <= end_kst)].reset_index(drop=True)
+        mask = (df_all["time"] >= start_kst) & (df_all["time"] <= end_kst)
+        df_all = df_all.loc[mask].reset_index(drop=True)
+        return df_all
     
     def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
         out = df.copy()
