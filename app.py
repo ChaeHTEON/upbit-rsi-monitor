@@ -1275,12 +1275,13 @@ def main():
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
-        if df_raw.empty:
+        if df_raw is None or df_raw.empty:
             st.error("데이터가 없습니다.")
             st.stop()
     
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
         df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+    
     
         # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
         if sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
