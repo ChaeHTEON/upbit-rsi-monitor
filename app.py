@@ -612,7 +612,7 @@ def main():
                 df_all.to_csv(cache_path, index=False)
 
         # ✅ UTC→KST 정렬 및 시계열 보정 (비정상 평탄 구간 방지)
-        df_all["time"] = pd.to_datetime(df_all["time"])....localize("UTC").dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
+        df_all["time"] = pd.to_datetime(df_all["time"]).dt.tz_localize("UTC").dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
         # ✅ 시간대 변환 후 정상 구간만 필터링
         return df_all[(df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)].reset_index(drop=True)
