@@ -1115,22 +1115,23 @@ def main():
     
             end_idx_final = hit_idx if (locals().get("hit_idx") is not None) else end_idx
     
-            row = {
-                "신호시간": signal_time,
-                "종료시간": end_time,
-                "기준시가": int(round(base_price)),
-                "종료가": end_close,
-                "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 2) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
-                "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
-                "성공기준(%)": round(thr, 1),
-                "결과": result,
-                "도달분": reach_min,
-                "도달캔들(bars)": int(bars_after),
-                "최종수익률(%)": round(final_ret, 2),
-                "최저수익률(%)": round(min_ret, 2),
-                "최고수익률(%)": round(max_ret, 2),
-                "anchor_i": int(anchor_idx),
-                "end_i": int(end_idx_final),
+            result_row = {
+                "신호시간": entry_time,
+                "종료시간": exit_time,
+                "기준시가": entry_price,
+                "종료가": exit_price,
+                "RSI(13)": rsi_value,
+                "BB값": bb_value,
+                "성공기준(%)": threshold_pct,
+                "결과": result_label,
+                "도달분": lookahead_s,
+                "도달캔들(bars)": reached_bars,
+                "최종수익률(%)": final_ret,
+                "최저수익률(%)": min_ret,
+                "최고수익률(%)": max_ret,
+                "승률(%)": winrate_val,
+                "합계수익률(%)": sum_ret,
+                "타임프레임": interval_key if "interval_key" in locals() else "minutes/5"
             }
             return row, int(lock_end)
     
