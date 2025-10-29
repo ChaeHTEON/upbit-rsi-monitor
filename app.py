@@ -2367,9 +2367,13 @@ def main():
                     if "타임프레임" not in df_keep.columns:
                         df_keep["타임프레임"] = interval_key if "interval_key" in locals() else "기본"
                     
+                    # ✅ KeyError 방지: '측정N(봉)' 컬럼 누락 시 기본값 채움
+                    if "측정N(봉)" not in df_keep.columns:
+                        df_keep["측정N(봉)"] = 0
+            
                     df_show = df_keep.sort_values(
-                        ["결과","승률(%)","신호수","합계수익률(%)"],
-                        ascending=[True,False,False,False]
+                        ["타임프레임","측정N(봉)","승률(%)","신호수","합계수익률(%)"],
+                        ascending=[True,True,False,False,False]
                     ).reset_index(drop=True)
     
                     if "날짜" not in df_show:
