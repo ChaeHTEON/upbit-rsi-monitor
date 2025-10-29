@@ -1624,17 +1624,6 @@ def main():
         # ✅ 수정: subplot 4행 구조 맞춤 (row=5 → row=4)
         # (4) 거래량 + 평균선 + 2.5배 기준선
         fig.add_trace(
-            go.Bar(
-                x=df["time"], y=df["volume"],
-                name="거래량", marker_color=colors
-            ),
-            row=4, col=1
-        )
-        if "vol_mean" not in df.columns:
-            df["vol_mean"] = df["volume"].rolling(20).mean()
-        if "vol_threshold" not in df.columns:
-            df["vol_threshold"] = df["vol_mean"] * 2.5
-        fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["vol_threshold"],
                 name="TGV 기준(2.5배)", mode="lines",
@@ -1643,14 +1632,14 @@ def main():
             row=4, col=1
         )
 
-        # ✅ 추가: 2.5배 기준선 돌파 + 음봉일 때 캔들 최상단 별표 표시
+        # ✅ 추가: 2.5배선 돌파 + 음봉일 때 거래량 막대 위에 별표 표시
         try:
-            cond_spike = (df["volume"] >= df["vol_threshold"]) & (df["close"] < df["open"])
-            if cond_spike.any():
+            cond_vol_spike = (df["volume"] >= df["vol_threshold"]) & (df["close"] < df["open"])
+            if cond_vol_spike.any():
                 fig.add_trace(
                     go.Scatter(
-                        x=df.loc[cond_spike, "time"],
-                        y=df.loc[cond_spike, "high"],
+                        x=df.loc[cond_vol_spike, "time"],
+                        y=df.loc[cond_vol_spike, "volume"] * 1.05,  # 막대 위 약간 위쪽에 별표 표시
                         mode="markers",
                         name="거래량★(2.5배·음봉)",
                         marker=dict(
@@ -1659,15 +1648,14 @@ def main():
                             symbol="star",
                             line=dict(width=1, color="black")
                         ),
-                        hovertemplate="시간=%{x|%Y-%m-%d %H:%M}<br>고가=%{y}<extra></extra>"
+                        hovertemplate="시간=%{x|%Y-%m-%d %H:%M}<br>거래량=%{y}<extra></extra>"
                     ),
-                    row=1, col=1
+                    row=4, col=1  # ✅ 보조지표(거래량) 패널에 표시
                 )
         except Exception as e:
-            print("⚠️ 거래량 별표 표시 오류:", e)
+            print("⚠️ 거래량★ 표시 오류:", e)
 
         fig.update_yaxes(title_text="거래량", row=4, col=1)
-
         # ----- MACD(12,16,9) 보조지표 (row5) -----
         try:
             # 히스토그램
