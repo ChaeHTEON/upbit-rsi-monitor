@@ -275,6 +275,13 @@ def main():
         with c9:
             bb_dev = st.number_input("BB 승수", min_value=1.0, max_value=4.0, value=2.0, step=0.1)
 
+        # ✅ Vol_Ratio 임계값 조정 UI (추가)
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            st.slider("Vol_Ratio 매수 기준 (≥)", min_value=1.0, max_value=2.0, value=1.5, step=0.05, key="volratio_buy_thr")
+        with col_v2:
+            st.slider("Vol_Ratio 매도 기준 (≤)", min_value=0.4, max_value=1.0, value=0.6, step=0.05, key="volratio_sell_thr")
+
         # ✅ 거래량 조건 (volume_cond 정의 추가)
         volume_cond = st.selectbox(
             "거래량 조건",
@@ -782,7 +789,8 @@ def main():
                 base_sig_idx = df.index[cross].tolist()
 
             elif strategy == "Vol_Ratio_Imbalance":
-                base_sig_idx = df.index[(df["Vol_Ratio"] > 1.5)].tolist()
+                _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
+                base_sig_idx = df.index[(df["Vol_Ratio"] > _vr_buy)].tolist()
 
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
