@@ -1335,6 +1335,12 @@ def main():
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
         df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
+        # ✅ 캔들 불연속(빈 구간) 보정
+        df = df.sort_values("time")
+        df = df.drop_duplicates(subset=["time"])
+        df = df.set_index("time").asfreq(df["time"].diff().median())
+        df = df.interpolate(method="linear").reset_index()
+
         # ✅ Vol_Ratio 임계값 필터 적용 (UI 슬라이더 값 반영)
         _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
         _vr_sell = st.session_state.get("volratio_sell_thr", 0.6)
