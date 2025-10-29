@@ -250,7 +250,8 @@ def main():
                     "Market_Divergence",
                     "MACD_GoldenCross",
                     "EMA100_Above",
-                    "EMA100_Below"
+                    "EMA100_Below",
+                    "Vol_Ratio_Imbalance"
                 ],
                 index=0
             )
@@ -653,6 +654,14 @@ def main():
         out["MACD"] = _macd.macd()
         out["MACD_signal"] = _macd.macd_signal()
         out["MACD_hist"] = _macd.macd_diff()
+
+        # Vol_Ratio (거래량 불균형 지표) — 추가
+        out["UpVol"] = np.where(out["close"] > out["open"], out["volume"], 0)
+        out["DownVol"] = np.where(out["close"] < out["open"], out["volume"], 0)
+        out["Vol_Ratio"] = (
+            out["UpVol"].rolling(20, min_periods=1).sum() /
+            out["DownVol"].rolling(20, min_periods=1).sum()
+        )
         return out
     
     def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct, bb_cond, dedup_mode,
@@ -771,6 +780,9 @@ def main():
                 macds = df["MACD_signal"]
                 cross = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
                 base_sig_idx = df.index[cross].tolist()
+
+            elif strategy == "Vol_Ratio_Imbalance":
+                base_sig_idx = df.index[(df["Vol_Ratio"] > 1.5)].tolist()
 
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
