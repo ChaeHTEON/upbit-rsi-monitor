@@ -790,7 +790,12 @@ def main():
 
             elif strategy == "Vol_Ratio_Imbalance":
                 _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
-                base_sig_idx = df.index[(df["Vol_Ratio"] > _vr_buy)].tolist()
+                _vr_sell = st.session_state.get("volratio_sell_thr", 0.6)
+
+                # ✅ Vol_Ratio 매수·매도 기준 동시 반영
+                cond_buy = df["Vol_Ratio"] > _vr_buy
+                cond_sell = df["Vol_Ratio"] < _vr_sell
+                base_sig_idx = df.index[cond_buy | cond_sell].tolist()
 
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
