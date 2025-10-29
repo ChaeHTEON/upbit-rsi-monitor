@@ -292,7 +292,7 @@ def main():
 
         # ✅ Vol_Ratio 임계값 적용 후 재실행 버튼
         if st.button("Vol_Ratio 임계값 적용 후 결과 갱신"):
-            st.experimental_rerun()
+            st.rerun()
 
         # ✅ 거래량 조건 (volume_cond 정의 추가)
         volume_cond = st.selectbox(
