@@ -282,6 +282,10 @@ def main():
         with col_v2:
             st.slider("Vol_Ratio 매도 기준 (≤)", min_value=0.4, max_value=1.0, value=0.6, step=0.05, key="volratio_sell_thr")
 
+        # ✅ Vol_Ratio 임계값 적용 후 재실행 버튼
+        if st.button("Vol_Ratio 임계값 적용 후 결과 갱신"):
+            st.experimental_rerun()
+
         # ✅ 거래량 조건 (volume_cond 정의 추가)
         volume_cond = st.selectbox(
             "거래량 조건",
