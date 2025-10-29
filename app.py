@@ -1334,6 +1334,12 @@ def main():
     
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
         df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+
+        # ✅ Vol_Ratio 임계값 필터 적용 (UI 슬라이더 값 반영)
+        _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
+        _vr_sell = st.session_state.get("volratio_sell_thr", 0.6)
+        if "Vol_Ratio" in df.columns:
+            df = df[(df["Vol_Ratio"] >= _vr_buy) | (df["Vol_Ratio"] <= _vr_sell)].reset_index(drop=True)
     
     
         # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
