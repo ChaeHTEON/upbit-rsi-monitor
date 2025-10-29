@@ -797,6 +797,9 @@ def main():
                 cond_sell = df["Vol_Ratio"] < _vr_sell
                 base_sig_idx = df.index[cond_buy | cond_sell].tolist()
 
+                # ✅ 실제 신호결과용 DataFrame에도 적용
+                df = df.loc[base_sig_idx].copy()
+
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
                 base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
