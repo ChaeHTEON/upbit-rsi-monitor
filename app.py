@@ -2363,6 +2363,10 @@ def main():
                     if "신호수" not in df_keep.columns:
                         df_keep["신호수"] = 0
                     
+                    # ✅ '타임프레임' 누락 방지: 존재하지 않으면 기본값 채움
+                    if "타임프레임" not in df_keep.columns:
+                        df_keep["타임프레임"] = interval_key if "interval_key" in locals() else "기본"
+                    
                     df_show = df_keep.sort_values(
                         ["결과","승률(%)","신호수","합계수익률(%)"],
                         ascending=[True,False,False,False]
