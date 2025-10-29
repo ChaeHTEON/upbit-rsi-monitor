@@ -1352,11 +1352,12 @@ def main():
         df = df.set_index("time").asfreq(df["time"].diff().median())
         df = df.interpolate(method="linear").reset_index()
 
-        # ✅ Vol_Ratio 임계값 필터 적용 (UI 슬라이더 값 반영)
+        # ✅ Vol_Ratio 임계값은 '신호 계산'에만 사용 (차트 데이터 필터링 금지)
+        #    차트용 df를 필터링하면 시간 축에서 캔들이 빠져 '끊겨 보이는' 현상이 발생합니다.
+        #    simulate() 내부의 'Vol_Ratio_Imbalance' 전략에서 st.session_state 값을 사용하여 임계값을 적용합니다.
         _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
         _vr_sell = st.session_state.get("volratio_sell_thr", 0.6)
-        if "Vol_Ratio" in df.columns:
-            df = df[(df["Vol_Ratio"] >= _vr_buy) | (df["Vol_Ratio"] <= _vr_sell)].reset_index(drop=True)
+        # (차트용 df 보존) - 의도적 no-op
     
     
         # ✅ 매물대 자동 신호 실시간 감지 + 카카오톡 알림
