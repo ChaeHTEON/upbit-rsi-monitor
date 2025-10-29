@@ -2353,14 +2353,11 @@ def main():
                 if "성공률(%)" not in df_all.columns and "승률(%)" in df_all.columns:
                     df_all["성공률(%)"] = df_all["승률(%)"]
 
-                # ✅ 누락 복원: df_keep 정의 (성공·중립 필터링)
-                df_keep = df_all[
-                    (df_all["결과"].isin(["성공", "중립"])) &
-                    (df_all["승률(%)"] >= float(winrate_thr))
-                ].copy()
+                # ✅ 표시 완화: 성공·중립 외에도 실패까지 모두 표시(우선 전수 표시로 원인 파악)
+                df_keep = df_all.copy()
 
                 if df_keep.empty:
-                    st.info("조건을 만족하는 조합이 없습니다. (성공·중립 없음)")
+                    st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
                 else:
                     df_show = df_keep.sort_values(
                         ["결과","승률(%)","신호수","합계수익률(%)"],
