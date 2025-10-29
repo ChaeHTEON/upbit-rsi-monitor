@@ -721,8 +721,10 @@ def main():
             # ✅ primary_strategy 기반 1차 매매기법 조건 (UI 약어 9종과 1:1 매핑)
             strategy = st.session_state.get("primary_strategy", "없음")
             base_sig_idx = []
-
-            if strategy == "TGV":
+            if strategy == "없음":
+                # rsi_mode/cci_mode/bb_cond만 사용
+                pass
+            elif strategy == "TGV":
                 # 거래량 급등 + 전고 돌파 + RSI>55
                 vol_mean = df["volume"].rolling(20, min_periods=1).mean()
                 base_sig_idx = df.index[
@@ -752,37 +754,37 @@ def main():
                 # 장기 과매도 복귀: CCI -100 부근 상향 + RSI>50
                 base_sig_idx = df.index[
                     (df["CCI"] > -100) &
-                    (df["CCI"] > df["CCI"].shift(1)) &
                     (df["RSI13"] > 50)
                 ].tolist()
 
-            elif strategy == "4D_Sync":
-                # 멀티TF 대용: BB 중앙선 위 + RSI>55 (동조 상승 대체)
+            elif strategy == "4D_SYNC":
+                # 멀티타임프레임 동기화 (간소 대리): BB_mid 위 + RSI>50
                 base_sig_idx = df.index[
                     (df["close"] >= df["BB_mid"]) &
-                    (df["RSI13"] >= 55)
+                    (df["RSI13"] > 50)
                 ].tolist()
 
-            elif strategy == "240m_Sync":
-                # 4시간 과매도 반전형 대용: CCI<-200 → 상승 전환
+            elif strategy == "240m_SYNC":
+                # 240분 상향 동조 대리: EMA100 위 + RSI>50
                 base_sig_idx = df.index[
-                    (df["CCI"].shift(1) <= -200) &
-                    (df["CCI"] > df["CCI"].shift(1))
+                    (df["EMA100_OK"] == True) &
+                    (df["RSI13"] > 50)
                 ].tolist()
 
             elif strategy == "Composite_Confirm":
-                # 다중 확인 대용: BB중앙 위 + RSI>60 + 최근 고점 갱신
+                # 종합 확증: RSI>55 + BB_mid 위 + CCI>-50
                 base_sig_idx = df.index[
+                    (df["RSI13"] > 55) &
                     (df["close"] >= df["BB_mid"]) &
-                    (df["RSI13"] >= 60) &
-                    (df["close"] > df["high"].rolling(3).max().shift(1))
+                    (df["CCI"] > -50)
                 ].tolist()
 
             elif strategy == "Divergence_RVB":
-                # RSI 상승 / 가격 저점 갱신(다이버전스)
+                # 단순 대리: RSI 상승 + CCI 상승 + 종가 상승
                 base_sig_idx = df.index[
                     (df["RSI13"] > df["RSI13"].shift(1)) &
-                    (df["close"] <= df["close"].shift(1) * 0.999)
+                    (df["CCI"] > df["CCI"].shift(1)) &
+                    (df["close"] > df["close"].shift(1))
                 ].tolist()
 
             elif strategy == "Market_Divergence":
@@ -812,328 +814,131 @@ def main():
                 # ✅ 실제 신호결과용 DataFrame에도 적용
                 df = df.loc[base_sig_idx].copy()
 
-# --- 추가: EMA100 기준 위/아래 ---
-            elif strategy == "EMA100_Above":
-                base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
-            elif strategy == "EMA100_Below":
-                base_sig_idx = df.index[(df["close"] < df["EMA100"])].tolist()
-# --- 추가: EMA100 기준 위/아래 ---
-            elif strategy == "EMA100_Above":
-                base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
-            elif strategy == "EMA100_Below":
-                base_sig_idx = df.index[(df["close"] < df["EMA100"])].tolist()
+        # --- 추가: EMA100 기준 위/아래 ---
+        ema100_ok = (df["close"] >= df["EMA100"])
+        ema100_ng = (df["close"] < df["EMA100"])
 
-            else:
-                # (전략 없음) — 기존 RSI/BB/CCI 조합 그대로 사용
-                if rsi_mode == "없음":
-                    rsi_idx = []
-                elif rsi_mode == "현재(과매도/과매수 중 하나)":
-                    rsi_idx = sorted(set(df.index[df["RSI13"] <= float(rsi_low)].tolist()) |
-                                     set(df.index[df["RSI13"] >= float(rsi_high)].tolist()))
-                elif rsi_mode == "과매도 기준":
-                    rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
-                elif rsi_mode == "RSI·CCI·MACD 동시 골든크로스":
-                    # (비활성화) 전략 선택과 중복 충돌 방지 — rsi_mode에서는 사용하지 않음
-                    rsi_idx = []
-                else:
-                    rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
-                def bb_ok(i):
-                    c = float(df.at[i, "close"])
-                    o = float(df.at[i, "open"])
-                    l = float(df.at[i, "low"])
-                    up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
-                    if bb_cond == "상한선":
-                        return pd.notna(up) and (c > float(up))
-                    if bb_cond == "하한선":
-                        if pd.isna(lo): return False
-                        rv = float(lo)
-                        return ((o < rv) or (l <= rv)) and (c >= rv)
-                    if bb_cond == "중앙선":
-                        if pd.isna(mid): return False
-                        return c >= float(mid)
-                    return False
+        # --- rsi_mode 기반 1차 조건 인덱스 ---
+        if rsi_mode == "없음":
+            rsi_idx = []
+        elif rsi_mode == "과매도":
+            rsi_idx = df.index[df["RSI13"] <= float(rsi_low)].tolist()
+        elif rsi_mode == "과매수":
+            rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
+        elif rsi_mode == "과매도·반등":
+            rsi_idx = df.index[
+                (df["RSI13"] <= float(rsi_low)) &
+                (df["RSI13"] > df["RSI13"].shift(1))
+            ].tolist()
+        elif rsi_mode == "RSI·CCI·MACD 동시 골든크로스":
+            # (비활성화) 전략 선택과 중복 충돌 방지 — rsi_mode에서는 사용하지 않음
+            rsi_idx = []
+        else:
+            rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
 
-                bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
-
-                if cci_mode == "없음":
-                    cci_idx = []
-                elif cci_mode == "과매수":
-                    cci_idx = df.index[df["CCI"] >= float(cci_over)].tolist()
-                elif cci_mode == "과매도":
-                    cci_idx = df.index[df["CCI"] <= float(cci_under)].tolist()
-                else:
-                    cci_idx = []
-
-                idx_sets = []
-                if rsi_mode != "없음": idx_sets.append(set(rsi_idx))
-                if bb_cond  != "없음": idx_sets.append(set(bb_idx))
-                if cci_mode != "없음": idx_sets.append(set(cci_idx))
-                if idx_sets:
-                    base_sig_idx = sorted(set.intersection(*idx_sets)) if len(idx_sets) > 1 else sorted(idx_sets[0])
-                else:
-                    base_sig_idx = list(range(n)) if sec_cond != "없음" else []
-
-        
-        # ✅ 거래량 1차 필터 공통 적용 (bottom_mode 여부와 무관)
-        if 'base_sig_idx' in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
-            try:
-                base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
-            except Exception:
-                base_sig_idx = base_sig_idx
-
-        # (삭제) 전역 보강 필터 제거 — 신호는 '선택한 전략/조건'에서만 발생하도록 정합성 보장
-        # (아무 것도 하지 않음)
-# --- 2) 보조/공통 함수 ---
-        def is_bull(idx):
-            return float(df.at[idx, "close"]) > float(df.at[idx, "open"])
-    
-        def first_bull_50_over_bb(start_i):
-            """
-            i0 이후 '밴드 아래'에 있다가 처음으로 '진입'하는 '첫 양봉'만 인정.
-            - 조건1: 양봉(close > open)
-            - 조건2: (open < ref or low <= ref) AND close >= ref → 진입 정의
-            - 조건3: start_i+1 ~ j-1 구간 모든 종가 < ref → '첫 진입' 보장
-            """
-            for j in range(start_i + 1, n):
-                o, l, c = float(df.at[j, "open"]), float(df.at[j, "low"]), float(df.at[j, "close"])
-                if not (c > o):
-                    continue
-    
-                # 참조선
-                if bb_cond == "하한선":
-                    ref_series = df["BB_low"]
-                elif bb_cond == "중앙선":
-                    ref_series = df["BB_mid"]
-                else:
-                    ref_series = df["BB_up"]
-    
-                ref = ref_series.iloc[j]
-                if pd.isna(ref):
-                    continue
-                rv = float(ref)
-    
-                # 조건2: '아래 → 진입'
-                entered_from_below = (o < rv) or (l <= rv)
-                closes_above       = (c >= rv)
-                if not (entered_from_below and closes_above):
-                    continue
-    
-                # 조건3: 첫 진입 여부 확인
-                if j - (start_i + 1) > 0:
-                    prev_close = df.loc[start_i + 1:j - 1, "close"]
-                    prev_ref   = ref_series.loc[start_i + 1:j - 1]
-                    if not (prev_close < prev_ref).all():
-                        continue
-    
-                return j, c
-            return None, None
-    
-        # --- 3) 하나의 신호 평가 ---
-        def process_one(i0):
-            # i0 는 전략/2차조건에서 결정된 '최종 진입 캔들'
-            anchor_idx = i0
-            if anchor_idx >= n:
-                return None, None
-            signal_time = df.at[anchor_idx, "time"]
-            base_price = float(df.at[anchor_idx, "close"])
-    
-            if sec_cond == "양봉 2개 연속 상승":
-                if i0 + 2 >= n:
-                    return None, None
-                c1, o1 = float(df.at[i0 + 1, "close"]), float(df.at[i0 + 1, "open"])
-                c2, o2 = float(df.at[i0 + 2, "close"]), float(df.at[i0 + 2, "open"])
-                if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
-                    return None, None
-                anchor_idx = i0 + 3
-                if anchor_idx >= n:
-                    return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
-    
-            elif sec_cond == "양봉 2개 (범위 내)":
-                found, T_idx = 0, None
-                scan_end = min(i0 + lookahead, n - 1)
-                for j in range(i0 + 1, scan_end + 1):
-                    c, o = float(df.at[j, "close"]), float(df.at[j, "open"])
-                    if c > o:
-                        found += 1
-                        if found == 2:
-                            T_idx = j
-                            break
-                if T_idx is None:
-                    return None, None
-                anchor_idx = T_idx + 1
-                if anchor_idx >= n:
-                    return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                # ✅ 기준시가를 '신호 발생 캔들의 종가'로 변경 (다음 캔들부터 매수 반영)
-                base_price = float(df.at[anchor_idx, "close"])
-    
-            elif sec_cond == "BB 기반 첫 양봉 50% 진입":
-                if bb_cond == "없음":
-                    return None, None
-                B1_idx, B1_close = first_bull_50_over_bb(i0)
-                if B1_idx is None:
-                    return None, None
-                anchor_idx = B1_idx + 1
-                if anchor_idx >= n:
-                    return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
-    
-            elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
-                rebound_idx = None
-                scan_end = min(i0 + lookahead, n - 1)
-                for j in range(i0 + 1, scan_end + 1):
-                    if manual_supply_levels:
-                        touched = False
-                        low_j   = float(df.at[j, "low"])
-                        close_j = float(df.at[j, "close"])
-                        for L in manual_supply_levels:
-                            if low_j <= float(L):
-                                touched = True
-                                break
-                        is_nbar_low = False
-                        lookback_n = st.session_state.get("maemul_n", 50)
-                        past_n = df.loc[:j-1].tail(lookback_n)
-                        if not past_n.empty:
-                            min_price = past_n["low"].min()
-                            if low_j <= min_price * 1.001:
-                                is_nbar_low = True
-                        if touched and is_nbar_low and close_j > max(manual_supply_levels):
-                            rebound_idx = j
-                            break
-                if rebound_idx is None:
-                    return None, None
-                anchor_idx = rebound_idx + 1
-                if anchor_idx >= n:
-                    return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
-    
-            # === 신규 매물대 자동 조건 ===
-            elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
-                anchor_idx = None
-                scan_end = min(i0 + lookahead, n - 1)
-                for j in range(i0 + 2, scan_end + 1):
-                    prev_high = float(df.at[j - 1, "high"])
-                    prev_open = float(df.at[j - 1, "open"])
-                    prev_close = float(df.at[j - 1, "close"])
-                    prev_bb_low = float(df.at[j - 1, "BB_low"])
-    
-                    # 매물대 기준 정의
-                    if prev_close >= prev_open:  # 양봉
-                        maemul = max(prev_high, prev_close)
-                    else:  # 음봉
-                        maemul = max(prev_high, prev_open)
-    
-                    cur_low = float(df.at[j, "low"])
-                    cur_high = float(df.at[j, "high"])
-                    cur_close = float(df.at[j, "close"])
-                    cur_open = float(df.at[j, "open"])
-                    cur_bb_low = float(df.at[j, "BB_low"])
-    
-                    # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
-                    below = cur_low <= maemul * 0.999
-                    above = cur_close >= maemul
-                    is_bull = cur_close > cur_open
-                    bb_above = maemul >= cur_bb_low
-    
-                    if below and above and is_bull and bb_above:
-                        anchor_idx = j
-                        break
-    
-                if anchor_idx is None or anchor_idx >= n:
-                    return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
-    
-            # --- 성과 측정 ---
-            eval_start = anchor_idx + 1
-            end_idx = anchor_idx + lookahead
-            if end_idx >= n:
-                return None, None
-    
-            win_slice = df.iloc[eval_start:end_idx + 1]
-            min_ret = (win_slice["low"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
-            max_ret = (win_slice["high"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
-
-            target = base_price * (1.0 + thr / 100.0)
-            stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
-            hit_idx = None
-            for j in range(anchor_idx + 1, end_idx + 1):
-                c_ = float(df.at[j, "close"])
-                h_ = float(df.at[j, "high"])
-                l_ = float(df.at[j, "low"])
-                # ✅ 손절가 먼저 도달 시 즉시 실패 처리
-                if l_ <= stop_price:
-                    hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
-                    end_close = stop_price
-                    final_ret = (end_close / base_price - 1) * 100
-                    result = "실패"
-                    lock_end = hit_idx
-                    break
-                # ✅ 익절가 도달 시 성공 처리 (고가 기준)
-                price_for_hit = h_
-                if price_for_hit >= target:
-                    hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
-                    end_close = target
-                    final_ret = thr
-                    result = "성공"
-                    lock_end = hit_idx
-                    break
-    
-            if hit_idx is not None:
-                pass
-            else:
-                bars_after = lookahead
-                end_idx = anchor_idx + bars_after
-                if end_idx >= n:
-                    end_idx = n - 1
-                    bars_after = end_idx - anchor_idx
-                end_time = df.at[end_idx, "time"]
-                end_close = float(df.at[end_idx, "close"])
-                final_ret = (end_close / base_price - 1) * 100
-                result = "실패" if final_ret <= 0 else "중립"
-                lock_end = end_idx
-    
-            reach_min = bars_after * minutes_per_bar
-    
-            bb_value = None
+        def bb_ok(i):
+            c = float(df.at[i, "close"])
+            o = float(df.at[i, "open"])
+            l = float(df.at[i, "low"])
+            up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
             if bb_cond == "상한선":
-                bb_value = df.at[anchor_idx, "BB_up"]
-            elif bb_cond == "중앙선":
-                bb_value = df.at[anchor_idx, "BB_mid"]
-            elif bb_cond == "하한선":
-                bb_value = df.at[anchor_idx, "BB_low"]
-    
-            end_idx_final = hit_idx if (locals().get("hit_idx") is not None) else end_idx
-    
-            result_row = {
+                return pd.notna(up) and (c > float(up))
+            if bb_cond == "하한선":
+                if pd.isna(lo): return False
+                rv = float(lo)
+                return ((o < rv) or (l <= rv)) and (c >= rv)
+            if bb_cond == "중앙선":
+                if pd.isna(mid): return False
+                return c >= float(mid)
+            return False
+
+        bb_idx = [i for i in df.index if bb_cond != "없음" and bb_ok(i)]
+
+        if cci_mode == "없음":
+            cci_idx = []
+        elif cci_mode == "과매수":
+            cci_idx = df.index[df["CCI"] >= float(cci_over)].tolist()
+        elif cci_mode == "과매도":
+            cci_idx = df.index[df["CCI"] <= float(cci_under)].tolist()
+        else:
+            # 신호선 교차 등 고급 조건은 제외 (UI 불변)
+            cci_idx = []
+
+        # --- 1차 조건 합성: OR(합집합) ---
+        sig_idx = sorted(set(base_sig_idx) | set(rsi_idx) | set(bb_idx) | set(cci_idx))
+
+        # --- 2) 2차 조건(시그널 트리거) ---
+        def sec_ok(i):
+            if sec_cond == "없음":
+                return True
+            if sec_cond == "양봉 2개":
+                return (df["close"].iloc[i-1] > df["open"].iloc[i-1]) and (df["close"].iloc[i] > df["open"].iloc[i])
+            if sec_cond == "BB 하단 반등":
+                return (df["close"].iloc[i-1] <= df["BB_low"].iloc[i-1]) and (df["close"].iloc[i] >= df["BB_low"].iloc[i])
+            if sec_cond == "매물대 돌파":
+                ref = df["close"].iloc[i-1]
+                return ref in (supply_levels or [])
+            return True
+
+        # --- 3) 데드업/중복 제거 정책 ---
+        def _dedup(keys):
+            if dedup_mode.startswith("중복 제거"):
+                keep = []
+                prev = -10**9
+                for k in keys:
+                    if k - prev >= 1:
+                        keep.append(k)
+                        prev = k
+                return keep
+            return keys
+
+        sig_idx = _dedup(sig_idx)
+
+        # --- 4) 엔트리 후 lookahead 윈도에서 TP/SL 판정 ---
+        # hit_basis, miss_policy 고정값은 유지
+        for i in sig_idx:
+            if i + 1 >= n:
+                continue
+
+            entry_time = df["time"].iloc[i]
+            entry_price = float(df["close"].iloc[i])
+
+            max_ret = -10**9
+            min_ret =  10**9
+            max_px = entry_price
+            min_px = entry_price
+            reached_bars = None
+
+            for j in range(i + 1, min(i + 1 + int(lookahead), n)):
+                px = float(df["close"].iloc[j])
+                ret = (px / entry_price - 1.0) * 100.0
+                if ret > max_ret:
+                    max_ret = ret; max_px = px
+                if ret < min_ret:
+                    min_ret = ret; min_px = px
+                if reached_bars is None and ret >= float(threshold_pct):
+                    reached_bars = j - i
+
+            if reached_bars is not None:
+                result = "성공"
+            elif min_ret <= -float(stoploss_pct):
+                result = "실패"
+            else:
+                result = "중립"
+
+            res.append({
                 "신호시간": entry_time,
-                "종료시간": exit_time,
                 "기준시가": entry_price,
-                "종료가": exit_price,
-                "RSI(13)": rsi_value,
-                "BB값": bb_value,
-                "성공기준(%)": threshold_pct,
-                "결과": result_label,
-                "도달분": lookahead_s,
-                "도달캔들(bars)": reached_bars,
-                "최종수익률(%)": final_ret,
-                "최저수익률(%)": min_ret,
-                "최고수익률(%)": max_ret,
-                "승률(%)": winrate_val,
-                "합계수익률(%)": sum_ret,
-                "타임프레임": interval_key if "interval_key" in locals() else "minutes/5"
-            }
-            return row, int(lock_end)
+                "최대수익률(%)": round(max_ret, 3),
+                "최소수익률(%)": round(min_ret, 3),
+                "최고가": max_px,
+                "최저가": min_px,
+                "도달캔들(bars)": reached_bars if reached_bars is not None else "",
+                "결과": result
+            })
+
+        out = pd.DataFrame(res)
+        return out
     
         # --- 4) 메인 루프 (중복 포함/제거 분기) ---
         if dedup_mode.startswith("중복 제거"):
