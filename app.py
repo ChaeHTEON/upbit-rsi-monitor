@@ -1027,8 +1027,9 @@ def main():
                 return None, None
     
             win_slice = df.iloc[eval_start:end_idx + 1]
-            min_ret = (win_slice["close"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
-            max_ret = (win_slice["close"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
+                min_ret = (win_slice["low"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
+                max_ret = (win_slice["high"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
+
     
             target = base_price * (1.0 + thr / 100.0)
             stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
@@ -1048,9 +1049,9 @@ def main():
                     result = "실패"
                     lock_end = hit_idx
                     break
-                # ✅ 익절가 도달 시 성공 처리
-                price_for_hit = c_
-                if price_for_hit >= target * 0.9999:
+                # ✅ 익절가 도달 시 성공 처리 (고가 기준)
+                price_for_hit = h_
+                if price_for_hit >= target:
                     hit_idx = j
                     bars_after = hit_idx - anchor_idx
                     reach_min = bars_after * minutes_per_bar
