@@ -1027,10 +1027,9 @@ def main():
                 return None, None
     
             win_slice = df.iloc[eval_start:end_idx + 1]
-                min_ret = (win_slice["low"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
-                max_ret = (win_slice["high"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
+            min_ret = (win_slice["low"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
+            max_ret = (win_slice["high"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
-    
             target = base_price * (1.0 + thr / 100.0)
             stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
             hit_idx = None
