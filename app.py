@@ -1335,6 +1335,17 @@ def main():
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
         df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
+        # ✅ 캔들 시간 리샘플링 (끊김 방지)
+        if not df.empty:
+            df = df.sort_values("time")
+            df = df.set_index("time")
+            # 봉 간격(분)을 자동 추정
+            try:
+                step_min = int(df.index.to_series().diff().median().total_seconds() / 60)
+            except Exception:
+                step_min = 5
+            df = df.resample(f"{step_min}T").ffill().reset_index()
+
         # ✅ 캔들 불연속(빈 구간) 보정
         df = df.sort_values("time")
         df = df.drop_duplicates(subset=["time"])
