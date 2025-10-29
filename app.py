@@ -1624,6 +1624,17 @@ def main():
         # ✅ 수정: subplot 4행 구조 맞춤 (row=5 → row=4)
         # (4) 거래량 + 평균선 + 2.5배 기준선
         fig.add_trace(
+            go.Bar(
+                x=df["time"], y=df["volume"],
+                name="거래량", marker_color=colors
+            ),
+            row=4, col=1
+        )
+        if "vol_mean" not in df.columns:
+            df["vol_mean"] = df["volume"].rolling(20).mean()
+        if "vol_threshold" not in df.columns:
+            df["vol_threshold"] = df["vol_mean"] * 2.5
+        fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["vol_threshold"],
                 name="TGV 기준(2.5배)", mode="lines",
@@ -1632,14 +1643,14 @@ def main():
             row=4, col=1
         )
 
-        # ✅ 추가: 2.5배선 돌파 + 음봉일 때 거래량 막대 위에 별표 표시
+        # ✅ 추가: 2.5배선 돌파 + 음봉일 때, 거래량 막대 위(보조지표 패널)에 별표 표시
         try:
             cond_vol_spike = (df["volume"] >= df["vol_threshold"]) & (df["close"] < df["open"])
             if cond_vol_spike.any():
                 fig.add_trace(
                     go.Scatter(
                         x=df.loc[cond_vol_spike, "time"],
-                        y=df.loc[cond_vol_spike, "volume"] * 1.05,  # 막대 위 약간 위쪽에 별표 표시
+                        y=df.loc[cond_vol_spike, "volume"] * 1.05,  # 막대 꼭대기 약간 위
                         mode="markers",
                         name="거래량★(2.5배·음봉)",
                         marker=dict(
@@ -1650,7 +1661,7 @@ def main():
                         ),
                         hovertemplate="시간=%{x|%Y-%m-%d %H:%M}<br>거래량=%{y}<extra></extra>"
                     ),
-                    row=4, col=1  # ✅ 보조지표(거래량) 패널에 표시
+                    row=4, col=1
                 )
         except Exception as e:
             print("⚠️ 거래량★ 표시 오류:", e)
