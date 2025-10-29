@@ -288,7 +288,7 @@ def main():
            or st.session_state.get("volratio_sell_thr") != st.session_state.get("_prev_vr_sell"):
             st.session_state["_prev_vr_buy"] = st.session_state.get("volratio_buy_thr")
             st.session_state["_prev_vr_sell"] = st.session_state.get("volratio_sell_thr")
-            st.experimental_rerun()
+            st.rerun()
 
         # ✅ Vol_Ratio 임계값 적용 후 재실행 버튼
         if st.button("Vol_Ratio 임계값 적용 후 결과 갱신"):
