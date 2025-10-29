@@ -1642,6 +1642,30 @@ def main():
             ),
             row=4, col=1
         )
+
+        # ✅ 추가: 2.5배 기준선 돌파 + 음봉일 때 캔들 최상단 별표 표시
+        try:
+            cond_spike = (df["volume"] >= df["vol_threshold"]) & (df["close"] < df["open"])
+            if cond_spike.any():
+                fig.add_trace(
+                    go.Scatter(
+                        x=df.loc[cond_spike, "time"],
+                        y=df.loc[cond_spike, "high"],
+                        mode="markers",
+                        name="거래량★(2.5배·음봉)",
+                        marker=dict(
+                            size=11,
+                            color="rgba(255,75,75,1)",
+                            symbol="star",
+                            line=dict(width=1, color="black")
+                        ),
+                        hovertemplate="시간=%{x|%Y-%m-%d %H:%M}<br>고가=%{y}<extra></extra>"
+                    ),
+                    row=1, col=1
+                )
+        except Exception as e:
+            print("⚠️ 거래량 별표 표시 오류:", e)
+
         fig.update_yaxes(title_text="거래량", row=4, col=1)
 
         # ----- MACD(12,16,9) 보조지표 (row5) -----
