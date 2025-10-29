@@ -2359,6 +2359,10 @@ def main():
                 if df_keep.empty:
                     st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
                 else:
+                    # ✅ KeyError 방지: '신호수' 누락 시 0으로 채움
+                    if "신호수" not in df_keep.columns:
+                        df_keep["신호수"] = 0
+                    
                     df_show = df_keep.sort_values(
                         ["결과","승률(%)","신호수","합계수익률(%)"],
                         ascending=[True,False,False,False]
