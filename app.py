@@ -611,11 +611,10 @@ def main():
             except FileNotFoundError:
                 df_all.to_csv(cache_path, index=False)
 
-        # ✅ UTC→KST 변환 및 정렬 (비정상 평탄 구간 방지)
+        # ✅ KST 문자열 → KST naive 정규화 (Upbit `candle_date_time_kst` 기준)
         df_all["time"] = (
             pd.to_datetime(df_all["time"])
-            .dt.tz_localize("UTC")
-            .dt.tz_convert("Asia/Seoul")
+            .dt.tz_localize("Asia/Seoul")
             .dt.tz_localize(None)
         )
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
