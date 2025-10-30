@@ -1171,9 +1171,16 @@ def main():
             # ✅ OHLC 보정 (가격데이터 결측 최소화)
             df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].ffill()
 
-            # ✅ 종료시각을 정확히 end_dt(08:59:59)로 보정
             df = df.reset_index().rename(columns={"index": "time"})
             df = df[df["time"] <= end_dt].reset_index(drop=True)
+
+        # ✅ 워밍업 구간 제거 (보조지표는 사용하되 표시범위는 당일만)
+        view_start = datetime.combine(start_date, time(9, 0, 0))
+        df = df[(df["time"] >= view_start) & (df["time"] <= end_dt)].reset_index(drop=True)
+
+        # ✅ anchor_i 존재하지 않을 경우 스킵 (IndexError 방지)
+        if "anchor_i" not in df.columns:
+            pass
 
         # ✅ Vol_Ratio 임계값은 '신호 계산'에만 사용 (차트 데이터 필터링 금지)
         #    차트용 df를 필터링하면 시간 축에서 캔들이 빠져 '끊겨 보이는' 현상이 발생합니다.
