@@ -1834,7 +1834,8 @@ def main():
             hovermode="closest")
 
         # ✅ X축을 KST 장 시간대(09:00 ~ 익일 08:59:59)로 고정
-        _range_end = end_dt + timedelta(minutes=int(minutes_per_bar))  # 레이블 표시 보정
+        # 종료시간 00:00 표시 문제 보정 → 실제 데이터는 end_dt까지만, 표시만 약간 확장
+        _range_end = end_dt + timedelta(hours=3)
         for _row in (1, 2, 3, 4, 5):
             fig.update_xaxes(range=[start_dt, _range_end], row=_row, col=1)
 
