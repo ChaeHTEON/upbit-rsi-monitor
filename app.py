@@ -2134,15 +2134,22 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
-            config_refresh = {
-                "displaylogo": False,
-                "modeBarButtonsToAdd": [{
-                    "name": "데이터 새로고침",
-                    "icon": "🔄",
-                    "click": "window.location.reload();"
-                }]
-            }
-            st.plotly_chart(fig, use_container_width=True, config=config_refresh)
+        # 🔄 Plotly 메인 차트 — 데이터 새로고침 아이콘 추가
+        try:
+            fig_html = fig.to_html(
+                include_plotlyjs="cdn",
+                config=dict(
+                    displaylogo=False,
+                    modeBarButtonsToAdd=[{
+                        "name": "데이터 새로고침",
+                        "icon": "🔄",
+                        "click": "window.location.reload();"
+                    }]
+                )
+            )
+            components.html(fig_html, height=height)
+        except Exception as e:
+            st.error(f"Plotly 차트 렌더링 중 오류: {e}")
     
         # -----------------------------
         # ③ 요약 & 차트
