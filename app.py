@@ -631,35 +631,16 @@ def main():
             except FileNotFoundError:
                 df_all.to_csv(cache_path, index=False)
 
-        # ✅ KST 문자열 → KST naive 정규화 (Upbit `candle_date_time_kst` 기준)
-        df_all["time"] = (
-            pd.to_datetime(df_all["time"])
-            .dt.tz_localize("Asia/Seoul")
-            .dt.tz_localize(None)
-        )
+        # Upbit KST 문자열 → naive KST로 통일
+        df_all["time"] = pd.to_datetime(df_all["time"]).dt.tz_localize(None)
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
 
-        # ✅ 필터 기준을 완전 동일한 KST naive 로 변환
-        KST = timezone("Asia/Seoul")
-
-        # ✅ 장 시작·종료 시각 보정 (09:00 ~ 익일 08:59, 변환 순서 수정)
-        start_kst = (
-            pd.Timestamp(start_cutoff)
-            .replace(hour=9, minute=0, second=0)
-            .tz_localize("Asia/Seoul")
-            .tz_localize(None)
-        )
-        # ✅ end_kst: 하루 추가 제거 (이미 end_dt가 익일 08:59 기준)
-        end_kst = (
-            pd.Timestamp(end_dt)
-            .replace(hour=8, minute=59, second=59)
-        ).tz_localize("Asia/Seoul").tz_localize(None)
-
-        # ✅ 시간대 변환 후 정상 구간만 필터링
-        mask = (df_all["time"] >= start_kst) & (df_all["time"] <= end_kst)
+        # ⛔ 불필요한 09:00/08:59 재보정과 재-로컬라이즈 제거
+        #    → 외부에서 계산된 start_dt/end_dt 구간을 그대로 신뢰
+        mask = (df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)
         df_all = df_all.loc[mask].reset_index(drop=True)
         return df_all
-    
+
     def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
         out = df.copy()
         out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
@@ -1137,21 +1118,20 @@ def main():
     
         from datetime import time
         KST = timezone("Asia/Seoul")
-
-        # ✅ 장 시작: 선택일 09:00 (KST)
-        start_dt = (
-            datetime.combine(start_date, time(9, 0, 0))
-            .astimezone(KST)
-            .replace(tzinfo=None)
-        )
-
-        # ✅ 장 종료: 다음날 08:59:59 (KST)
-        end_dt = (
-            datetime.combine(end_date + timedelta(days=1), time(8, 59, 59))
-            .astimezone(KST)
-            .replace(tzinfo=None)
-        )
-
+        
+        now_kst = datetime.now(KST).replace(tzinfo=None)
+        
+        # 시작: 선택일 09:00 (KST, naive)
+        start_dt = datetime.combine(start_date, time(9, 0, 0))
+        
+        # 종료: 기본은 end_date+1 08:59:59
+        _provisional_end = datetime.combine(end_date + timedelta(days=1), time(8, 59, 59))
+        
+        # 오늘을 포함한 조회는 '현재시각'까지만 자름
+        if end_date == now_kst.date():
+            end_dt = min(now_kst, _provisional_end)
+        else:
+            end_dt = _provisional_end
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
@@ -1162,22 +1142,15 @@ def main():
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
         df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
-        # ✅ 캔들 시간 리샘플링 (끊김 방지)
+        # ✅ 캔들 시간 리샘플링/빈구간 보정 (명시적 주기 사용)
         if not df.empty:
-            df = df.sort_values("time")
-            df = df.set_index("time")
-            # 봉 간격(분)을 자동 추정
-            try:
-                step_min = int(df.index.to_series().diff().median().total_seconds() / 60)
-            except Exception:
-                step_min = 5
-            df = df.resample(f"{step_min}T").ffill().reset_index()
-
-        # ✅ 캔들 불연속(빈 구간) 보정
-        df = df.sort_values("time")
-        df = df.drop_duplicates(subset=["time"])
-        df = df.set_index("time").asfreq(df["time"].diff().median())
-        df = df.interpolate(method="linear").reset_index()
+            df = df.sort_values("time").drop_duplicates(subset=["time"]).reset_index(drop=True)
+            freq = f"{int(minutes_per_bar)}T"
+            full_index = pd.date_range(df["time"].iloc[0], df["time"].iloc[-1], freq=freq)
+            df = df.set_index("time").reindex(full_index)
+            # OHLC는 직전값 유지, 볼륨은 결측은 0 또는 직전값(여기서는 ffill) → 후속 지표 계산 안정화
+            df[["open","high","low","close","volume"]] = df[["open","high","low","close","volume"]].ffill()
+            df = df.reset_index().rename(columns={"index":"time"})
 
         # ✅ Vol_Ratio 임계값은 '신호 계산'에만 사용 (차트 데이터 필터링 금지)
         #    차트용 df를 필터링하면 시간 축에서 캔들이 빠져 '끊겨 보이는' 현상이 발생합니다.
