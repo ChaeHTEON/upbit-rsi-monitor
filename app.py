@@ -1136,11 +1136,8 @@ def main():
             st.stop()
     
         KST = timezone("Asia/Seoul")
-        start_dt = datetime.combine(start_date, datetime.min.time())
-        if end_date == datetime.now(KST).date():
-            end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
-        else:
-            end_dt = datetime.combine(end_date, datetime.max.time())
+        start_dt = datetime.combine(start_date, datetime.time(9, 0, 0))
+        end_dt = datetime.combine(end_date, datetime.time(8, 59, 59)) + timedelta(days=1)
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
