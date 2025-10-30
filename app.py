@@ -1135,9 +1135,10 @@ def main():
             st.error("시작 날짜가 종료 날짜보다 이후입니다.")
             st.stop()
     
+        from datetime import time
         KST = timezone("Asia/Seoul")
-        start_dt = datetime.combine(start_date, datetime.time(9, 0, 0))
-        end_dt = datetime.combine(end_date, datetime.time(8, 59, 59)) + timedelta(days=1)
+        start_dt = datetime.combine(start_date, time(9, 0, 0))
+        end_dt = datetime.combine(end_date, time(8, 59, 59)) + timedelta(days=1)
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
