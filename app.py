@@ -631,15 +631,35 @@ def main():
             except FileNotFoundError:
                 df_all.to_csv(cache_path, index=False)
 
-        # Upbit KST 문자열 → naive KST로 통일
-        df_all["time"] = pd.to_datetime(df_all["time"]).dt.tz_localize(None)
+        # ✅ KST 문자열 → KST naive 정규화 (Upbit `candle_date_time_kst` 기준)
+        df_all["time"] = (
+            pd.to_datetime(df_all["time"])
+            .dt.tz_localize("Asia/Seoul")
+            .dt.tz_localize(None)
+        )
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
 
-        # ✅ 워밍업 구간(start_cutoff)부터 end_dt까지 보존 → 이후 메인에서 최종 슬라이스
-        mask = (df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)
+        # ✅ 필터 기준을 완전 동일한 KST naive 로 변환
+        KST = timezone("Asia/Seoul")
+
+        # ✅ 장 시작·종료 시각 보정 (09:00 ~ 익일 08:59, 변환 순서 수정)
+        start_kst = (
+            pd.Timestamp(start_cutoff)
+            .replace(hour=9, minute=0, second=0)
+            .tz_localize("Asia/Seoul")
+            .tz_localize(None)
+        )
+        end_kst = (
+            pd.Timestamp(end_dt)
+            .replace(hour=8, minute=59, second=59)
+            + timedelta(days=1)
+        ).tz_localize("Asia/Seoul").tz_localize(None)
+
+        # ✅ 시간대 변환 후 정상 구간만 필터링
+        mask = (df_all["time"] >= start_kst) & (df_all["time"] <= end_kst)
         df_all = df_all.loc[mask].reset_index(drop=True)
         return df_all
-
+    
     def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
         out = df.copy()
         out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
@@ -1102,9 +1122,9 @@ def main():
             return pd.DataFrame(), ckpt
     
         merged = pd.concat(dfs, ignore_index=True)
-        if "신호시간" in merged.columns:
-            merged = merged.drop_duplicates(subset=["신호시간"], keep="first").reset_index(drop=True)
-
+        if "anchor_i" in merged.columns:
+            merged = merged.drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
+    
         return merged, ckpt
     
     # -----------------------------
@@ -1115,72 +1135,38 @@ def main():
             st.error("시작 날짜가 종료 날짜보다 이후입니다.")
             st.stop()
     
-        from datetime import time
         KST = timezone("Asia/Seoul")
-
-        now_kst = datetime.now(KST).replace(tzinfo=None)
-
-        # ✅ 보조지표 정상화를 위한 워밍업: 하루 전 09:00부터 로드
-        warmup_dt = datetime.combine(start_date - timedelta(days=1), time(9, 0, 0))
-
-        # ✅ 시작 시각: 전날 09:00 (워밍업 포함)
-        start_dt = warmup_dt
-
-        # ✅ 종료 시각:
-        if start_date == end_date:
-            # 단일 날짜 → 같은 날 23:59
-            end_dt = datetime.combine(end_date, time(23, 59, 59))
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        if end_date == datetime.now(KST).date():
+            end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
         else:
-            # 다중 날짜 → 익일 08:59:59
-            end_dt = datetime.combine(end_date + timedelta(days=1), time(8, 59, 59))
-
-        # ✅ 오늘 포함 시 현재 시각까지만 자름
-        if end_date == now_kst.date():
-            end_dt = min(now_kst, end_dt)
-
-        # ✅ tz 변환 제거: start_dt/end_dt는 나이브 KST로 일관 사용
-        # (사용자 원문 흐름 유지)
-
+            end_dt = datetime.combine(end_date, datetime.max.time())
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
-
-        # ✅ 워밍업 구간부터 불러오기
+    
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
         if df_raw is None or df_raw.empty:
             st.error("데이터가 없습니다.")
             st.stop()
-
-        # ✅ 지표 계산은 전체(warmup 포함) → 이후 최종 구간 슬라이스는 start_dt~end_dt
+    
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
         df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
-        # ✅ 캔들 시간 리샘플링/빈구간 보정 (명시적 주기 사용)
+        # ✅ 캔들 시간 리샘플링 (끊김 방지)
         if not df.empty:
-            df = df.sort_values("time").drop_duplicates(subset=["time"]).reset_index(drop=True)
-            freq = f"{int(minutes_per_bar)}T"
-            full_index = pd.date_range(
-                df["time"].iloc[0],
-                df["time"].iloc[-1],
-                freq=freq,
-                tz=None
-            )
-            df = df.set_index("time").reindex(full_index)
+            df = df.sort_values("time")
+            df = df.set_index("time")
+            # 봉 간격(분)을 자동 추정
+            try:
+                step_min = int(df.index.to_series().diff().median().total_seconds() / 60)
+            except Exception:
+                step_min = 5
+            df = df.resample(f"{step_min}T").ffill().reset_index()
 
-            # ✅ 거래량 NaN → 0 후 ffill (초반부 끊김 방지)
-            df["volume"] = df["volume"].fillna(0).ffill()
-
-            # ✅ OHLC 보정 (가격데이터 결측 최소화)
-            df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].ffill()
-
-            df = df.reset_index().rename(columns={"index": "time"})
-            df = df[df["time"] <= end_dt].reset_index(drop=True)
-
-        # ✅ 워밍업 구간 제거 (보조지표는 사용하되 표시범위는 당일만)
-        view_start = datetime.combine(start_date, time(9, 0, 0))
-        df = df[(df["time"] >= view_start) & (df["time"] <= end_dt)].reset_index(drop=True)
-
-        # ✅ anchor_i 존재하지 않을 경우 스킵 (IndexError 방지)
-        if "anchor_i" not in df.columns:
-            pass
+        # ✅ 캔들 불연속(빈 구간) 보정
+        df = df.sort_values("time")
+        df = df.drop_duplicates(subset=["time"])
+        df = df.set_index("time").asfreq(df["time"].diff().median())
+        df = df.interpolate(method="linear").reset_index()
 
         # ✅ Vol_Ratio 임계값은 '신호 계산'에만 사용 (차트 데이터 필터링 금지)
         #    차트용 df를 필터링하면 시간 축에서 캔들이 빠져 '끊겨 보이는' 현상이 발생합니다.
@@ -1279,7 +1265,7 @@ def main():
         if res is not None and not res.empty:
             plot_res = (
                 res.sort_values("신호시간")
-                   .drop_duplicates(subset=["신호시간"], keep="first")
+                   .drop_duplicates(subset=["anchor_i"], keep="first")
                    .reset_index(drop=True)
             )
         else:
@@ -1461,7 +1447,7 @@ def main():
             row=4, col=1
         )
         if "vol_mean" not in df.columns:
-            df["vol_mean"] = df["volume"].rolling(20, min_periods=1).mean()
+            df["vol_mean"] = df["volume"].rolling(20).mean()
         if "vol_threshold" not in df.columns:
             df["vol_threshold"] = df["vol_mean"] * 2.5
         fig.add_trace(
@@ -1839,31 +1825,6 @@ def main():
             yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
             uirevision=_uirev,
             hovermode="closest")
-
-        # ✅ X축 범위 보정: 표시구간은 당일 09:00(view_start) ~ 실제 마지막 캔들 시각
-        if not df_plot.empty:
-            _last_ts = pd.to_datetime(df_plot["time"].iloc[-1])
-        else:
-            _last_ts = end_dt
-
-        _range_start = view_start
-        _range_end   = min(_last_ts + timedelta(minutes=int(minutes_per_bar)), end_dt)
-
-        # ✅ 표시 범위 보정: 당일 09:00 (view_start) ~ 실제 마지막 캔들 시각
-        if not df.empty:
-            _last_ts = pd.to_datetime(df["time"].iloc[-1])
-        else:
-            _last_ts = end_dt
-
-        _range_start = datetime.combine(start_date, time(9, 0, 0))
-        _range_end = min(_last_ts + timedelta(minutes=int(minutes_per_bar)), end_dt)
-
-        for _row in (1, 2, 3, 4, 5):
-            fig.update_xaxes(range=[_range_start, _range_end], row=_row, col=1)
-
-        # ✅ 조건 필터 중복 제거 anchor_i → 신호시간
-        if "신호시간" in df.columns:
-            df = df.drop_duplicates(subset=["신호시간"], keep="first").reset_index(drop=True)
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
             top_l, top_r = st.columns([4, 1])
