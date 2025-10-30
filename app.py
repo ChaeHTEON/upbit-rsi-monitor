@@ -649,10 +649,10 @@ def main():
             .tz_localize("Asia/Seoul")
             .tz_localize(None)
         )
+        # ✅ end_kst: 하루 추가 제거 (이미 end_dt가 익일 08:59 기준)
         end_kst = (
             pd.Timestamp(end_dt)
             .replace(hour=8, minute=59, second=59)
-            + timedelta(days=1)
         ).tz_localize("Asia/Seoul").tz_localize(None)
 
         # ✅ 시간대 변환 후 정상 구간만 필터링
