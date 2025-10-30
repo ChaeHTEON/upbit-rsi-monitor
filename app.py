@@ -1454,7 +1454,7 @@ def main():
             row=4, col=1
         )
         if "vol_mean" not in df.columns:
-            df["vol_mean"] = df["volume"].rolling(20).mean()
+            df["vol_mean"] = df["volume"].rolling(20, min_periods=1).mean()
         if "vol_threshold" not in df.columns:
             df["vol_threshold"] = df["vol_mean"] * 2.5
         fig.add_trace(
@@ -1834,8 +1834,9 @@ def main():
             hovermode="closest")
 
         # ✅ X축을 KST 장 시간대(09:00 ~ 익일 08:59:59)로 고정
+        _range_end = end_dt + timedelta(minutes=int(minutes_per_bar))  # 레이블 표시 보정
         for _row in (1, 2, 3, 4, 5):
-            fig.update_xaxes(range=[start_dt, end_dt], row=_row, col=1)
+            fig.update_xaxes(range=[start_dt, _range_end], row=_row, col=1)
 
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
