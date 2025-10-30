@@ -20,7 +20,10 @@ def main():
     import pandas as pd
     import numpy as np
     import plotly.graph_objects as go
-    import streamlit.components.v1 as components  # ✅ Plotly HTML 렌더링용 모듈 추가
+    import streamlit.components.v1 as components
+    import requests
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry  # ✅ Retry 클래스 정의용 임포트 추가
     from plotly.subplots import make_subplots
     import ta
     from datetime import datetime, timedelta
