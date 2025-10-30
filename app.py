@@ -1102,9 +1102,9 @@ def main():
             return pd.DataFrame(), ckpt
     
         merged = pd.concat(dfs, ignore_index=True)
-        if "anchor_i" in merged.columns:
-            merged = merged.drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
-    
+        if "신호시간" in merged.columns:
+            merged = merged.drop_duplicates(subset=["신호시간"], keep="first").reset_index(drop=True)
+
         return merged, ckpt
     
     # -----------------------------
@@ -1279,7 +1279,7 @@ def main():
         if res is not None and not res.empty:
             plot_res = (
                 res.sort_values("신호시간")
-                   .drop_duplicates(subset=["anchor_i"], keep="first")
+                   .drop_duplicates(subset=["신호시간"], keep="first")
                    .reset_index(drop=True)
             )
         else:
@@ -1840,15 +1840,17 @@ def main():
             uirevision=_uirev,
             hovermode="closest")
 
-        # ✅ X축을 KST 장 시간대(09:00 ~ 익일 08:59:59)로 고정
-        # 단일일자 필터 시(예: 2025-10-30~2025-10-30) Plotly가 00:00 축 고정 → 9시간 확장
-        if start_date == end_date:
-            _range_end = end_dt + timedelta(hours=9)
+        # ✅ X축 범위 보정: 표시구간은 당일 09:00(view_start) ~ 실제 마지막 캔들 시각
+        if not df_plot.empty:
+            _last_ts = pd.to_datetime(df_plot["time"].iloc[-1])
         else:
-            _range_end = end_dt + timedelta(hours=3)
+            _last_ts = end_dt
+
+        _range_start = view_start
+        _range_end   = min(_last_ts + timedelta(minutes=int(minutes_per_bar)), end_dt)
 
         for _row in (1, 2, 3, 4, 5):
-            fig.update_xaxes(range=[start_dt, _range_end], row=_row, col=1)
+            fig.update_xaxes(range=[_range_start, _range_end], row=_row, col=1)
 
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
