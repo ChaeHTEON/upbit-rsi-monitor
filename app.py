@@ -2151,6 +2151,7 @@ def main():
                     }]
                 )
             )
+            height = getattr(fig.layout, "height", 800)  # ✅ height undefined 방지
             components.html(fig_html, height=height)
         except Exception as e:
             st.error(f"Plotly 차트 렌더링 중 오류: {e}")
