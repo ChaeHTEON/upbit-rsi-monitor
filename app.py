@@ -1773,6 +1773,47 @@ def main():
             hovertext=candle_hovertext,
             hoverinfo="text"
         ), row=1, col=1)
+
+        # ☠️☠️☠️ 데드크로스(3단계) 해골 표시 추가
+        try:
+            if "EMA100" in df_plot.columns and "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
+                # 1단계(노랑): MACD 데드크로스
+                macd_ = df_plot["MACD"]; macds_ = df_plot["MACD_signal"]
+                cross_down_macd = (macd_.shift(1) >= macds_.shift(1)) & (macd_ < macds_)
+                xs_macd = df_plot.loc[cross_down_macd, "time"]
+                ys_macd = df_plot.loc[cross_down_macd, "close"]
+                if len(xs_macd) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=xs_macd, y=ys_macd, mode="markers",
+                        name="☠️ MACD 데드",
+                        marker=dict(size=10, color="yellow", symbol="x-thin", line=dict(width=1, color="black"))
+                    ), row=1, col=1)
+
+                # 2단계(빨강): RSI(9)<RSI(13) 하향 교차
+                if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
+                    r9 = df_plot["RSI9"]; r13 = df_plot["RSI13"]
+                    cross_down_rsi = (r9.shift(1) >= r13.shift(1)) & (r9 < r13)
+                    xs_rsi = df_plot.loc[cross_down_rsi, "time"]
+                    ys_rsi = df_plot.loc[cross_down_rsi, "close"]
+                    if len(xs_rsi) > 0:
+                        fig.add_trace(go.Scatter(
+                            x=xs_rsi, y=ys_rsi, mode="markers",
+                            name="☠️ RSI 데드",
+                            marker=dict(size=10, color="red", symbol="x-thin", line=dict(width=1, color="black"))
+                        ), row=1, col=1)
+
+                # 3단계(파랑): 종가 < EMA100
+                below_ema = df_plot["close"] < df_plot["EMA100"]
+                xs_ema = df_plot.loc[below_ema, "time"]
+                ys_ema = df_plot.loc[below_ema, "close"]
+                if len(xs_ema) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=xs_ema, y=ys_ema, mode="markers",
+                        name="☠️ EMA100 하회",
+                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black"))
+                    ), row=1, col=1)
+        except Exception:
+            pass
     
         # ===== BB 라인 (row1) =====
         def _pnl_arr2(y_series):
