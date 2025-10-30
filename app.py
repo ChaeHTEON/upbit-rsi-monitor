@@ -641,9 +641,16 @@ def main():
 
         # ✅ 필터 기준을 완전 동일한 KST naive 로 변환
         KST = timezone("Asia/Seoul")
-        start_kst = pd.Timestamp(start_cutoff).tz_localize(KST).tz_localize(None)
-        # 종료시각은 당일 23:59:59 로 보정
-        end_kst = pd.Timestamp(end_dt).tz_localize(KST).tz_localize(None) + timedelta(seconds=59)
+
+        # ✅ 장 시작·종료 시각 보정 (한국 주식시장/업비트 09:00~익일 08:59)
+        start_kst = (
+            pd.Timestamp(start_cutoff).tz_localize(KST).tz_localize(None)
+            .replace(hour=9, minute=0, second=0)
+        )
+        end_kst = (
+            pd.Timestamp(end_dt).tz_localize(KST).tz_localize(None)
+            + timedelta(days=1)
+        ).replace(hour=8, minute=59, second=59)
 
         # ✅ 시간대 변환 후 정상 구간만 필터링
         mask = (df_all["time"] >= start_kst) & (df_all["time"] <= end_kst)
