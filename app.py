@@ -1849,9 +1849,21 @@ def main():
         _range_start = view_start
         _range_end   = min(_last_ts + timedelta(minutes=int(minutes_per_bar)), end_dt)
 
+        # ✅ 표시 범위 보정: 당일 09:00 (view_start) ~ 실제 마지막 캔들 시각
+        if not df.empty:
+            _last_ts = pd.to_datetime(df["time"].iloc[-1])
+        else:
+            _last_ts = end_dt
+
+        _range_start = datetime.combine(start_date, time(9, 0, 0))
+        _range_end = min(_last_ts + timedelta(minutes=int(minutes_per_bar)), end_dt)
+
         for _row in (1, 2, 3, 4, 5):
             fig.update_xaxes(range=[_range_start, _range_end], row=_row, col=1)
 
+        # ✅ 조건 필터 중복 제거 anchor_i → 신호시간
+        if "신호시간" in df.columns:
+            df = df.drop_duplicates(subset=["신호시간"], keep="first").reset_index(drop=True)
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
             top_l, top_r = st.columns([4, 1])
