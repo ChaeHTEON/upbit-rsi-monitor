@@ -1121,42 +1121,48 @@ def main():
 
         now_kst = datetime.now(KST).replace(tzinfo=None)
 
-        # ✅ 보조지표용 워밍업: 하루 전(09:00)부터 로드
+        # ✅ 보조지표 정상화를 위한 워밍업: 하루 전 09:00부터 로드
         warmup_dt = datetime.combine(start_date - timedelta(days=1), time(9, 0, 0))
 
-        # ✅ 시작 시각: 전날 09:00으로 보정 (보조지표 정상화)
+        # ✅ 시작 시각: 전날 09:00 (워밍업 포함)
         start_dt = warmup_dt
 
         # ✅ 종료 시각:
-        # - 단일 날짜 선택 시 → 같은 날 23:59까지만
-        # - 다중 날짜 선택 시 → 익일 08:59:59
         if start_date == end_date:
+            # 단일 날짜 → 같은 날 23:59
             end_dt = datetime.combine(end_date, time(23, 59, 59))
         else:
+            # 다중 날짜 → 익일 08:59:59
             end_dt = datetime.combine(end_date + timedelta(days=1), time(8, 59, 59))
 
-        # ✅ 오늘 포함 시 현재시각까지만 자름
+        # ✅ 오늘 포함 시 현재 시각까지만 자름
         if end_date == now_kst.date():
             end_dt = min(now_kst, end_dt)
+
+        # ✅ tz_localize 순서 수정 (UTC → KST 보정)
+        start_dt = pd.Timestamp(start_dt, tz="Asia/Seoul").tz_localize(None)
+        end_dt = pd.Timestamp(end_dt, tz="Asia/Seoul").tz_localize(None)
+
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
-    
+
+        # ✅ 워밍업 구간부터 불러오기
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
         if df_raw is None or df_raw.empty:
             st.error("데이터가 없습니다.")
             st.stop()
-    
+
+        # ✅ 지표 계산은 전체(warmup 포함) 후 필터링 시 end_dt만 적용 (시작은 유지)
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
-        df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
+        df = df_ind[df_ind["time"] <= end_dt].reset_index(drop=True)
 
         # ✅ 캔들 시간 리샘플링/빈구간 보정 (명시적 주기 사용)
         if not df.empty:
             df = df.sort_values("time").drop_duplicates(subset=["time"]).reset_index(drop=True)
             freq = f"{int(minutes_per_bar)}T"
-            full_index = pd.date_range(df["time"].iloc[0], df["time"].iloc[-1], freq=freq)
+            full_index = pd.date_range(df["time"].iloc[0], df["time"].iloc[-1], freq=freq, tz=None)
             df = df.set_index("time").reindex(full_index)
-            # OHLC는 직전값 유지, 볼륨은 결측은 0 또는 직전값(여기서는 ffill) → 후속 지표 계산 안정화
             df[["open","high","low","close","volume"]] = df[["open","high","low","close","volume"]].ffill()
-            df = df.reset_index().rename(columns={"index":"time"})
+            df = df.reset_index().rename(columns={"index": "time"})
 
         # ✅ Vol_Ratio 임계값은 '신호 계산'에만 사용 (차트 데이터 필터링 금지)
         #    차트용 df를 필터링하면 시간 축에서 캔들이 빠져 '끊겨 보이는' 현상이 발생합니다.
