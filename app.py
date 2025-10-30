@@ -1836,6 +1836,11 @@ def main():
             yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True,  fixedrange=False),
             uirevision=_uirev,
             hovermode="closest")
+
+        # ✅ X축을 KST 장 시간대(09:00 ~ 익일 08:59:59)로 고정
+        for _row in (1, 2, 3, 4, 5):
+            fig.update_xaxes(range=[start_dt, end_dt], row=_row, col=1)
+
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
             top_l, top_r = st.columns([4, 1])
