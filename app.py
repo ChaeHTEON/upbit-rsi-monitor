@@ -1834,8 +1834,12 @@ def main():
             hovermode="closest")
 
         # ✅ X축을 KST 장 시간대(09:00 ~ 익일 08:59:59)로 고정
-        # 종료시간 00:00 표시 문제 보정 → 실제 데이터는 end_dt까지만, 표시만 약간 확장
-        _range_end = end_dt + timedelta(hours=3)
+        # 단일일자 필터 시(예: 2025-10-30~2025-10-30) Plotly가 00:00 축 고정 → 9시간 확장
+        if start_date == end_date:
+            _range_end = end_dt + timedelta(hours=9)
+        else:
+            _range_end = end_dt + timedelta(hours=3)
+
         for _row in (1, 2, 3, 4, 5):
             fig.update_xaxes(range=[start_dt, _range_end], row=_row, col=1)
 
