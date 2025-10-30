@@ -908,6 +908,7 @@ def main():
             max_px = entry_price
             min_px = entry_price
             reached_bars = None
+            stop_bars = None  # ✅ 추가: 손절 도달 첫 캔들까지 걸린 bars
 
             for j in range(i + 1, min(i + 1 + int(lookahead), n)):
                 px = float(df["close"].iloc[j])
@@ -918,13 +919,23 @@ def main():
                     min_ret = ret; min_px = px
                 if reached_bars is None and ret >= float(threshold_pct):
                     reached_bars = j - i
+                if stop_bars is None and ret <= -float(stoploss_pct):
+                    stop_bars = j - i
 
+            # ✅ 종료시점/최종수익률 계산
             if reached_bars is not None:
                 result = "성공"
-            elif min_ret <= -float(stoploss_pct):
+                exit_idx = i + int(reached_bars)
+            elif stop_bars is not None:
                 result = "실패"
+                exit_idx = i + int(stop_bars)
             else:
                 result = "중립"
+                exit_idx = min(i + int(lookahead), n - 1)
+
+            exit_time = df["time"].iloc[exit_idx]
+            exit_price = float(df["close"].iloc[exit_idx])
+            final_ret = (exit_price / entry_price - 1.0) * 100.0
 
             res.append({
                 "신호시간": entry_time,
@@ -934,7 +945,11 @@ def main():
                 "최고가": max_px,
                 "최저가": min_px,
                 "도달캔들(bars)": reached_bars if reached_bars is not None else "",
-                "결과": result
+                "결과": result,
+                # ✅ 추가 필드 (하위 코드 호환)
+                "종료시간": exit_time,
+                "최종수익률(%)": round(final_ret, 3),
+                "수익률(%)": round(final_ret, 3)
             })
 
         out = pd.DataFrame(res)
