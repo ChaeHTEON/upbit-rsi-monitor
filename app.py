@@ -1157,10 +1157,23 @@ def main():
         if not df.empty:
             df = df.sort_values("time").drop_duplicates(subset=["time"]).reset_index(drop=True)
             freq = f"{int(minutes_per_bar)}T"
-            full_index = pd.date_range(df["time"].iloc[0], df["time"].iloc[-1], freq=freq, tz=None)
+            full_index = pd.date_range(
+                df["time"].iloc[0],
+                df["time"].iloc[-1],
+                freq=freq,
+                tz=None
+            )
             df = df.set_index("time").reindex(full_index)
-            df[["open","high","low","close","volume"]] = df[["open","high","low","close","volume"]].ffill()
+
+            # ✅ 거래량 NaN → 0 후 ffill (초반부 끊김 방지)
+            df["volume"] = df["volume"].fillna(0).ffill()
+
+            # ✅ OHLC 보정 (가격데이터 결측 최소화)
+            df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].ffill()
+
+            # ✅ 종료시각을 정확히 end_dt(08:59:59)로 보정
             df = df.reset_index().rename(columns={"index": "time"})
+            df = df[df["time"] <= end_dt].reset_index(drop=True)
 
         # ✅ Vol_Ratio 임계값은 '신호 계산'에만 사용 (차트 데이터 필터링 금지)
         #    차트용 df를 필터링하면 시간 축에서 캔들이 빠져 '끊겨 보이는' 현상이 발생합니다.
