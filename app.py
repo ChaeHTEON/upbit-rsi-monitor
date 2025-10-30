@@ -1118,20 +1118,26 @@ def main():
     
         from datetime import time
         KST = timezone("Asia/Seoul")
-        
+
         now_kst = datetime.now(KST).replace(tzinfo=None)
-        
-        # 시작: 선택일 09:00 (KST, naive)
-        start_dt = datetime.combine(start_date, time(9, 0, 0))
-        
-        # 종료: 기본은 end_date+1 08:59:59
-        _provisional_end = datetime.combine(end_date + timedelta(days=1), time(8, 59, 59))
-        
-        # 오늘을 포함한 조회는 '현재시각'까지만 자름
-        if end_date == now_kst.date():
-            end_dt = min(now_kst, _provisional_end)
+
+        # ✅ 보조지표용 워밍업: 하루 전(09:00)부터 로드
+        warmup_dt = datetime.combine(start_date - timedelta(days=1), time(9, 0, 0))
+
+        # ✅ 시작 시각: 전날 09:00으로 보정 (보조지표 정상화)
+        start_dt = warmup_dt
+
+        # ✅ 종료 시각:
+        # - 단일 날짜 선택 시 → 같은 날 23:59까지만
+        # - 다중 날짜 선택 시 → 익일 08:59:59
+        if start_date == end_date:
+            end_dt = datetime.combine(end_date, time(23, 59, 59))
         else:
-            end_dt = _provisional_end
+            end_dt = datetime.combine(end_date + timedelta(days=1), time(8, 59, 59))
+
+        # ✅ 오늘 포함 시 현재시각까지만 자름
+        if end_date == now_kst.date():
+            end_dt = min(now_kst, end_dt)
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
