@@ -1137,8 +1137,21 @@ def main():
     
         from datetime import time
         KST = timezone("Asia/Seoul")
-        start_dt = datetime.combine(start_date, time(9, 0, 0))
-        end_dt = datetime.combine(end_date, time(8, 59, 59)) + timedelta(days=1)
+
+        # ✅ 장 시작: 선택일 09:00 (KST)
+        start_dt = (
+            datetime.combine(start_date, time(9, 0, 0))
+            .astimezone(KST)
+            .replace(tzinfo=None)
+        )
+
+        # ✅ 장 종료: 다음날 08:59:59 (KST)
+        end_dt = (
+            datetime.combine(end_date + timedelta(days=1), time(8, 59, 59))
+            .astimezone(KST)
+            .replace(tzinfo=None)
+        )
+
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
