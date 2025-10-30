@@ -1625,32 +1625,51 @@ def main():
         # (4) 거래량 + 평균선 + 2.5배 기준선
         fig.add_trace(
             go.Bar(
-                x=df["time"], y=df["volume"],
+                x=df_plot["time"], y=df_plot["volume"],
                 name="거래량", marker_color=colors
             ),
             row=4, col=1
         )
-        if "vol_mean" not in df.columns:
-            df["vol_mean"] = df["volume"].rolling(20).mean()
-        if "vol_threshold" not in df.columns:
-            df["vol_threshold"] = df["vol_mean"] * 2.5
+
+        # ✅ 거래량 기준선 NaN 방지 + 초기구간 표시 강화
+        df_plot["vol_mean"] = (
+            df_plot["volume"]
+            .rolling(20, min_periods=1)
+            .mean()
+            .fillna(method="bfill")
+            .fillna(method="ffill")
+        )
+        df_plot["vol_threshold"] = (
+            df_plot["vol_mean"]
+            .fillna(df_plot["volume"])
+            .fillna(method="bfill")
+            .fillna(method="ffill")
+            * 2.5
+        )
+
+        # ✅ 점선은 항상 표시되도록 (NaN 완전 제거)
         fig.add_trace(
             go.Scatter(
-                x=df["time"], y=df["vol_threshold"],
-                name="TGV 기준(2.5배)", mode="lines",
+                x=df_plot["time"],
+                y=df_plot["vol_threshold"].fillna(0),
+                name="TGV 기준(2.5배)",
+                mode="lines",
                 line=dict(color="red", width=1.3, dash="dot")
             ),
             row=4, col=1
         )
 
-        # ✅ 추가: 2.5배선 돌파 + 음봉일 때, 거래량 막대 위(보조지표 패널)에 별표 표시
+        # ✅ 별표 표시: 초반부도 포함 (rolling NaN 무시)
         try:
-            cond_vol_spike = (df["volume"] >= df["vol_threshold"]) & (df["close"] < df["open"])
+            cond_vol_spike = (
+                (df_plot["volume"].fillna(0) >= df_plot["vol_threshold"].fillna(0))
+                & (df_plot["close"] < df_plot["open"])
+            )
             if cond_vol_spike.any():
                 fig.add_trace(
                     go.Scatter(
-                        x=df.loc[cond_vol_spike, "time"],
-                        y=df.loc[cond_vol_spike, "volume"] * 1.05,  # 막대 꼭대기 약간 위
+                        x=df_plot.loc[cond_vol_spike, "time"],
+                        y=df_plot.loc[cond_vol_spike, "volume"].fillna(0) * 1.05,
                         mode="markers",
                         name="거래량★(2.5배·음봉)",
                         marker=dict(
