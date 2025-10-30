@@ -17,9 +17,10 @@ def main():
     os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
     
     import streamlit as st
-    import requests
-    from requests.adapters import HTTPAdapter, Retry
-    import plotly.graph_objs as go
+    import pandas as pd
+    import numpy as np
+    import plotly.graph_objects as go
+    import streamlit.components.v1 as components  # ✅ Plotly HTML 렌더링용 모듈 추가
     from plotly.subplots import make_subplots
     import ta
     from datetime import datetime, timedelta
