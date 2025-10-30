@@ -1253,11 +1253,15 @@ def main():
         st.session_state["volume_cond"] = volume_cond
 
         if res is not None and not res.empty:
-            plot_res = (
-                res.sort_values("신호시간")
-                   .drop_duplicates(subset=["anchor_i"], keep="first")
-                   .reset_index(drop=True)
-            )
+            # ✅ anchor_i 컬럼 존재 여부 확인 후 안전 처리
+            if "anchor_i" in res.columns:
+                plot_res = (
+                    res.sort_values("신호시간")
+                       .drop_duplicates(subset=["anchor_i"], keep="first")
+                       .reset_index(drop=True)
+                )
+            else:
+                plot_res = res.sort_values("신호시간").reset_index(drop=True)
         else:
             plot_res = pd.DataFrame()
 
@@ -1436,10 +1440,11 @@ def main():
             ),
             row=4, col=1
         )
+        # ✅ 거래량 기준선 NaN 방지 + 초기구간 표시 개선
         if "vol_mean" not in df.columns:
-            df["vol_mean"] = df["volume"].rolling(20).mean()
+            df["vol_mean"] = df["volume"].rolling(20, min_periods=1).mean()
         if "vol_threshold" not in df.columns:
-            df["vol_threshold"] = df["vol_mean"] * 2.5
+            df["vol_threshold"] = df["vol_mean"].fillna(method="bfill").fillna(method="ffill") * 2.5
         fig.add_trace(
             go.Scatter(
                 x=df["time"], y=df["vol_threshold"],
