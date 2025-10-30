@@ -642,7 +642,7 @@ def main():
         # ✅ 필터 기준을 완전 동일한 KST naive 로 변환
         KST = timezone("Asia/Seoul")
 
-        # ✅ 장 시작·종료 시각 보정 (한국 주식시장/업비트 09:00~익일 08:59)
+        # ✅ 장 시작·종료 시각 보정 (09:00 ~ 익일 08:59)
         start_kst = (
             pd.Timestamp(start_cutoff).tz_localize(KST).tz_localize(None)
             .replace(hour=9, minute=0, second=0)
