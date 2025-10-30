@@ -635,9 +635,8 @@ def main():
         df_all["time"] = pd.to_datetime(df_all["time"]).dt.tz_localize(None)
         df_all = df_all.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
 
-        # ⛔ 불필요한 09:00/08:59 재보정과 재-로컬라이즈 제거
-        #    → 외부에서 계산된 start_dt/end_dt 구간을 그대로 신뢰
-        mask = (df_all["time"] >= start_dt) & (df_all["time"] <= end_dt)
+        # ✅ 워밍업 구간(start_cutoff)부터 end_dt까지 보존 → 이후 메인에서 최종 슬라이스
+        mask = (df_all["time"] >= start_cutoff) & (df_all["time"] <= end_dt)
         df_all = df_all.loc[mask].reset_index(drop=True)
         return df_all
 
@@ -1139,9 +1138,8 @@ def main():
         if end_date == now_kst.date():
             end_dt = min(now_kst, end_dt)
 
-        # ✅ tz_localize 순서 수정 (UTC → KST 보정)
-        start_dt = pd.Timestamp(start_dt, tz="Asia/Seoul").tz_localize(None)
-        end_dt = pd.Timestamp(end_dt, tz="Asia/Seoul").tz_localize(None)
+        # ✅ tz 변환 제거: start_dt/end_dt는 나이브 KST로 일관 사용
+        # (사용자 원문 흐름 유지)
 
         warmup_bars = max(13, bb_window, int(cci_window)) * 5
 
@@ -1151,9 +1149,9 @@ def main():
             st.error("데이터가 없습니다.")
             st.stop()
 
-        # ✅ 지표 계산은 전체(warmup 포함) 후 필터링 시 end_dt만 적용 (시작은 유지)
+        # ✅ 지표 계산은 전체(warmup 포함) → 이후 최종 구간 슬라이스는 start_dt~end_dt
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
-        df = df_ind[df_ind["time"] <= end_dt].reset_index(drop=True)
+        df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
 
         # ✅ 캔들 시간 리샘플링/빈구간 보정 (명시적 주기 사용)
         if not df.empty:
