@@ -815,6 +815,11 @@ def main():
                 df = df.loc[base_sig_idx].copy()
                 df = df.reset_index(drop=True)
 
+                # ✅ 추가: 필터링 후 인덱스 재정렬 (KeyError 방지)
+                base_sig_idx = list(range(len(df)))
+                # ✅ 추가: n 재계산 (후속 루프의 상한 일치)
+                n = len(df)
+
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
                 base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
