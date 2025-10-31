@@ -1053,8 +1053,11 @@ def main():
             # ✅ bars_after 기본값 사전 정의 (예외 방지)
             bars_after = 0
 
+            # ✅ 안전 초기화: end_time, end_close, bars_after 기본값 선언
+            end_time, end_close, bars_after = None, None, 0
+
             if hit_idx is not None:
-                # 성공 또는 실패 시 bars_after가 반드시 계산됨
+                # 이미 성공/실패 조건에서 end_time이 설정된 경우 유지
                 pass
             else:
                 bars_after = lookahead
@@ -1068,7 +1071,15 @@ def main():
                 result = "실패" if final_ret <= 0 else "중립"
                 lock_end = end_idx
 
-            # ✅ 항상 유효한 bars_after 값이 존재하도록 보정
+            # ✅ end_time이 여전히 None이면, 마지막 유효 데이터 시점으로 보정
+            if end_time is None:
+                end_time = df["time"].iloc[-1]
+                end_close = float(df["close"].iloc[-1])
+                final_ret = (end_close / base_price - 1) * 100
+                result = "중립"
+                lock_end = len(df) - 1
+                bars_after = 0
+
             reach_min = bars_after * minutes_per_bar
 
             bb_value = None
