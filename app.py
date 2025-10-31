@@ -1774,49 +1774,6 @@ def main():
             hoverinfo="text"
         ), row=1, col=1)
 
-        # ☠️ 데드크로스 해골 표시 (3단계 중 2단계 적용)
-        try:
-            if "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
-                # 1단계: MACD 데드크로스 → 노란 해골
-                macd = df_plot["MACD"]
-                macds = df_plot["MACD_signal"]
-                cond_dead1 = (macd.shift(1) >= macds.shift(1)) & (macd < macds)
-                if cond_dead1.any():
-                    fig.add_trace(go.Scatter(
-                        x=df_plot.loc[cond_dead1, "time"],
-                        y=df_plot.loc[cond_dead1, "close"] * 1.01,
-                        mode="markers",
-                        name="☠️ MACD 데드크로스",
-                        marker=dict(
-                            size=11,
-                            color="rgba(255,204,0,1)",
-                            symbol="skull",
-                            line=dict(width=1.2, color="black")
-                        ),
-                        hovertemplate="MACD 데드크로스 ☠️<br>시간=%{x|%Y-%m-%d %H:%M}<extra></extra>"
-                    ), row=1, col=1)
-
-            if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
-                # 2단계: RSI9 < RSI13 하향 교차 → 빨간 해골
-                r9, r13 = df_plot["RSI9"], df_plot["RSI13"]
-                cond_dead2 = (r9.shift(1) >= r13.shift(1)) & (r9 < r13)
-                if cond_dead2.any():
-                    fig.add_trace(go.Scatter(
-                        x=df_plot.loc[cond_dead2, "time"],
-                        y=df_plot.loc[cond_dead2, "close"] * 1.01,
-                        mode="markers",
-                        name="☠️ RSI 데드크로스",
-                        marker=dict(
-                            size=11,
-                            color="rgba(255,0,0,1)",
-                            symbol="skull",
-                            line=dict(width=1.2, color="black")
-                        ),
-                        hovertemplate="RSI 데드크로스 ☠️<br>시간=%{x|%Y-%m-%d %H:%M}<extra></extra>"
-                    ), row=1, col=1)
-        except Exception as e:
-            print("⚠️ 해골 표시 오류:", e)
-
         # ☠️☠️☠️ 데드크로스(3단계) 해골 표시 추가
         try:
             if "EMA100" in df_plot.columns and "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
@@ -2134,15 +2091,11 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
-            config_refresh = {
-                "displaylogo": False,
-                "modeBarButtonsToAdd": [{
-                    "name": "데이터 새로고침",
-                    "icon": "🔄",
-                    "click": "window.location.reload();"
-                }]
-            }
-            st.plotly_chart(fig, use_container_width=True, config=config_refresh)
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "autosize", "responsive": True},
+            )
     
         # -----------------------------
         # ③ 요약 & 차트
