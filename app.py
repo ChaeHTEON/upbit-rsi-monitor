@@ -1021,40 +1021,33 @@ def main():
             # --- 성과 측정 ---
             eval_start = anchor_idx + 1
             end_idx = anchor_idx + lookahead
-            if end_idx >= n:
+            # ✅ 경계 보강: 시작/끝이 유효 범위를 벗어나면 스킵
+            if (eval_start >= n) or (end_idx <= anchor_idx):
                 return None, None
+            if end_idx >= n:
+                # 끝 인덱스는 존재 범위로 절삭
+                end_idx = n - 1
 
+            # ✅ 슬라이스는 포지션 기준(안전)
             win_slice = df.iloc[eval_start:end_idx + 1]
             min_ret = (win_slice["low"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
             max_ret = (win_slice["high"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
             target = base_price * (1.0 + thr / 100.0)
             stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
+
             hit_idx = None
-            for j in range(anchor_idx + 1, end_idx + 1):
-                c_ = float(df["close"].iloc[j])
-                h_ = float(df["high"].iloc[j])
-                l_ = float(df["low"].iloc[j])
+            # ✅ 루프 상한 clamp + 라벨/포지션 혼용 안전화
+            for j in range(anchor_idx + 1, min(end_idx, n - 1) + 1):
+                jj = j if j in df.index else df.index[j]  # 라벨 보정
+                c_ = float(df.at[jj, "close"])
+                h_ = float(df.at[jj, "high"])
+                l_ = float(df.at[jj, "low"])
+                if h_ >= target:
+                    hit_idx = j
+                    break
                 if l_ <= stop_price:
                     hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df["time"].iloc[hit_idx]
-                    end_close = stop_price
-                    final_ret = (end_close / base_price - 1) * 100
-                    result = "실패"
-                    lock_end = hit_idx
-                    break
-                price_for_hit = h_
-                if price_for_hit >= target:
-                    hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df["time"].iloc[hit_idx]
-                    end_close = target
-                    final_ret = thr
-                    result = "성공"
-                    lock_end = hit_idx
                     break
 
             if hit_idx is not None:
