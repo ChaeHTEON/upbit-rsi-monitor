@@ -898,7 +898,9 @@ def main():
             - 조건3: start_i+1 ~ j-1 구간 모든 종가 < ref → '첫 진입' 보장
             """
             for j in range(start_i + 1, n):
-                o, l, c = float(df.at[j, "open"]), float(df.at[j, "low"]), float(df.at[j, "close"])
+                # ✅ 인덱스가 DatetimeIndex일 수 있으므로 정수 포지션 → 라벨 변환
+                jj = j if j in df.index else df.index[j]
+                o, l, c = float(df.at[jj, "open"]), float(df.at[jj, "low"]), float(df.at[jj, "close"])
                 if not (c > o):
                     continue
     
