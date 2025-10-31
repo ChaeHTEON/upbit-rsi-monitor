@@ -811,11 +811,8 @@ def main():
                 cond_sell = df["Vol_Ratio"] < _vr_sell
                 base_sig_idx = df.index[cond_buy | cond_sell].tolist()
 
-                # ✅ 실제 신호결과용 DataFrame에도 적용 (+ 인덱스 리셋)
-                df = df.loc[base_sig_idx].copy().reset_index(drop=True)
-
-                # ✅ 이후 로직이 위치기반 정수 인덱스를 사용하므로 기준 인덱스 재설정
-                base_sig_idx = list(range(len(df)))
+                # ✅ 실제 신호결과용 DataFrame에도 적용
+                df = df.loc[base_sig_idx].copy()
 
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
@@ -901,13 +898,10 @@ def main():
             - 조건3: start_i+1 ~ j-1 구간 모든 종가 < ref → '첫 진입' 보장
             """
             for j in range(start_i + 1, n):
-                # ✅ 전 구간 위치 기반 인덱싱으로 통일 (KeyError 방지)
-                o = float(df["open"].iloc[j])
-                l = float(df["low"].iloc[j])
-                c = float(df["close"].iloc[j])
+                o, l, c = float(df.at[j, "open"]), float(df.at[j, "low"]), float(df.at[j, "close"])
                 if not (c > o):
                     continue
-
+    
                 # 참조선
                 if bb_cond == "하한선":
                     ref_series = df["BB_low"]
@@ -915,24 +909,25 @@ def main():
                     ref_series = df["BB_mid"]
                 else:
                     ref_series = df["BB_up"]
-
-                rv = float(ref_series.iloc[j])
-                if pd.isna(rv):
+    
+                ref = ref_series.iloc[j]
+                if pd.isna(ref):
                     continue
-
+                rv = float(ref)
+    
                 # 조건2: '아래 → 진입'
                 entered_from_below = (o < rv) or (l <= rv)
                 closes_above       = (c >= rv)
                 if not (entered_from_below and closes_above):
                     continue
-
-                # 조건3: 첫 진입 여부 확인 (위치 기반 슬라이싱)
+    
+                # 조건3: 첫 진입 여부 확인
                 if j - (start_i + 1) > 0:
-                    prev_close = df["close"].iloc[start_i + 1:j]
-                    prev_ref   = ref_series.iloc[start_i + 1:j]
+                    prev_close = df.loc[start_i + 1:j - 1, "close"]
+                    prev_ref   = ref_series.loc[start_i + 1:j - 1]
                     if not (prev_close < prev_ref).all():
                         continue
-
+    
                 return j, c
             return None, None
     
@@ -942,27 +937,27 @@ def main():
             anchor_idx = i0
             if anchor_idx >= n:
                 return None, None
-            signal_time = df["time"].iloc[anchor_idx]
-            base_price = float(df["close"].iloc[anchor_idx])
-
+            signal_time = df.at[anchor_idx, "time"]
+            base_price = float(df.at[anchor_idx, "close"])
+    
             if sec_cond == "양봉 2개 연속 상승":
                 if i0 + 2 >= n:
                     return None, None
-                c1, o1 = float(df["close"].iloc[i0 + 1]), float(df["open"].iloc[i0 + 1])
-                c2, o2 = float(df["close"].iloc[i0 + 2]), float(df["open"].iloc[i0 + 2])
+                c1, o1 = float(df.at[i0 + 1, "close"]), float(df.at[i0 + 1, "open"])
+                c2, o2 = float(df.at[i0 + 2, "close"]), float(df.at[i0 + 2, "open"])
                 if not ((c1 > o1) and (c2 > o2) and (c2 > c1)):
                     return None, None
                 anchor_idx = i0 + 3
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df["time"].iloc[anchor_idx]
-                base_price  = float(df["close"].iloc[anchor_idx])
-
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
+    
             elif sec_cond == "양봉 2개 (범위 내)":
                 found, T_idx = 0, None
                 scan_end = min(i0 + lookahead, n - 1)
                 for j in range(i0 + 1, scan_end + 1):
-                    c, o = float(df["close"].iloc[j]), float(df["open"].iloc[j])
+                    c, o = float(df.at[j, "close"]), float(df.at[j, "open"])
                     if c > o:
                         found += 1
                         if found == 2:
@@ -973,9 +968,10 @@ def main():
                 anchor_idx = T_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df["time"].iloc[anchor_idx]
-                base_price = float(df["close"].iloc[anchor_idx])
-
+                signal_time = df.at[anchor_idx, "time"]
+                # ✅ 기준시가를 '신호 발생 캔들의 종가'로 변경 (다음 캔들부터 매수 반영)
+                base_price = float(df.at[anchor_idx, "close"])
+    
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
                 if bb_cond == "없음":
                     return None, None
@@ -985,17 +981,17 @@ def main():
                 anchor_idx = B1_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df["time"].iloc[anchor_idx]
-                base_price  = float(df["close"].iloc[anchor_idx])
-
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
+    
             elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
                 rebound_idx = None
                 scan_end = min(i0 + lookahead, n - 1)
                 for j in range(i0 + 1, scan_end + 1):
                     if manual_supply_levels:
                         touched = False
-                        low_j   = float(df["low"].iloc[j])
-                        close_j = float(df["close"].iloc[j])
+                        low_j   = float(df.at[j, "low"])
+                        close_j = float(df.at[j, "close"])
                         for L in manual_supply_levels:
                             if low_j <= float(L):
                                 touched = True
@@ -1015,41 +1011,87 @@ def main():
                 anchor_idx = rebound_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df["time"].iloc[anchor_idx]
-                base_price  = float(df["close"].iloc[anchor_idx])
-
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
+    
+            # === 신규 매물대 자동 조건 ===
+            elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
+                anchor_idx = None
+                scan_end = min(i0 + lookahead, n - 1)
+                for j in range(i0 + 2, scan_end + 1):
+                    prev_high = float(df.at[j - 1, "high"])
+                    prev_open = float(df.at[j - 1, "open"])
+                    prev_close = float(df.at[j - 1, "close"])
+                    prev_bb_low = float(df.at[j - 1, "BB_low"])
+    
+                    # 매물대 기준 정의
+                    if prev_close >= prev_open:  # 양봉
+                        maemul = max(prev_high, prev_close)
+                    else:  # 음봉
+                        maemul = max(prev_high, prev_open)
+    
+                    cur_low = float(df.at[j, "low"])
+                    cur_high = float(df.at[j, "high"])
+                    cur_close = float(df.at[j, "close"])
+                    cur_open = float(df.at[j, "open"])
+                    cur_bb_low = float(df.at[j, "BB_low"])
+    
+                    # 조건: 매물대 하향 → 상향 + 양봉 + BB하단 위
+                    below = cur_low <= maemul * 0.999
+                    above = cur_close >= maemul
+                    is_bull = cur_close > cur_open
+                    bb_above = maemul >= cur_bb_low
+    
+                    if below and above and is_bull and bb_above:
+                        anchor_idx = j
+                        break
+    
+                if anchor_idx is None or anchor_idx >= n:
+                    return None, None
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
+    
             # --- 성과 측정 ---
             eval_start = anchor_idx + 1
             end_idx = anchor_idx + lookahead
-            # ✅ 경계 보강: 시작/끝이 유효 범위를 벗어나면 스킵
-            if (eval_start >= n) or (end_idx <= anchor_idx):
-                return None, None
             if end_idx >= n:
-                # 끝 인덱스는 존재 범위로 절삭
-                end_idx = n - 1
-
-            # ✅ 슬라이스는 포지션 기준(안전)
+                return None, None
+    
             win_slice = df.iloc[eval_start:end_idx + 1]
             min_ret = (win_slice["low"].min() / base_price - 1) * 100 if not win_slice.empty else 0.0
             max_ret = (win_slice["high"].max() / base_price - 1) * 100 if not win_slice.empty else 0.0
 
             target = base_price * (1.0 + thr / 100.0)
             stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
-
             hit_idx = None
-            # ✅ 루프 상한 clamp + 라벨/포지션 혼용 안전화
-            for j in range(anchor_idx + 1, min(end_idx, n - 1) + 1):
-                jj = j if j in df.index else df.index[j]  # 라벨 보정
-                c_ = float(df.at[jj, "close"])
-                h_ = float(df.at[jj, "high"])
-                l_ = float(df.at[jj, "low"])
-                if h_ >= target:
-                    hit_idx = j
-                    break
+            for j in range(anchor_idx + 1, end_idx + 1):
+                c_ = float(df.at[j, "close"])
+                h_ = float(df.at[j, "high"])
+                l_ = float(df.at[j, "low"])
+                # ✅ 손절가 먼저 도달 시 즉시 실패 처리
                 if l_ <= stop_price:
                     hit_idx = j
+                    bars_after = hit_idx - anchor_idx
+                    reach_min = bars_after * minutes_per_bar
+                    end_time = df.at[hit_idx, "time"]
+                    end_close = stop_price
+                    final_ret = (end_close / base_price - 1) * 100
+                    result = "실패"
+                    lock_end = hit_idx
                     break
-
+                # ✅ 익절가 도달 시 성공 처리 (고가 기준)
+                price_for_hit = h_
+                if price_for_hit >= target:
+                    hit_idx = j
+                    bars_after = hit_idx - anchor_idx
+                    reach_min = bars_after * minutes_per_bar
+                    end_time = df.at[hit_idx, "time"]
+                    end_close = target
+                    final_ret = thr
+                    result = "성공"
+                    lock_end = hit_idx
+                    break
+    
             if hit_idx is not None:
                 pass
             else:
@@ -1058,30 +1100,30 @@ def main():
                 if end_idx >= n:
                     end_idx = n - 1
                     bars_after = end_idx - anchor_idx
-                end_time = df["time"].iloc[end_idx]
-                end_close = float(df["close"].iloc[end_idx])
+                end_time = df.at[end_idx, "time"]
+                end_close = float(df.at[end_idx, "close"])
                 final_ret = (end_close / base_price - 1) * 100
                 result = "실패" if final_ret <= 0 else "중립"
                 lock_end = end_idx
-
+    
             reach_min = bars_after * minutes_per_bar
-
+    
             bb_value = None
             if bb_cond == "상한선":
-                bb_value = df["BB_up"].iloc[anchor_idx]
+                bb_value = df.at[anchor_idx, "BB_up"]
             elif bb_cond == "중앙선":
-                bb_value = df["BB_mid"].iloc[anchor_idx]
+                bb_value = df.at[anchor_idx, "BB_mid"]
             elif bb_cond == "하한선":
-                bb_value = df["BB_low"].iloc[anchor_idx]
-
+                bb_value = df.at[anchor_idx, "BB_low"]
+    
             end_idx_final = hit_idx if (locals().get("hit_idx") is not None) else end_idx
-
+    
             row = {
-                "신호시간": end_time if sec_cond in ("양봉 2개 연속 상승", "양봉 2개 (범위 내)", "BB 기반 첫 양봉 50% 진입", "매물대 터치 후 반등(위→아래→반등)") else signal_time,
+                "신호시간": signal_time,
                 "종료시간": end_time,
                 "기준시가": int(round(base_price)),
                 "종료가": end_close,
-                "RSI(13)": round(float(df["RSI13"].iloc[anchor_idx]), 2) if pd.notna(df["RSI13"].iloc[anchor_idx]) else None,
+                "RSI(13)": round(float(df.at[anchor_idx, "RSI13"]), 2) if pd.notna(df.at[anchor_idx, "RSI13"]) else None,
                 "BB값": round(float(bb_value), 1) if (bb_value is not None and pd.notna(bb_value)) else None,
                 "성공기준(%)": round(thr, 1),
                 "결과": result,
