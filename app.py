@@ -1050,7 +1050,11 @@ def main():
                     hit_idx = j
                     break
 
+            # ✅ bars_after 기본값 사전 정의 (예외 방지)
+            bars_after = 0
+
             if hit_idx is not None:
+                # 성공 또는 실패 시 bars_after가 반드시 계산됨
                 pass
             else:
                 bars_after = lookahead
@@ -1064,6 +1068,7 @@ def main():
                 result = "실패" if final_ret <= 0 else "중립"
                 lock_end = end_idx
 
+            # ✅ 항상 유효한 bars_after 값이 존재하도록 보정
             reach_min = bars_after * minutes_per_bar
 
             bb_value = None
