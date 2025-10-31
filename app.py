@@ -2794,7 +2794,10 @@ def main():
             else:
                 st.info("⏸ 감시 중지 상태입니다.")
     except Exception as e:
-        st.error(f"오류 발생: {e}")
+        import sys, traceback
+        etype, evalue, tb = sys.exc_info()
+        st.error(f"오류 발생: {etype.__name__}: {e}")
+        st.code("".join(traceback.format_tb(tb)))
 
 if __name__ == "__main__":
     main()
