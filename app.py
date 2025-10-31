@@ -1710,7 +1710,24 @@ def main():
             # 골든크로스 ★ (보조패널)
             macd_  = df["MACD"]; macds_ = df["MACD_signal"]
             cross_ = (macd_.shift(1) <= macds_.shift(1)) & (macd_ > macds_)
-            xs_ = df.loc[cross_, "time"]; ys_ = df.loc[cross_, "MACD"]
+            # ✅ 결과표와 동일한 기준으로 별표 표시 (dup 모드 반영)
+            #    - primary_strategy가 MACD_GoldenCross이고 res가 존재하면 res["anchor_i"] 사용
+            #    - 그 외에는 기존 cross_ 기준 유지
+            try:
+                if (
+                    st.session_state.get("primary_strategy", "없음") == "MACD_GoldenCross"
+                    and "res" in locals()
+                    and isinstance(res, pd.DataFrame)
+                    and (not res.empty)
+                    and ("anchor_i" in res.columns)
+                ):
+                    _idx_list = res["anchor_i"].dropna().astype(int).tolist()
+                    xs_ = df.loc[_idx_list, "time"]; ys_ = df.loc[_idx_list, "MACD"]
+                else:
+                    xs_ = df.loc[cross_, "time"]; ys_ = df.loc[cross_, "MACD"]
+            except Exception:
+                xs_ = df.loc[cross_, "time"]; ys_ = df.loc[cross_, "MACD"]
+
             if len(xs_) > 0:
                 fig.add_trace(
                     go.Scatter(x=xs_, y=ys_, mode="markers", name="MACD 골든★(보조)",
