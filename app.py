@@ -709,7 +709,7 @@ def main():
         thr = float(threshold_pct)
     
         # --- 1) 1차 조건 인덱스 (RSI/BB/CCI/바닥탐지) ---
-        if bottom_mode:
+        if (isinstance(bottom_mode, str) and bottom_mode != "없음") or (isinstance(bottom_mode, bool) and bottom_mode):
             base_sig_idx = df.index[
                 (df["RSI13"] <= float(rsi_low)) &
                 (df["close"] <= df["BB_low"]) &
