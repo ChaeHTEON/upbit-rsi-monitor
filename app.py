@@ -1352,8 +1352,13 @@ def main():
         # ✅ 캔들 불연속(빈 구간) 보정
         df = df.sort_values("time")
         df = df.drop_duplicates(subset=["time"])
-        df = df.set_index("time").asfreq(df["time"].diff().median())
-        df = df.interpolate(method="linear").reset_index()
+        df = df.set_index("time")
+        try:
+            _step = df.index.to_series().diff().median()
+            _freq = f"{int(_step.total_seconds() // 60)}T" if pd.notna(_step) else f"{step_min}T"
+        except Exception:
+            _freq = f"{step_min}T"
+        df = df.asfreq(_freq).interpolate(method="linear").reset_index()
 
         # ✅ Vol_Ratio 임계값은 '신호 계산'에만 사용 (차트 데이터 필터링 금지)
         #    차트용 df를 필터링하면 시간 축에서 캔들이 빠져 '끊겨 보이는' 현상이 발생합니다.
@@ -2290,7 +2295,7 @@ def main():
                             for bb_c in bb_list:
                                 for sec_c in sec_list:
                                     res_s = simulate(
-                                        df_s, rsi_m, rsi_low, rsi_high, lookahead_s, threshold_pct,
+                                        df_s, rsi_m, rsi_low, rsi_high, lookahead_s, threshold_pct, stoploss_pct,
                                         bb_c, dedup_label,
                                         mpb_s, sweep_market, bb_window, bb_dev,
                                         sec_cond=sec_c, hit_basis="종가 기준",
