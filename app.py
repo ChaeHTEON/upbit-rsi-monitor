@@ -688,7 +688,8 @@ def main():
                          hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
                          supply_levels: Optional[Set[float]] = None,
                          manual_supply_levels: Optional[list] = None,
-                         cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9):
+                         cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9,
+                         primary_strategy: Optional[str] = None):
                 """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 + CCI 1차 조건."""
                 res = []
                 _vol_cond = st.session_state.get("volume_cond", "없음")
