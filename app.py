@@ -811,8 +811,11 @@ def main():
                 cond_sell = df["Vol_Ratio"] < _vr_sell
                 base_sig_idx = df.index[cond_buy | cond_sell].tolist()
 
-                # ✅ 실제 신호결과용 DataFrame에도 적용
-                df = df.loc[base_sig_idx].copy()
+                # ✅ 실제 신호결과용 DataFrame에도 적용 (+ 인덱스 리셋)
+                df = df.loc[base_sig_idx].copy().reset_index(drop=True)
+
+                # ✅ 이후 로직이 위치기반 정수 인덱스를 사용하므로 기준 인덱스 재설정
+                base_sig_idx = list(range(len(df)))
 
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
@@ -898,12 +901,13 @@ def main():
             - 조건3: start_i+1 ~ j-1 구간 모든 종가 < ref → '첫 진입' 보장
             """
             for j in range(start_i + 1, n):
-                # ✅ 인덱스가 DatetimeIndex일 수 있으므로 정수 포지션 → 라벨 변환
-                jj = j if j in df.index else df.index[j]
-                o, l, c = float(df.at[jj, "open"]), float(df.at[jj, "low"]), float(df.at[jj, "close"])
+                # ✅ 전 구간 위치 기반 인덱싱으로 통일 (KeyError 방지)
+                o = float(df["open"].iloc[j])
+                l = float(df["low"].iloc[j])
+                c = float(df["close"].iloc[j])
                 if not (c > o):
                     continue
-    
+
                 # 참조선
                 if bb_cond == "하한선":
                     ref_series = df["BB_low"]
@@ -911,25 +915,24 @@ def main():
                     ref_series = df["BB_mid"]
                 else:
                     ref_series = df["BB_up"]
-    
-                ref = ref_series.iloc[j]
-                if pd.isna(ref):
+
+                rv = float(ref_series.iloc[j])
+                if pd.isna(rv):
                     continue
-                rv = float(ref)
-    
+
                 # 조건2: '아래 → 진입'
                 entered_from_below = (o < rv) or (l <= rv)
                 closes_above       = (c >= rv)
                 if not (entered_from_below and closes_above):
                     continue
-    
-                # 조건3: 첫 진입 여부 확인
+
+                # 조건3: 첫 진입 여부 확인 (위치 기반 슬라이싱)
                 if j - (start_i + 1) > 0:
-                    prev_close = df.loc[start_i + 1:j - 1, "close"]
-                    prev_ref   = ref_series.loc[start_i + 1:j - 1]
+                    prev_close = df["close"].iloc[start_i + 1:j]
+                    prev_ref   = ref_series.iloc[start_i + 1:j]
                     if not (prev_close < prev_ref).all():
                         continue
-    
+
                 return j, c
             return None, None
     
