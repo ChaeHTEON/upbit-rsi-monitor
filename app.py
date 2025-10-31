@@ -1348,7 +1348,7 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
-        else:
+        try:
             res_all = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
                 bb_cond, "중복 포함 (연속 신호 모두)",
@@ -1357,14 +1357,17 @@ def main():
                 bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
             )
-        res_dedup = simulate(
-            df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-            bb_cond, "중복 제거 (연속 동일 결과 1개)",
-            minutes_per_bar, market_code, bb_window, bb_dev,
-            sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-            bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-            cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-        )
+
+            res_dedup = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
+        except Exception as e:
+            st.error(f"오류 발생: {e}")
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
         # -----------------------------
