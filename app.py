@@ -1367,8 +1367,8 @@ def main():
                     cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
                 )
 
-        except Exception as e:
-            st.error(f"오류 발생: {e}")
+            except Exception as e:
+                st.error(f"오류 발생: {e}")
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
         # -----------------------------
