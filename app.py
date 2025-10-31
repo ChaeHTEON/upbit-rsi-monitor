@@ -1039,10 +1039,27 @@ def main():
             hit_idx = None
             # ✅ 루프 상한 clamp + 라벨/포지션 혼용 안전화
             for j in range(anchor_idx + 1, min(end_idx, n - 1) + 1):
-                jj = j if j in df.index else df.index[j]  # 라벨 보정
+                # ✅ 안전 조건: df 비었거나 j가 범위를 벗어나면 루프 종료
+                if df is None or len(df) == 0 or j >= len(df):
+                    break
+
+                # ✅ 라벨 보정 (index 존재 확인 후 접근)
+                if j in df.index:
+                    jj = j
+                else:
+                    if j < len(df.index):
+                        jj = df.index[j]
+                    else:
+                        break  # ✅ out-of-bounds 방지
+
+                # ✅ 유효 데이터 검증
+                if "close" not in df.columns or "high" not in df.columns or "low" not in df.columns:
+                    break
+
                 c_ = float(df.at[jj, "close"])
                 h_ = float(df.at[jj, "high"])
                 l_ = float(df.at[jj, "low"])
+
                 if h_ >= target:
                     hit_idx = j
                     break
