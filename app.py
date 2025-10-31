@@ -813,12 +813,8 @@ def main():
 
                 # ✅ 실제 신호결과용 DataFrame에도 적용
                 df = df.loc[base_sig_idx].copy()
+                df = df.reset_index(drop=True)
 
-# --- 추가: EMA100 기준 위/아래 ---
-            elif strategy == "EMA100_Above":
-                base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
-            elif strategy == "EMA100_Below":
-                base_sig_idx = df.index[(df["close"] < df["EMA100"])].tolist()
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
                 base_sig_idx = df.index[(df["close"] > df["EMA100"])].tolist()
