@@ -825,7 +825,8 @@ def main():
             elif strategy == "EMA100_Below":
                 base_sig_idx = df.index[(df["close"] < df["EMA100"])].tolist()
 
-            else:
+            # ✅ 수정: 전략이 "없음"일 때만 RSI/BB/CCI 조합을 적용하도록 들여쓰기 수정
+            if strategy == "없음":
                 # (전략 없음) — 기존 RSI/BB/CCI 조합 그대로 사용
                 if rsi_mode == "없음":
                     rsi_idx = []
