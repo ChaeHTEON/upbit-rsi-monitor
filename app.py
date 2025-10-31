@@ -799,6 +799,8 @@ def main():
                 macds = df["MACD_signal"]
                 cross = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
                 base_sig_idx = df.index[cross].tolist()
+                # ✅ MACD 골든크로스 전략은 거래량 조건(vol_ok) 제외
+                # 기존 거래량 필터 적용 안 함 (신호 감도 확보)
 
             elif strategy == "Vol_Ratio_Imbalance":
                 _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
