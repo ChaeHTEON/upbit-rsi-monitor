@@ -17,13 +17,9 @@ def main():
     os.environ["WATCHDOG_DISABLE_FILE_SYSTEM_EVENTS"] = "true"
     
     import streamlit as st
-    import pandas as pd
-    import numpy as np
-    import plotly.graph_objects as go
-    import streamlit.components.v1 as components
     import requests
-    from requests.adapters import HTTPAdapter
-    from urllib3.util.retry import Retry  # ✅ Retry 클래스 정의용 임포트 추가
+    from requests.adapters import HTTPAdapter, Retry
+    import plotly.graph_objs as go
     from plotly.subplots import make_subplots
     import ta
     from datetime import datetime, timedelta
@@ -2138,23 +2134,15 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
-        # 🔄 Plotly 메인 차트 — 데이터 새로고침 아이콘 추가
-        try:
-            fig_html = fig.to_html(
-                include_plotlyjs="cdn",
-                config=dict(
-                    displaylogo=False,
-                    modeBarButtonsToAdd=[{
-                        "name": "데이터 새로고침",
-                        "icon": "🔄",
-                        "click": "window.location.reload();"
-                    }]
-                )
-            )
-            height = getattr(fig.layout, "height", 800)  # ✅ height undefined 방지
-            components.html(fig_html, height=height)
-        except Exception as e:
-            st.error(f"Plotly 차트 렌더링 중 오류: {e}")
+            config_refresh = {
+                "displaylogo": False,
+                "modeBarButtonsToAdd": [{
+                    "name": "데이터 새로고침",
+                    "icon": "🔄",
+                    "click": "window.location.reload();"
+                }]
+            }
+            st.plotly_chart(fig, use_container_width=True, config=config_refresh)
     
         # -----------------------------
         # ③ 요약 & 차트
