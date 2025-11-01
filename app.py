@@ -1524,22 +1524,6 @@ def main():
         # CCI 중간선 (0선 강조)
         fig.add_hline(y=0, line=dict(color="rgba(80,80,80,0.8)", width=1.5, dash="dot"), row=2, col=1)
 
-        # ✅ 텍스트 범례 추가 (CCI, RSI 표시)
-        fig.add_annotation(
-            text="CCI(14)",
-            xref="paper", yref="paper",
-            x=0.01, y=0.78,
-            font=dict(size=13, color="teal"),
-            showarrow=False
-        )
-        fig.add_annotation(
-            text="RSI(14)",
-            xref="paper", yref="paper",
-            x=0.01, y=0.61,
-            font=dict(size=13, color="orange"),
-            showarrow=False
-        )
-
         # (3) RSI(13) — 신호선 추가 (RSI(9)) + 기준선 강조
         fig.add_trace(
             go.Scatter(
