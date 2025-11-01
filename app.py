@@ -1543,19 +1543,19 @@ def main():
         # CCI 중간선 (0선 강조)
         fig.add_hline(y=0, line=dict(color="rgba(80,80,80,0.8)", width=1.5, dash="dot"), row=2, col=1)
 
-        # ✅ 텍스트 범례 추가 (CCI, RSI 표시)
+        # ✅ 텍스트 범례 추가 (CCI, RSI 표시 - 정렬 보정)
         fig.add_annotation(
             text="CCI(14)",
             xref="paper", yref="paper",
-            x=0.01, y=0.78,
-            font=dict(size=13, color="teal"),
+            x=0.015, y=0.79,
+            font=dict(size=13, color="teal", family="Arial"),
             showarrow=False
         )
         fig.add_annotation(
-            text="RSI(14)",
+            text="RSI(13)",
             xref="paper", yref="paper",
-            x=0.01, y=0.61,
-            font=dict(size=13, color="orange"),
+            x=0.015, y=0.63,
+            font=dict(size=13, color="orange", family="Arial"),
             showarrow=False
         )
 
