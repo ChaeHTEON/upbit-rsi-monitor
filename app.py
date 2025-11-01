@@ -1500,12 +1500,31 @@ def main():
                 [{"secondary_y": False}],  # 거래량
                 [{"secondary_y": False}]   # MACD
             ],
-            # 보조지표 비율 조정 (MACD 추가)
-            row_heights=[0.60, 0.18, 0.18, 0.12, 0.12],
+            # ✅ 메인차트(가격) 비중 상향 — 범례와 겹침 방지
+            row_heights=[0.70, 0.16, 0.14, 0.10, 0.10],
             vertical_spacing=0.03
         )
 
-        fig.update_layout(height=2000)
+        # ✅ 전체 높이 고정 (시각적 밸런스)
+        fig.update_layout(height=2200)
+
+        # ✅ RSI(14) 텍스트를 CCI 바로 아래에 추가
+        fig.add_annotation(
+            text="RSI(14)",
+            xref="paper", yref="paper",
+            x=0.01, y=0.61,
+            font=dict(size=13, color="orange"),
+            showarrow=False
+        )
+
+        # ✅ 기존 CCI(14) 텍스트도 함께 유지
+        fig.add_annotation(
+            text="CCI(14)",
+            xref="paper", yref="paper",
+            x=0.01, y=0.78,
+            font=dict(size=13, color="teal"),
+            showarrow=False
+        )
 
         # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
         fig.add_trace(
