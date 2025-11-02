@@ -1463,9 +1463,36 @@ def main():
             import pandas as pd  # safety
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
-        res = None
+        if some_condition:  # ✅ 실제 원문 조건 유지
+            try:
+                ...
+            except Exception as e:
+                st.error(f"오류 발생: {e}")
         else:
+        else:
+            res = None
             _bm_flag = (False if (isinstance(bottom_mode, str) and bottom_mode == "없음") else bool(bottom_mode))
+    
+            res_all = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, ("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis="종가 기준",
+                miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=_bm_flag, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
+
+            res_dedup = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis="종가 기준",
+                miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=_bm_flag, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
+            res = res_all if dup_mode.startswith("중복 포함") else res_dedup
     
             res_all = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
