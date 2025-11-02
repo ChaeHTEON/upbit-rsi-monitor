@@ -836,38 +836,41 @@ def main():
                 base_sig_idx = df.index[cross_30 & gcross & near_cond].tolist()
 
             elif strategy == "CCI_GoldenCross_NearMinus100":
-                # ✅ 개선된 CCI 조건 (-100 기준, 확장판)
-                # 1) CCI 평균선이 -100 이하에서 상향 돌파
-                # 2) 또는 -100 이하 구간에서 골든크로스가 발생해도 신호 인정
-                # 3) 분봉 단위에 따라 골든크로스 CCI 범위 조건 다르게 적용
-                #    - 1~5분봉: CCI ≤ 50
-                #    - 10분 이상: CCI ≤ 40
+                # ✅ 개선된 CCI 조건 (-100 기준, 신호 감도 확장)
+                # 1) CCI가 -100 이하에서 상향 전환되거나 해당 구간 체류 중
+                # 2) 이후 10봉 이내에 CCI > CCI_sig 골든크로스 발생 시 신호로 인정
+                # 3) 분봉 단위에 따라 CCI 상단 조건 완화 (5분: ≤80, 10분 이상: ≤60)
 
                 c = df["CCI"]
+                # 보조선 완화: rolling(20)으로 민감도 낮춤
+                if "CCI_sig" not in df.columns:
+                    df["CCI_sig"] = df["CCI"].rolling(20, min_periods=1).mean()
                 s = df["CCI_sig"]
 
-                # CCI가 -100 이하 → -100 상향 돌파
                 cross_100 = (c.shift(1) <= -100) & (c > -100)
-                # -100 이하에 머무르는 경우도 포함
                 below_100 = (c <= -100)
 
-                # CCI 골든크로스
-                gcross = (c.shift(1) <= s.shift(1)) & (c > s)
+                # 골든크로스 발생 index
+                gcross_idx = df.index[(c.shift(1) <= s.shift(1)) & (c > s)].tolist()
 
-                # 분봉별 범위 조건
+                # 분봉별 CCI 허용 범위 완화
                 try:
                     tf_mins = int(minutes_per_bar)
                 except Exception:
                     tf_mins = 5
-
                 if tf_mins <= 5:
-                    near_cond = (c <= 50)
+                    near_cond = (c <= 80)
                 else:
-                    near_cond = (c <= 40)
+                    near_cond = (c <= 60)
 
-                # ✅ CCI 보조선 누락 시 안전 보정
-                if "CCI_sig" not in df.columns:
-                    df["CCI_sig"] = df["CCI"].rolling(9, min_periods=1).mean()
+                # 상향돌파 또는 -100 이하 체류 → 10봉 이내 골든 발생 시 신호 인정
+                sig_idx = []
+                for i in df.index[(cross_100 | below_100) & near_cond]:
+                    nxt = list(range(i, min(i + 10, len(df))))
+                    if any(j in gcross_idx for j in nxt):
+                        sig_idx.append(i)
+
+                base_sig_idx = sig_idx
 
                 # ✅ 개선 포인트: -100 이하 상태에서도 골든크로스 인정
                 base_sig_idx = df.index[(cross_100 | below_100) & gcross & near_cond].tolist()
