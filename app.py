@@ -1463,6 +1463,7 @@ def main():
             import pandas as pd  # safety
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
+        res = None
         else:
             _bm_flag = (False if (isinstance(bottom_mode, str) and bottom_mode == "없음") else bool(bottom_mode))
     
