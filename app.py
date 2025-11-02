@@ -252,6 +252,8 @@ def main():
                     "EMA100_Above",
                     "EMA100_Below",
                     "Vol_Ratio_Imbalance"
+                    "RSI_GoldenCross_30",
+                    "CCI_GoldenCross_-200",
                 ],
                 index=0
             )
