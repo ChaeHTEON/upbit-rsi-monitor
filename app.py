@@ -2551,8 +2551,23 @@ def main():
                 if "성공률(%)" not in df_all.columns and "승률(%)" in df_all.columns:
                     df_all["성공률(%)"] = df_all["승률(%)"]
 
-                # ✅ 표시 완화: 성공·중립 외에도 실패까지 모두 표시(우선 전수 표시로 원인 파악)
-                df_keep = df_all.copy()
+                # ✅ 검색 조건 필터 복원: 승률/합계수익률 임계값 반영 + 기본(성공/중립)만 표시
+                wr_thr = float(sweep_winrate_thr)
+                thr_thr = float(sweep_threshold_pct)
+
+                # 기본: 성공/중립만 노출 (사용자 토글로 실패 포함 가능)
+                include_fail = st.checkbox("실패 포함해서 보기", value=False, key="sweep_include_fail", on_change=_keep_sweep_open)
+
+                _base_mask = (
+                    pd.to_numeric(df_all["승률(%)"], errors="coerce") >= wr_thr
+                ) & (
+                    pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= thr_thr
+                )
+
+                if include_fail:
+                    df_keep = df_all[_base_mask].copy()
+                else:
+                    df_keep = df_all[_base_mask & df_all["결과"].isin(["성공", "중립"])].copy()
 
                 if df_keep.empty:
                     st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
@@ -2560,11 +2575,11 @@ def main():
                     # ✅ KeyError 방지: '신호수' 누락 시 0으로 채움
                     if "신호수" not in df_keep.columns:
                         df_keep["신호수"] = 0
-                    
+
                     # ✅ '타임프레임' 누락 방지: 존재하지 않으면 기본값 채움
                     if "타임프레임" not in df_keep.columns:
                         df_keep["타임프레임"] = interval_key if "interval_key" in locals() else "기본"
-                    
+
                     df_show = df_keep.sort_values(
                         ["결과","승률(%)","신호수","합계수익률(%)"],
                         ascending=[True,False,False,False]
@@ -2841,7 +2856,8 @@ def main():
                             fail = len(res_p[res_p["결과"] == "실패"])
                             neu  = len(res_p[res_p["결과"] == "중립"])
                             win  = round(100 * succ / total, 1) if total else 0
-                            avg  = round(res_p["수익률(%)"].mean(), 2)
+                            avg_col = "최종수익률(%)" if "최종수익률(%)" in res_p.columns else ("수익률(%)" if "수익률(%)" in res_p.columns else None)
+                            avg  = round(res_p[avg_col].mean(), 2) if avg_col else 0.0
                             summary_rows.append({
                                 "코인": sym,
                                 "신호수": total,
