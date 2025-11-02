@@ -1469,7 +1469,6 @@ def main():
             except Exception as e:
                 st.error(f"오류 발생: {e}")
         else:
-        else:
             res = None
             _bm_flag = (False if (isinstance(bottom_mode, str) and bottom_mode == "없음") else bool(bottom_mode))
     
