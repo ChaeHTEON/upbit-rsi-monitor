@@ -1463,10 +1463,11 @@ def main():
             import pandas as pd  # safety
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
+        res = None
         try:
             res = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                bb_cond, dedup_mode, minutes_per_bar, market_code,
+                bb_cond, dup_mode, minutes_per_bar, market_code,   # ✅ dedup_mode → dup_mode
                 bb_window, bb_dev,
                 sec_cond=sec_cond, hit_basis="종가 기준",
                 miss_policy="(고정) 성공·실패·중립",
