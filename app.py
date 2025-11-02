@@ -2207,6 +2207,62 @@ def main():
     
         st.markdown("---")
         # 📒 공유 메모 바로 위에서는 ④ 신호 결과 블록 제거
+
+        # =============================
+        # 🧪 디버그: 신호 파이프라인 점검 (UI 고정 구역 바깥, 가시성 off)
+        # =============================
+        with st.expander("🧪 디버그: 신호 파이프라인 점검", expanded=False):
+            def _n(df_):
+                try:
+                    return (0 if df_ is None else (0 if getattr(df_, "empty", False) else len(df_)))
+                except Exception:
+                    return 0
+
+            dbg = {}
+            # 메인 시뮬 결과(요약에서 쓰던 두 객체 가정: res_dedup, res_all / 이름 유지)
+            dbg["res_dedup_n"] = _n(res_dedup) if "res_dedup" in locals() or "res_dedup" in globals() else -1
+            dbg["res_all_n"]   = _n(res_all)   if "res_all"   in locals() or "res_all"   in globals() else -1
+
+            # 최근 3개 샘플(있을 때만)
+            try:
+                if dbg["res_dedup_n"] > 0:
+                    st.write("res_dedup.head(3)", res_dedup.head(3))
+            except Exception:
+                pass
+            try:
+                if dbg["res_all_n"] > 0:
+                    st.write("res_all.head(3)", res_all.head(3))
+            except Exception:
+                pass
+
+            # 조합 스캔 상태 보관본
+            try:
+                _rows = st.session_state.get("sweep_state", {}).get("rows", [])
+                st.write("sweep_state rows:", len(_rows))
+                if _rows:
+                    st.write("sweep_state sample:", _rows[:2])
+            except Exception:
+                pass
+
+            # 핵심 파라미터(필터 과도 여부 확인)
+            try:
+                st.write({
+                    "interval_key": interval_key if "interval_key" in locals() else None,
+                    "minutes_per_bar": minutes_per_bar if "minutes_per_bar" in locals() else None,
+                    "lookahead": lookahead if "lookahead" in locals() else None,
+                    "threshold_pct": float(threshold_pct) if "threshold_pct" in locals() else None,
+                    "stoploss_pct": float(stoploss_pct) if "stoploss_pct" in locals() else None,
+                    "rsi_mode": rsi_mode if "rsi_mode" in locals() else None,
+                    "bb_cond": bb_cond if "bb_cond" in locals() else None,
+                    "sec_cond": sec_cond if "sec_cond" in locals() else None,
+                    "dup_mode": dup_mode if "dup_mode" in locals() else None,
+                    "cci_mode": cci_mode if "cci_mode" in locals() else None,
+                    "cci_over": cci_over if "cci_over" in locals() else None,
+                    "cci_under": cci_under if "cci_under" in locals() else None,
+                    "cci_signal": cci_signal if "cci_signal" in locals() else None,
+                })
+            except Exception:
+                pass
     
         # -----------------------------
         # 🔎 통계/조합 탐색 (사용자 지정) — ④ 신호 결과 (최신 순) 아래로 이동
@@ -2253,10 +2309,10 @@ def main():
                 edt = datetime.combine(sweep_end, datetime.max.time())
     
                 try:
-                    simulate_kwargs = dict(
+                        simulate_kwargs = dict(
                         rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
                         lookahead=lookahead, threshold_pct=threshold_pct, stoploss_pct=stoploss_pct,
-                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일...과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
                         sec_cond=sec_cond, bottom_mode=bottom_mode,
                         manual_supply_levels=manual_supply_levels,
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
