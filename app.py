@@ -835,14 +835,39 @@ def main():
                 # 최종 신호 조합
                 base_sig_idx = df.index[cross_30 & gcross & near_cond].tolist()
 
-            elif strategy == "CCI_GoldenCross_NearMinus200":
-                # CCI -200 하향 돌파 후 상승 전환 + CCI>CCI_sig 골든크로스 + CCI 값이 -220~-180 구간
+            elif strategy == "CCI_GoldenCross_NearMinus100":
+                # ✅ 개선된 CCI 조건 (-100 기준)
+                # 1) CCI 평균선이 -100 이하에서 상향 돌파
+                # 2) 이후 상승 구간에서 CCI > CCI_sig 골든크로스 발생
+                # 3) 분봉 단위에 따라 골든크로스 CCI 범위 조건 다르게 적용
+                #    - 1~5분봉: CCI ≤ 50
+                #    - 10분 이상: CCI ≤ 40
+
                 c = df["CCI"]
                 s = df["CCI_sig"]
-                cross = (c.shift(1) <= s.shift(1)) & (c > s)
-                near200 = (c >= -220) & (c <= -180)
-                rebound = (c.shift(1) <= -200) & (c > c.shift(1))
-                base_sig_idx = df.index[cross & near200 & rebound].tolist()
+
+                # CCI가 -100 이하 → -100 상향 돌파
+                cross_100 = (c.shift(1) <= -100) & (c > -100)
+
+                # CCI 골든크로스
+                gcross = (c.shift(1) <= s.shift(1)) & (c > s)
+
+                # 분봉별 범위 조건
+                try:
+                    tf_mins = int(minutes_per_bar)
+                except Exception:
+                    tf_mins = 5
+
+                if tf_mins <= 5:
+                    near_cond = (c <= 50)
+                else:
+                    near_cond = (c <= 40)
+
+                # ✅ CCI 보조선 누락 시 안전 보정
+                if "CCI_sig" not in df.columns:
+                    df["CCI_sig"] = df["CCI"].rolling(9, min_periods=1).mean()
+
+                base_sig_idx = df.index[cross_100 & gcross & near_cond].tolist()
 
             elif strategy == "Vol_Ratio_Imbalance":
                 _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
