@@ -2188,7 +2188,22 @@ def main():
             win  = succ / total * 100 if total else 0.0
             total_final = df_in["최종수익률(%)"].sum()
             return total, succ, fail, neu, win, total_final
-    
+
+        # ✅ 방어 로직: 상위 단계에서 res_dedup/res_all이 비었거나 미정의일 때 안전 대체
+        try:
+            _has_res_dedup = ('res_dedup' in locals()) or ('res_dedup' in globals())
+        except Exception:
+            _has_res_dedup = False
+        try:
+            _has_res_all = ('res_all' in locals()) or ('res_all' in globals())
+        except Exception:
+            _has_res_all = False
+        base_df = (res if ('res' in locals() or 'res' in globals()) else pd.DataFrame())
+        if not _has_res_dedup or (res_dedup is None) or getattr(res_dedup, "empty", True):
+            res_dedup = base_df
+        if not _has_res_all or (res_all is None) or getattr(res_all, "empty", True):
+            res_all = base_df
+
         for label, data in [("중복 제거 (연속 동일 결과 1개)", res_dedup), ("중복 포함 (연속 신호 모두)", res_all)]:
             total, succ, fail, neu, win, total_final = _summarize(data)
             st.markdown(f"**{label}**")
