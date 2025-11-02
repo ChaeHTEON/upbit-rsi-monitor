@@ -2309,7 +2309,7 @@ def main():
                 edt = datetime.combine(sweep_end, datetime.max.time())
     
                 try:
-                        simulate_kwargs = dict(
+                    simulate_kwargs = dict(
                         rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
                         lookahead=lookahead, threshold_pct=threshold_pct, stoploss_pct=stoploss_pct,
                         bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
@@ -2317,7 +2317,7 @@ def main():
                         manual_supply_levels=manual_supply_levels,
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
                     )
-    
+
                     merged_df, ckpt = run_combination_scan_chunked(
                         symbol=sweep_market,
                         interval_key=interval_key,
