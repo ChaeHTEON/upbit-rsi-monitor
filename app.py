@@ -1464,6 +1464,11 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
             _bm_flag = (False if (isinstance(bottom_mode, str) and bottom_mode == "없음") else bool(bottom_mode))
+                # ✅ 안전 보강: fig 객체가 None일 경우 초기화
+        if "fig" not in locals() or fig is None:
+            from plotly.subplots import make_subplots
+            import plotly.graph_objects as go
+            fig = make_subplots(rows=5, cols=1, shared_xaxes=True)
             try:
                 # ✅ 두 모드 모두 계산한 뒤 화면 표시 모드(dup_mode)에 따라 선택
                 res_all = simulate(
