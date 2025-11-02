@@ -805,13 +805,35 @@ def main():
                 # 기존 거래량 필터 적용 안 함 (신호 감도 확보)
 
             elif strategy == "RSI_GoldenCross_Near30":
-                # RSI 30 하향 돌파 후 상승 전환 + RSI9>RSI13 골든크로스 + RSI(13) 값이 25~35 구간
+                # ✅ 개선된 RSI 조건
+                # 1) RSI 평균선이 30 이하에서 상향 돌파
+                # 2) 이후 상승 구간에서 RSI9 > RSI13 골든크로스 발생
+                # 3) 분봉 단위에 따라 골든크로스 RSI 범위 조건 다르게 적용
+                #    - 1~5분봉: RSI 50 이하
+                #    - 10분 이상: RSI 40 이하
+
                 rsi_fast = df["RSI9"]
                 rsi_slow = df["RSI13"]
-                cross = (rsi_fast.shift(1) <= rsi_slow.shift(1)) & (rsi_fast > rsi_slow)
-                near30 = (rsi_slow >= 25) & (rsi_slow <= 35)
-                rebound = (rsi_slow.shift(1) < 30) & (rsi_slow > rsi_slow.shift(1))
-                base_sig_idx = df.index[cross & near30 & rebound].tolist()
+
+                # RSI가 30 이하 → 30 이상으로 상향 돌파한 캔들
+                cross_30 = (rsi_slow.shift(1) <= 30) & (rsi_slow > 30)
+
+                # RSI9 > RSI13 골든크로스
+                gcross = (rsi_fast.shift(1) <= rsi_slow.shift(1)) & (rsi_fast > rsi_slow)
+
+                # 분봉별 RSI 범위 조건 설정
+                try:
+                    tf_mins = int(minutes_per_bar)
+                except Exception:
+                    tf_mins = 5  # 기본값 안전 설정
+
+                if tf_mins <= 5:
+                    near_cond = (rsi_slow <= 50)
+                else:
+                    near_cond = (rsi_slow <= 40)
+
+                # 최종 신호 조합
+                base_sig_idx = df.index[cross_30 & gcross & near_cond].tolist()
 
             elif strategy == "CCI_GoldenCross_NearMinus200":
                 # CCI -200 하향 돌파 후 상승 전환 + CCI>CCI_sig 골든크로스 + CCI 값이 -220~-180 구간
