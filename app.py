@@ -802,6 +802,28 @@ def main():
                 # ✅ MACD 골든크로스 전략은 거래량 조건(vol_ok) 제외
                 # 기존 거래량 필터 적용 안 함 (신호 감도 확보)
 
+            # ✅ 신규 매매기법: RSI 골든크로스 (RSI30 근처에서만 유효)
+            elif strategy == "RSI_GoldenCross_30":
+                if "RSI13" in df.columns and "RSI9" in df.columns:
+                    rsi_main = df["RSI13"]
+                    rsi_sig = df["RSI9"]
+                    # RSI 골든크로스 + RSI 30 부근(≤35) 조건
+                    cond_cross = (rsi_main.shift(1) <= rsi_sig.shift(1)) & (rsi_main > rsi_sig)
+                    cond_zone = (rsi_main <= 35)
+                    cond_rebound = (rsi_main.shift(1) < 30)
+                    base_sig_idx = df.index[cond_cross & cond_zone & cond_rebound].tolist()
+
+            # ✅ 신규 매매기법: CCI 골든크로스 (CCI -200 근처에서만 유효)
+            elif strategy == "CCI_GoldenCross_-200":
+                if "CCI" in df.columns and "CCI_sig" in df.columns:
+                    cci_ = df["CCI"]
+                    cci_s = df["CCI_sig"]
+                    # CCI 골든크로스 + -200 부근(≥-180) + 직전 -200 하회
+                    cond_cross = (cci_.shift(1) <= cci_s.shift(1)) & (cci_ > cci_s)
+                    cond_zone = (cci_ >= -180)
+                    cond_rebound = (cci_.shift(1) <= -200)
+                    base_sig_idx = df.index[cond_cross & cond_zone & cond_rebound].tolist()
+
             elif strategy == "Vol_Ratio_Imbalance":
                 _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
                 _vr_sell = st.session_state.get("volratio_sell_thr", 0.6)
