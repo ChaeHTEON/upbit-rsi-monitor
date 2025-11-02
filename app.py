@@ -2054,8 +2054,9 @@ def main():
     
             y_min, y_max = df_plot["low"].min(), df_plot["high"].max()
             pad = (y_max - y_min) * 0.01
+            import numpy as np  # ✅ 추가: np 사용 전 지역 임포트 (기존 라인 불변, 삽입만)
             y_vals = np.linspace(y_min - pad, y_max + pad, 100)
-    
+
             x_vals = df_plot["time"].to_numpy()
             if len(x_vals) > 300:
                 step = int(np.ceil(len(x_vals) / 300))
