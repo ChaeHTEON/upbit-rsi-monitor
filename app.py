@@ -236,7 +236,7 @@ def main():
         with c2:
             st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
             primary_strategy = st.selectbox(
-                "매매기법 선택",
+                 "매매기법 선택",
                 [
                     "없음",
                     "TGV",
@@ -251,7 +251,7 @@ def main():
                     "MACD_GoldenCross",
                     "EMA100_Above",
                     "EMA100_Below",
-                    "Vol_Ratio_Imbalance"
+                    "Vol_Ratio_Imbalance",
                     "RSI_GoldenCross_30",
                     "CCI_GoldenCross_-200",
                 ],
