@@ -3045,35 +3045,90 @@ def main():
             st.success("✅ 자동 감시 중입니다. 조건 충족 시 즉시 알림 표시됩니다.")
 
             triggered = []
-            # ✅ 감시 종목: 종목선택과 동일하게 (거래량 순, 한글/영문 병기)
-            symbol_list = [
-                ("KRW-BTC", "비트코인 (BTC)"),
-                ("KRW-ETH", "이더리움 (ETH)"),
-                ("KRW-XRP", "리플 (XRP)"),
-                ("KRW-SOL", "솔라나 (SOL)"),
-                ("KRW-DOGE", "도지코인 (DOGE)"),
-                ("KRW-MNT", "맨틀 (MNT)")
-            ]
-            watch_syms = st.multiselect(
-                "감시 코인 (거래량 상위 우선)",
-                options=[f"{sym} - {name}" for sym, name in symbol_list],
-                default=[f"{sym} - {name}" for sym, name in symbol_list],
-                help="실시간 감시할 코인을 선택합니다.",
-                key="watch_syms_alert"   # ✅ 중복 방지용 고유 key 추가
-            )
+            # ✅ 감시 종목: ① 기본 선택 UI와 완전 동일하게 동작하도록 구성
+            # - 우선 ① 섹션에서 사용 중인 옵션/선택값을 그대로 재사용 (세션 키)
+            # - 해당 키가 없을 때만 안전 폴백(거래량 상위 기본 목록) 사용
+            import json, os
 
-            # ✅ 감시 분봉: 기존 구조 동일 (예: 10분, 60분)
+            _SYMBOL_KEY_OPTIONS = "symbols_options_full"       # ① 섹션에서 사용한 전체 옵션(표시라벨 리스트)
+            _SYMBOL_KEY_SELECTED = "symbols_selected_labels"   # ① 섹션에서 사용한 현재 선택(표시라벨 리스트)
+            _TF_KEY_OPTIONS = "timeframes_options_full"        # ① 섹션의 분봉 옵션(라벨 리스트)
+            _TF_KEY_SELECTED = "timeframes_selected_labels"    # ① 섹션의 선택된 분봉(라벨 리스트)
+
+            # 🔐 영구 저장 파일(새 페이지/새 세션 진입 시에도 복원)
+            _WATCH_CFG_FILE = "watch_config.json"
+
+            # 1) JSON 로드 → 세션 초기화
+            if "watch_cfg_loaded" not in st.session_state:
+                try:
+                    if os.path.exists(_WATCH_CFG_FILE):
+                        with open(_WATCH_CFG_FILE, "r", encoding="utf-8") as f:
+                            st.session_state["watch_cfg"] = json.load(f)
+                    else:
+                        st.session_state["watch_cfg"] = {}
+                except Exception:
+                    st.session_state["watch_cfg"] = {}
+                st.session_state["watch_cfg_loaded"] = True
+
+            # 2) ① 섹션에서 이미 구성된 옵션/선택값 우선 재사용
+            #    없으면 폴백(거래량 상위 기본 목록, 10·60분) 사용
+            symbol_list_full = st.session_state.get(_SYMBOL_KEY_OPTIONS, None)
+            symbol_selected_default = st.session_state.get(_SYMBOL_KEY_SELECTED, None)
+            tf_list_full = st.session_state.get(_TF_KEY_OPTIONS, None)
+            tf_selected_default = st.session_state.get(_TF_KEY_SELECTED, None)
+
+            # 폴백(표시라벨은 "KRW-BTC - 비트코인 (BTC)" 형식)
+            if symbol_list_full is None:
+                symbol_list_full = [
+                    "KRW-BTC - 비트코인 (BTC)",
+                    "KRW-ETH - 이더리움 (ETH)",
+                    "KRW-XRP - 리플 (XRP)",
+                    "KRW-SOL - 솔라나 (SOL)",
+                    "KRW-DOGE - 도지코인 (DOGE)",
+                    "KRW-MNT - 맨틀 (MNT)"
+                ]
+            if symbol_selected_default is None:
+                symbol_selected_default = symbol_list_full[:]  # 전 종목 기본
+
+            if tf_list_full is None:
+                tf_list_full = ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"]
+            if tf_selected_default is None:
+                tf_selected_default = ["10분","60분"]
+
+            # 3) 이전에 저장한 감시 설정이 있으면 기본값으로 복원
+            watch_cfg = st.session_state.get("watch_cfg", {})
+            saved_syms = watch_cfg.get("watch_syms_labels", symbol_selected_default)
+            saved_tfs  = watch_cfg.get("watch_tfs_labels",  tf_selected_default)
+
+            # 4) 멀티셀렉트(UI 라벨/우선순위/정렬 ①과 동일)
+            watch_syms = st.multiselect(
+                "감시 코인 (① 기본선택과 동일, 거래량 우선 정렬)",
+                options=symbol_list_full,
+                default=saved_syms,
+                help="실시간 감시할 코인을 선택합니다. (① 기본선택과 동일 라벨/정렬 사용)",
+                key="watch_syms_alert"
+            )
             watch_tfs = st.multiselect(
                 "감시 분봉 (다중 선택 가능)",
-                ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
-                default=["10분","60분"],
-                key="watch_tfs_alert"   # ✅ 중복 방지용 고유 key 추가
+                options=tf_list_full,
+                default=saved_tfs,
+                key="watch_tfs_alert"
             )
 
-            # ✅ 감시 루프 (시간 보정 + 최신 캔들 반영)
+            # 5) 선택 즉시 세션·JSON에 영구 저장 (새 페이지/새 세션에서도 유지)
+            try:
+                st.session_state["watch_cfg"]["watch_syms_labels"] = watch_syms
+                st.session_state["watch_cfg"]["watch_tfs_labels"]  = watch_tfs
+                with open(_WATCH_CFG_FILE, "w", encoding="utf-8") as f:
+                    json.dump(st.session_state["watch_cfg"], f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
+            # 6) 알람 루프 (시간 보정 + 최신 캔들 반영)
             triggered = []
             for sym_full in watch_syms:
-                sym = sym_full.split(" - ")[0]  # KRW-BTC 형태로 추출
+                # 표시라벨 → 심볼코드 추출 ("KRW-BTC - 비트코인 (BTC)" → "KRW-BTC")
+                sym = str(sym_full).split(" - ")[0].strip()
                 for tf in watch_tfs:
                     try:
                         interval_pair, mpb_pair = TF_MAP[tf]
@@ -3094,7 +3149,7 @@ def main():
 
                     df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
 
-                    # 이후 알람 조건 및 Toast 로직은 동일
+                    # 이후 알람 조건 및 Toast 로직 동일
 
                     # 🧪 테스트 모드: 즉시 알람 발생
                     if test_mode:
@@ -3161,3 +3216,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
