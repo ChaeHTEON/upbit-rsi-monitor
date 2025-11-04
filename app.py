@@ -3045,18 +3045,54 @@ def main():
             st.success("✅ 자동 감시 중입니다. 조건 충족 시 즉시 알림 표시됩니다.")
 
             triggered = []
-            for sym in watch_syms:
+            # ✅ 감시 종목: 종목선택과 동일하게 (거래량 순, 한글/영문 병기)
+            symbol_list = [
+                ("KRW-BTC", "비트코인 (BTC)"),
+                ("KRW-ETH", "이더리움 (ETH)"),
+                ("KRW-XRP", "리플 (XRP)"),
+                ("KRW-SOL", "솔라나 (SOL)"),
+                ("KRW-DOGE", "도지코인 (DOGE)"),
+                ("KRW-MNT", "맨틀 (MNT)")
+            ]
+            watch_syms = st.multiselect(
+                "감시 코인 (거래량 상위 우선)",
+                options=[f"{sym} - {name}" for sym, name in symbol_list],
+                default=[f"{sym} - {name}" for sym, name in symbol_list],
+                help="실시간 감시할 코인을 선택합니다."
+            )
+
+            # ✅ 감시 분봉: 기존 구조 동일 (예: 10분, 60분)
+            watch_tfs = st.multiselect(
+                "감시 분봉 (다중 선택 가능)",
+                ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
+                default=["10분","60분"]
+            )
+
+            # ✅ 감시 루프 (시간 보정 + 최신 캔들 반영)
+            triggered = []
+            for sym_full in watch_syms:
+                sym = sym_full.split(" - ")[0]  # KRW-BTC 형태로 추출
                 for tf in watch_tfs:
                     try:
                         interval_pair, mpb_pair = TF_MAP[tf]
                     except Exception:
                         continue
 
-                    df_w = fetch_upbit_paged(sym, interval_pair, start_dt, end_dt, mpb_pair, warmup_bars)
+                    # 🔄 최신 캔들 기준 데이터 fetch
+                    end_time = datetime.utcnow()
+                    start_time = end_time - timedelta(minutes=mpb_pair * (warmup_bars + 2))
+                    df_w = fetch_upbit_paged(sym, interval_pair, start_time, end_time, mpb_pair, warmup_bars)
+
+                    # ⏱ UTC→KST 변환
+                    if df_w is not None and not df_w.empty and "time" in df_w.columns:
+                        df_w["time"] = pd.to_datetime(df_w["time"]) + pd.Timedelta(hours=9)
+
                     if df_w is None or df_w.empty:
                         continue
 
                     df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+
+                    # 이후 알람 조건 및 Toast 로직은 동일
 
                     # 🧪 테스트 모드: 즉시 알람 발생
                     if test_mode:
