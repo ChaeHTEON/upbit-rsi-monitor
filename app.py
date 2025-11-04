@@ -683,54 +683,6 @@ def main():
             out["UpVol"].rolling(20, min_periods=1).sum() /
             out["DownVol"].rolling(20, min_periods=1).sum()
         )
-
-        # ✅ 신규: 복합 보조지표(Composite_Score) — 고정밀(High Precision) 버전
-        try:
-            # ---- 가중치 및 임계값 설정 ----
-            w_rsi, w_cci, w_macd, w_vol = 0.4, 0.4, 0.15, 0.05
-            macd_thr, vol_thr = 0.15, 0.3  # 👉 미세 신호 제거 임계값 강화
-
-            # ---- 개별 정규화 ----
-            rsi_score = ((out["RSI13"] - 30) / 40.0).clip(0, 1)  # RSI<30은 0, >70은 1
-            cci_score = ((out["CCI"].clip(-150, 150) + 150) / 300.0).clip(0, 1)
-
-            # MACD: 변화율 기반 민감도 하향
-            macd_diff = out["MACD_hist"].diff().fillna(0)
-            macd_n = ((macd_diff - macd_diff.min()) /
-                      (macd_diff.max() - macd_diff.min() + 1e-9)).clip(0, 1)
-
-            # 거래량: 20봉 평균 대비 비율
-            vol_ratio = out["volume"] / (out["volume"].rolling(20, min_periods=1).mean() + 1e-9)
-            vol_n = ((vol_ratio / 3.0) - 1).clip(0, 1)  # 3배 이상 급등만 반영
-
-            # ---- 임계값 필터링 ----
-            macd_n = np.where(macd_n < macd_thr, 0, macd_n)
-            vol_n = np.where(vol_n < vol_thr, 0, vol_n)
-
-            # ---- 가중합 계산 ----
-            out["Composite_Score"] = (
-                w_rsi * rsi_score +
-                w_cci * cci_score +
-                w_macd * macd_n +
-                w_vol * vol_n
-            ).clip(0, 1)
-
-            # ---- Signal EMA (길이 증가 → 더 안정적) ----
-            out["Composite_Signal"] = out["Composite_Score"].ewm(span=15, adjust=False).mean()
-
-            # ---- 교차 판정 ----
-            cross_up = (out["Composite_Score"].shift(1) <= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] > out["Composite_Signal"])
-            cross_dn = (out["Composite_Score"].shift(1) >= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] < out["Composite_Signal"])
-            out["Composite_Golden"] = np.where(cross_up, 1, 0)
-            out["Composite_Dead"] = np.where(cross_dn, 1, 0)
-
-        except Exception as e:
-            print("⚠️ Composite_Score 오류:", e)
-            out["Composite_Score"] = np.nan
-            out["Composite_Signal"] = np.nan
-            out["Composite_Golden"] = 0
-            out["Composite_Dead"] = 0
-
         return out
     
     def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct, bb_cond, dedup_mode,
@@ -1550,19 +1502,14 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
-        # ✅ 신규 2차 조건 추가: 복합지표(Composite)
-        if sec_cond == "복합지표(Composite) 강세만 진입":
-            # Composite Score가 0.7 이상인 강세 구간만 진입 허용
-            if "Composite_Score" in df.columns:
-                sec_mask = df["Composite_Score"] >= 0.7
-            else:
-                sec_mask = np.ones(len(df), dtype=bool)
-        elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-            # Composite Score의 골든크로스 발생 시점만 진입 허용
-            if "Composite_Golden" in df.columns:
-                sec_mask = df["Composite_Golden"] == 1
-            else:
-                sec_mask = np.ones(len(df), dtype=bool)
+            res_all = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, "중복 포함 (연속 신호 모두)",
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
             res_dedup = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
                 bb_cond, "중복 제거 (연속 동일 결과 1개)",
@@ -1618,20 +1565,18 @@ def main():
         # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
         # ✅ 수정: 보조지표 가로/세로 균등 정렬 + RSI 범례 표시 + 높이 1.5배 확대
         fig = make_subplots(
-            rows=6, cols=1, shared_xaxes=True,
+            rows=5, cols=1, shared_xaxes=True,
             specs=[
                 [{"secondary_y": True}],   # 가격
                 [{"secondary_y": False}],  # CCI
                 [{"secondary_y": False}],  # RSI
                 [{"secondary_y": False}],  # 거래량
-                [{"secondary_y": False}],  # MACD
-                [{"secondary_y": False}]   # ✅ Composite Score
+                [{"secondary_y": False}]   # MACD
             ],
-            row_heights=[0.55, 0.15, 0.15, 0.10, 0.10, 0.10],
+            # 보조지표 비율 조정 (MACD 추가)
+            row_heights=[0.60, 0.18, 0.18, 0.12, 0.12],
             vertical_spacing=0.03
         )
-
-        fig.update_layout(height=2300)
 
         fig.update_layout(height=2000)
 
@@ -1872,73 +1817,6 @@ def main():
             fig.update_yaxes(title_text="MACD", row=5, col=1)
         except Exception:
             pass
-
-        # ✅ 복합보조지표 (Composite Score) — RSI·CCI·MACD·거래량 통합지표
-        try:
-            if "Composite_Score" in df.columns:
-                # 기본 Composite Score 라인
-                fig.add_trace(
-                    go.Scatter(
-                        x=df["time"],
-                        y=df["Composite_Score"],
-                        name="Composite Score (RSI·CCI·MACD·VOL)",
-                        mode="lines",
-                        line=dict(color="orange", width=2.0),
-                        showlegend=True
-                    ),
-                    row=6, col=1
-                )
-
-                # ✅ 평균선 (Signal Line, EMA9)
-                if "Composite_Signal" in df.columns:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=df["time"],
-                            y=df["Composite_Signal"],
-                            name="Composite Signal (EMA9)",
-                            mode="lines",
-                            line=dict(color="gray", width=1.5, dash="dot"),
-                            showlegend=True
-                        ),
-                        row=6, col=1
-                    )
-
-                # 기준선 0.5 (중립)
-                fig.add_hline(
-                    y=0.5,
-                    line=dict(color="gray", dash="dot", width=1.2),
-                    row=6, col=1
-                )
-
-                # ✅ 골든/데드 교차 별표 표시
-                if "Composite_Golden" in df.columns and "Composite_Dead" in df.columns:
-                    xs_up = df.loc[df["Composite_Golden"] == 1, "time"]
-                    ys_up = df.loc[df["Composite_Golden"] == 1, "Composite_Score"]
-                    xs_dn = df.loc[df["Composite_Dead"] == 1, "time"]
-                    ys_dn = df.loc[df["Composite_Dead"] == 1, "Composite_Score"]
-
-                    if len(xs_up) > 0:
-                        fig.add_trace(
-                            go.Scatter(
-                                x=xs_up, y=ys_up, mode="markers",
-                                name="Composite 골든★",
-                                marker=dict(size=9, symbol="star", color="red", line=dict(width=1, color="black"))
-                            ),
-                            row=6, col=1
-                        )
-                    if len(xs_dn) > 0:
-                        fig.add_trace(
-                            go.Scatter(
-                                x=xs_dn, y=ys_dn, mode="markers",
-                                name="Composite 데드★",
-                                marker=dict(size=9, symbol="star", color="blue", line=dict(width=1, color="black"))
-                            ),
-                            row=6, col=1
-                        )
-
-                fig.update_yaxes(title_text="Composite", range=[0, 1], row=6, col=1)
-        except Exception as e:
-            print("⚠️ Composite_Score 표시 오류:", e)
 
         # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
         st.selectbox("봉종류 선택", ["캔들", "라인", "OHLC"], key="chart_type")
