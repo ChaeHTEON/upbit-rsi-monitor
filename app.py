@@ -333,7 +333,7 @@ def main():
             cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
         with c13:
             st.caption("CCI 조건은 상단에서 선택됨")
-        st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대/복합지표)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
         sec_cond = st.selectbox(
             "2차 조건 선택",
             [
@@ -342,9 +342,7 @@ def main():
                 "양봉 2개 연속 상승",
                 "BB 기반 첫 양봉 50% 진입",
                 "매물대 터치 후 반등(위→아래→반등)",
-                "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
-                "복합지표(Composite) 강세만 진입",
-                "복합지표(Composite) 골든 교차 시 진입"
+                "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"
             ]
         )
     
@@ -965,9 +963,9 @@ def main():
                 else:
                     rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
                 def bb_ok(i):
-                    c = float(df.iloc[i]["close"])
-                    o = float(df.iloc[i]["open"])
-                    l = float(df.iloc[i]["low"])
+                    c = float(df.at[i, "close"])
+                    o = float(df.at[i, "open"])
+                    l = float(df.at[i, "low"])
                     up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
                     if bb_cond == "상한선":
                         return pd.notna(up) and (c > float(up))
@@ -1061,8 +1059,8 @@ def main():
             anchor_idx = i0
             if anchor_idx >= n:
                 return None, None
-            signal_time = df.iloc[anchor_idx]["time"]
-            base_price = float(df.iloc[anchor_idx]["close"])
+            signal_time = df.at[anchor_idx, "time"]
+            base_price = float(df.at[anchor_idx, "close"])
     
             if sec_cond == "양봉 2개 연속 상승":
                 if i0 + 2 >= n:
@@ -1074,8 +1072,8 @@ def main():
                 anchor_idx = i0 + 3
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.iloc[anchor_idx]["time"]
-                base_price  = float(df.iloc[anchor_idx]["close"])
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
     
             elif sec_cond == "양봉 2개 (범위 내)":
                 found, T_idx = 0, None
@@ -1092,9 +1090,9 @@ def main():
                 anchor_idx = T_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.iloc[anchor_idx]["time"]
+                signal_time = df.at[anchor_idx, "time"]
                 # ✅ 기준시가를 '신호 발생 캔들의 종가'로 변경 (다음 캔들부터 매수 반영)
-                base_price = float(df.iloc[anchor_idx]["close"])
+                base_price = float(df.at[anchor_idx, "close"])
     
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
                 if bb_cond == "없음":
@@ -1105,8 +1103,8 @@ def main():
                 anchor_idx = B1_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.iloc[anchor_idx]["time"]
-                base_price  = float(df.iloc[anchor_idx]["close"])
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
     
             elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
                 rebound_idx = None
@@ -1135,8 +1133,8 @@ def main():
                 anchor_idx = rebound_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.iloc[anchor_idx]["time"]
-                base_price  = float(df.iloc[anchor_idx]["close"])
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
     
             # === 신규 매물대 자동 조건 ===
             elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
@@ -1170,10 +1168,10 @@ def main():
                         anchor_idx = j
                         break
     
-                if anchor_idx is None or anchor_idx < 0 or anchor_idx >= n:
+                if anchor_idx is None or anchor_idx >= n:
                     return None, None
-                signal_time = df.iloc[anchor_idx]["time"]
-                base_price  = float(df.iloc[anchor_idx]["close"])
+                signal_time = df.at[anchor_idx, "time"]
+                base_price  = float(df.at[anchor_idx, "close"])
     
             # --- 성과 측정 ---
             eval_start = anchor_idx + 1
@@ -1197,7 +1195,7 @@ def main():
                     hit_idx = j
                     bars_after = hit_idx - anchor_idx
                     reach_min = bars_after * minutes_per_bar
-                    end_time = df.iloc[hit_idx]["time"] if 0 <= hit_idx < len(df) else None
+                    end_time = df.at[hit_idx, "time"]
                     end_close = stop_price
                     final_ret = (end_close / base_price - 1) * 100
                     result = "실패"
@@ -1209,7 +1207,7 @@ def main():
                     hit_idx = j
                     bars_after = hit_idx - anchor_idx
                     reach_min = bars_after * minutes_per_bar
-                    end_time = df.iloc[hit_idx]["time"] if 0 <= hit_idx < len(df) else None
+                    end_time = df.at[hit_idx, "time"]
                     end_close = target
                     final_ret = thr
                     result = "성공"
@@ -1282,15 +1280,6 @@ def main():
     
         if res:
             df_res = pd.DataFrame(res).drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
-            
-            # ✅ 디버그용 신호 카운트 기록 (UI 표시 없음)
-            try:
-                st.session_state["dbg_base"] = len(base_sig_idx) if "base_sig_idx" in locals() else None
-                st.session_state["dbg_after_sec"] = len(res)
-                st.session_state["dbg_res"] = len(df_res)
-            except Exception:
-                pass
-
             return df_res
         return pd.DataFrame()
     
@@ -1561,13 +1550,6 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
-            # ✅ 신규 2차 조건 추가: 복합지표(Composite)
-            if sec_cond == "복합지표(Composite) 강세만 진입":
-                if "Composite_Score" in df.columns:
-                    df = df[df["Composite_Score"] >= 0.7].copy()
-            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Golden" in df.columns:
-                    df = df[df["Composite_Golden"] == 1].copy()
         # ✅ 신규 2차 조건 추가: 복합지표(Composite)
         if sec_cond == "복합지표(Composite) 강세만 진입":
             # Composite Score가 0.7 이상인 강세 구간만 진입 허용
@@ -1589,28 +1571,30 @@ def main():
                 bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
             )
-        else:
-            # ✅ 일반 분기: 복합지표 외의 모든 2차조건도 시뮬레이션 수행
-            res_all = simulate(
-                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                bb_cond, "중복 포함 (연속 동일 결과 허용)",
-                minutes_per_bar, market_code, bb_window, bb_dev,
-                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-            )
-            res_dedup = simulate(
-                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                bb_cond, "중복 제거 (연속 동일 결과 1개)",
-                minutes_per_bar, market_code, bb_window, bb_dev,
-                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-            )
-
-        res_all = res_all if "res_all" in locals() else pd.DataFrame()
-        res_dedup = res_dedup if "res_dedup" in locals() else pd.DataFrame()
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+
+        # -----------------------------
+        # -----------------------------
+        # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
+        # -----------------------------
+        max_bars = 5000
+        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
+        st.session_state["volume_cond"] = volume_cond
+
+        if res is not None and not res.empty:
+            plot_res = (
+                res.sort_values("신호시간")
+                   .drop_duplicates(subset=["anchor_i"], keep="first")
+                   .reset_index(drop=True)
+            )
+        else:
+            plot_res = pd.DataFrame()
+
+        df_view = df.copy()
+        if len(df_view) > max_bars:
+            df_view = df_view.iloc[-max_bars:].reset_index(drop=True)
+        else:
+            df_view = df_view.reset_index(drop=True)
     
         # -----------------------------
         # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
