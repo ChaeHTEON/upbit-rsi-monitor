@@ -652,60 +652,38 @@ def main():
         df_all = df_all.loc[mask].reset_index(drop=True)
         return df_all
     
-def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
-    out = df.copy()
-    out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
-    out["RSI9"]  = ta.momentum.RSIIndicator(close=out["close"], window=9).rsi()   # ★ 추가: 보조 RSI
-    bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
-    out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
-    out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
-    out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
-    cci = ta.trend.CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_window), constant=0.015)
-    out["CCI"] = cci.cci()
-    # CCI 신호선(단순 이동평균)
-    try:
-        n = max(int(cci_signal), 1)
-    except Exception:
-        n = 9
-    out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
-    # EMA 100선
-    out["EMA100"] = ta.trend.EMAIndicator(close=out["close"], window=100).ema_indicator()
-    # MACD (12,16,9)
-    _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
-    out["MACD"] = _macd.macd()
-    out["MACD_signal"] = _macd.macd_signal()
-    out["MACD_hist"] = _macd.macd_diff()
+    def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
+        out = df.copy()
+        out["RSI13"] = ta.momentum.RSIIndicator(close=out["close"], window=13).rsi()
+        out["RSI9"]  = ta.momentum.RSIIndicator(close=out["close"], window=9).rsi()   # ★ 추가: 보조 RSI
+        bb = ta.volatility.BollingerBands(close=out["close"], window=bb_window, window_dev=bb_dev)
+        out["BB_up"]  = bb.bollinger_hband().fillna(method="bfill").fillna(method="ffill")
+        out["BB_low"] = bb.bollinger_lband().fillna(method="bfill").fillna(method="ffill")
+        out["BB_mid"] = bb.bollinger_mavg().fillna(method="bfill").fillna(method="ffill")
+        cci = ta.trend.CCIIndicator(high=out["high"], low=out["low"], close=out["close"], window=int(cci_window), constant=0.015)
+        out["CCI"] = cci.cci()
+        # CCI 신호선(단순 이동평균)
+        try:
+            n = max(int(cci_signal), 1)
+        except Exception:
+            n = 9
+        out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
+        # EMA 100선
+        out["EMA100"] = ta.trend.EMAIndicator(close=out["close"], window=100).ema_indicator()
+        # MACD (12,16,9)
+        _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
+        out["MACD"] = _macd.macd()
+        out["MACD_signal"] = _macd.macd_signal()
+        out["MACD_hist"] = _macd.macd_diff()
 
-    # Vol_Ratio (거래량 불균형 지표) — 추가
-    out["UpVol"] = np.where(out["close"] > out["open"], out["volume"], 0)
-    out["DownVol"] = np.where(out["close"] < out["open"], out["volume"], 0)
-    out["Vol_Ratio"] = (
-        out["UpVol"].rolling(20, min_periods=1).sum() /
-        out["DownVol"].rolling(20, min_periods=1).sum()
-    )
-
-    # ====== 📌 삽입: 통합 보조지표(Composite Oscillator) 계산 ======
-    # (1) 각 구성요소를 -1 ~ +1 로 정규화
-    _rsi_comp = (out["RSI13"] / 50.0) - 1.0                                   # 0~100 → -1~+1
-    _cci_comp = np.tanh(out["CCI"] / 200.0)                                   # 과도값 완화
-    _hist_std = out["MACD_hist"].rolling(100, min_periods=10).std().replace(0, np.nan)
-    _macd_comp = np.tanh((out["MACD_hist"].fillna(0)) / _hist_std.fillna(method="bfill").fillna(method="ffill"))
-    _bb_span = (out["BB_up"] - out["BB_low"]).replace(0, np.nan)
-    _bb_pos = ((out["close"] - out["BB_mid"]) / _bb_span).clip(-1, 1).fillna(0)
-
-    # (2) 가중합 → [-1, +1]
-    out["COMP_OSC"] = (
-        0.4 * _rsi_comp.fillna(0) +
-        0.3 * _cci_comp.fillna(0) +
-        0.2 * _macd_comp.fillna(0) +
-        0.1 * _bb_pos.fillna(0)
-    ).clip(-1, 1)
-
-    # (3) 표시용 0~100 스케일 (RSI 패널에 겹쳐 그리기 위함)
-    out["COMP_OSC_0_100"] = ((out["COMP_OSC"] + 1.0) * 50.0).clip(0, 100)
-    # ===========================================================
-
-    return out
+        # Vol_Ratio (거래량 불균형 지표) — 추가
+        out["UpVol"] = np.where(out["close"] > out["open"], out["volume"], 0)
+        out["DownVol"] = np.where(out["close"] < out["open"], out["volume"], 0)
+        out["Vol_Ratio"] = (
+            out["UpVol"].rolling(20, min_periods=1).sum() /
+            out["DownVol"].rolling(20, min_periods=1).sum()
+        )
+        return out
     
     def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct, bb_cond, dedup_mode,
                  minutes_per_bar, market_code, bb_window, bb_dev, sec_cond="없음",
@@ -1428,9 +1406,8 @@ def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
         if df_raw is None or df_raw.empty:
-            st.warning("⚠️ 데이터가 비어 있습니다. (API 제한 또는 네트워크 오류 가능)")
-            df_raw = pd.DataFrame(columns=["time","open","high","low","close","volume"])
-            # st.stop()  ❌ 제거: 이후 섹션 렌더링 유지
+            st.error("데이터가 없습니다.")
+            st.stop()
     
         df_ind = add_indicators(df_raw, bb_window, bb_dev, cci_window, cci_signal)
         df = df_ind[(df_ind["time"] >= start_dt) & (df_ind["time"] <= end_dt)].reset_index(drop=True)
@@ -1637,19 +1614,6 @@ def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
                     x=df["time"], y=df["RSI9"],
                     name="RSI(9)", mode="lines",
                     line=dict(color="green", width=1.5, dash="dot"),
-                    showlegend=True
-                ),
-                row=3, col=1
-            )
-
-        # 📌 삽입: 통합 보조지표(0~100) — RSI 패널에 오버레이
-        # (RSI 축이 0~100이라 COMP_OSC_0_100을 그대로 표시하면 패널 추가 없이 '하나의 보조지표 느낌' 제공)
-        if "COMP_OSC_0_100" in df.columns:
-            fig.add_trace(
-                go.Scatter(
-                    x=df["time"], y=df["COMP_OSC_0_100"],
-                    name="Composite(통합지표)", mode="lines",
-                    line=dict(width=2.0),
                     showlegend=True
                 ),
                 row=3, col=1
@@ -2916,10 +2880,8 @@ def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
     except Exception as e:
         import sys, traceback
         etype, evalue, tb = sys.exc_info()
-        st.error(f"⚠️ 오류 발생: {etype.__name__}: {e}")
+        st.error(f"오류 발생: {etype.__name__}: {e}")
         st.code("".join(traceback.format_tb(tb)))
-        st.warning("🔸 위 오류로 일부 섹션이 표시되지 않았습니다. ⚙️ 기본 설정을 변경 후 다시 실행해보세요.")
-        # ❗ stop() 호출 금지 — 나머지 UI 유지
 
 if __name__ == "__main__":
     main()
