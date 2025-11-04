@@ -1550,6 +1550,9 @@ def main():
             res_dedup = pd.DataFrame()
         else:
             if sec_cond == "복합지표(Composite) 강세만 진입":
+                # ✅ 실행 전 이전 Composite 음영 정보 초기화
+                st.session_state.pop("composite_highlights", None)
+
                 if "Composite_Score" in df.columns:
                     # ✅ 기존 필터링 제거 (df 절대 수정 X)
                     # ✅ 시각화용 구간만 추출
