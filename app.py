@@ -3010,7 +3010,6 @@ def main():
 
             try:
                 interval_pair, mpb_pair = TF_MAP[tf_label_saved]
-                # ✅ UTC→KST 변환 시점 오류 수정
                 end_time = datetime.now(timezone("Asia/Seoul"))
                 start_time = end_time - timedelta(minutes=mpb_pair * (warmup_bars + 2))
                 df_w = fetch_upbit_paged(market_code_saved, interval_pair, start_time, end_time, mpb_pair, warmup_bars)
@@ -3034,11 +3033,11 @@ def main():
                         alarm_result = last_row["결과"]
                         if alarm_result == "성공":
                             st.toast(f"🚨 {market_code_saved}({tf_label_saved}) 신호 발생 — {alarm_time}")
-    except Exception as e:
-        import sys, traceback
-        etype, evalue, tb = sys.exc_info()
-        st.error(f"오류 발생: {etype.__name__}: {e}")
-        st.code("".join(traceback.format_tb(tb)))
+
+            except Exception as e:
+                import traceback
+                st.error(f"감시 오류: {type(e).__name__}: {e}")
+                st.code("".join(traceback.format_tb(e.__traceback__)))
 
 
 if __name__ == "__main__":
