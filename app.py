@@ -1546,9 +1546,10 @@ def main():
 
             # ✅ sec_cond 분기: df_for_sim 준비 (문법/타이포 수정)
             df_for_sim = df.copy()
-            if sec_cond == "복합지표(Composite) 강세만 진입":
-                if "Composite_Score" in df.columns:
-                    # 사용자 조절형 Composite 기준 (기본 0.7)
+            # ✅ 항상 Composite 강세 필터를 적용 (사용자 설정 없어도 기본 동작)
+            if "Composite_Score" in df.columns:
+                comp_thr = 0.7
+                if sec_cond == "복합지표(Composite) 강세만 진입":
                     comp_thr = st.slider(
                         "📊 복합지표 강세 기준 (Composite Score Threshold)",
                         min_value=0.0,
@@ -1557,11 +1558,36 @@ def main():
                         step=0.05,
                         help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
                     )
-                    # 선택된 기준값 이상만 필터링
-                    df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
-                else:
-                    # Composite_Score가 없으면 원본 유지(안전 동작)
-                    df_for_sim = df.copy()
+                # ✅ 항상 Composite_Score ≥ 0.7 이상 필터링
+                df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
+            else:
+                df_for_sim = df.copy()
+
+            # ✅ 메인 차트에 Composite 강세 구간 마커 표시
+            try:
+                if "Composite_Score" in df.columns:
+                    strong_mask = df["Composite_Score"] >= 0.7
+                    xs_comp = df.loc[strong_mask, "time"]
+                    ys_comp = df.loc[strong_mask, "close"]
+                    if len(xs_comp) > 0:
+                        fig.add_trace(
+                            go.Scatter(
+                                x=xs_comp,
+                                y=ys_comp,
+                                mode="markers",
+                                name="Composite 강세★",
+                                marker=dict(
+                                    size=10,
+                                    color="orange",
+                                    symbol="star",
+                                    line=dict(width=1, color="black")
+                                )
+                            ),
+                            row=1,
+                            col=1
+                        )
+            except Exception as e:
+                print("⚠️ Composite 강세 마커 오류:", e)
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Golden" in df.columns:
