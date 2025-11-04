@@ -333,7 +333,7 @@ def main():
             cci_under = st.number_input("CCI 과매도 기준", min_value=-300, max_value=0, value=-100, step=5)
         with c13:
             st.caption("CCI 조건은 상단에서 선택됨")
-        st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hint">2차 조건: 선택한 조건만 적용 (없음/양봉 2개/BB 기반/매물대/복합지표)</div>', unsafe_allow_html=True)
         sec_cond = st.selectbox(
             "2차 조건 선택",
             [
@@ -342,7 +342,9 @@ def main():
                 "양봉 2개 연속 상승",
                 "BB 기반 첫 양봉 50% 진입",
                 "매물대 터치 후 반등(위→아래→반등)",
-                "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)"
+                "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
+                "복합지표(Composite) 강세만 진입",
+                "복합지표(Composite) 골든 교차 시 진입"
             ]
         )
     
@@ -1550,6 +1552,13 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
+            # ✅ 신규 2차 조건 추가: 복합지표(Composite)
+            if sec_cond == "복합지표(Composite) 강세만 진입":
+                if "Composite_Score" in df.columns:
+                    df = df[df["Composite_Score"] >= 0.7].copy()
+            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+                if "Composite_Golden" in df.columns:
+                    df = df[df["Composite_Golden"] == 1].copy()
         # ✅ 신규 2차 조건 추가: 복합지표(Composite)
         if sec_cond == "복합지표(Composite) 강세만 진입":
             # Composite Score가 0.7 이상인 강세 구간만 진입 허용
