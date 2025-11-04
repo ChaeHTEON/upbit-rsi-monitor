@@ -1580,7 +1580,7 @@ def main():
                 bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
             )
-        res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+        res = (res_all if 'res_all' in locals() else pd.DataFrame()) if dup_mode.startswith("중복 포함") else (res_dedup if 'res_dedup' in locals() else pd.DataFrame())
 
         # -----------------------------
         # -----------------------------
