@@ -965,9 +965,9 @@ def main():
                 else:
                     rsi_idx = df.index[df["RSI13"] >= float(rsi_high)].tolist()
                 def bb_ok(i):
-                    c = float(df.at[i, "close"])
-                    o = float(df.at[i, "open"])
-                    l = float(df.at[i, "low"])
+                    c = float(df.iloc[i]["close"])
+                    o = float(df.iloc[i]["open"])
+                    l = float(df.iloc[i]["low"])
                     up, lo, mid = df.at[i, "BB_up"], df.at[i, "BB_low"], df.at[i, "BB_mid"]
                     if bb_cond == "상한선":
                         return pd.notna(up) and (c > float(up))
@@ -1061,8 +1061,8 @@ def main():
             anchor_idx = i0
             if anchor_idx >= n:
                 return None, None
-            signal_time = df.at[anchor_idx, "time"]
-            base_price = float(df.at[anchor_idx, "close"])
+            signal_time = df.iloc[anchor_idx]["time"]
+            base_price = float(df.iloc[anchor_idx]["close"])
     
             if sec_cond == "양봉 2개 연속 상승":
                 if i0 + 2 >= n:
@@ -1074,7 +1074,6 @@ def main():
                 anchor_idx = i0 + 3
                 if anchor_idx >= n:
                     return None, None
-                # ✅ 인덱스 타입 불일치 방지 (iloc로 접근)
                 signal_time = df.iloc[anchor_idx]["time"]
                 base_price  = float(df.iloc[anchor_idx]["close"])
     
@@ -1093,9 +1092,9 @@ def main():
                 anchor_idx = T_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.at[anchor_idx, "time"]
+                signal_time = df.iloc[anchor_idx]["time"]
                 # ✅ 기준시가를 '신호 발생 캔들의 종가'로 변경 (다음 캔들부터 매수 반영)
-                base_price = float(df.at[anchor_idx, "close"])
+                base_price = float(df.iloc[anchor_idx]["close"])
     
             elif sec_cond == "BB 기반 첫 양봉 50% 진입":
                 if bb_cond == "없음":
@@ -1106,8 +1105,8 @@ def main():
                 anchor_idx = B1_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
+                signal_time = df.iloc[anchor_idx]["time"]
+                base_price  = float(df.iloc[anchor_idx]["close"])
     
             elif sec_cond == "매물대 터치 후 반등(위→아래→반등)":
                 rebound_idx = None
@@ -1136,8 +1135,8 @@ def main():
                 anchor_idx = rebound_idx + 1
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
+                signal_time = df.iloc[anchor_idx]["time"]
+                base_price  = float(df.iloc[anchor_idx]["close"])
     
             # === 신규 매물대 자동 조건 ===
             elif sec_cond == "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)":
