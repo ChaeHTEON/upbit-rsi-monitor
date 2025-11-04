@@ -1555,6 +1555,14 @@ def main():
                 if "Composite_Score" in df.columns:
                     df = df[df["Composite_Score"] >= 0.7].copy()
 
+            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+                if "Composite_Golden" in df.columns:
+                    # ✅ Composite_Golden = 1 발생 구간만 진입 허용
+                    df = df[df["Composite_Golden"] == 1].copy()
+                else:
+                    import pandas as pd
+                    df = pd.DataFrame(columns=df.columns)
+
             # ✅ 기본 simulate (모든 조건 공통)
             res_dedup = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
