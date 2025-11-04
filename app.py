@@ -686,13 +686,30 @@ def main():
 
         # ✅ 신규: 복합 보조지표(Composite_Score)
         try:
-            # ... (Composite_Score 계산 로직)
+            # RSI, CCI, MACD, 거래량을 0~1 정규화
+            rsi_score = (out["RSI13"] / 100.0).clip(0, 1)
+            cci_score = ((out["CCI"] + 200) / 400.0).clip(0, 1)
+            macd_n = ((out["MACD_hist"] - out["MACD_hist"].min()) /
+                      (out["MACD_hist"].max() - out["MACD_hist"].min() + 1e-9)).clip(0, 1)
+            vol_n = ((out["volume"] - out["volume"].min()) /
+                     (out["volume"].max() - out["volume"].min() + 1e-9)).clip(0, 1)
+
             out["Composite_Score"] = (
                 0.3 * rsi_score +
                 0.3 * cci_score +
                 0.2 * macd_n +
                 0.2 * vol_n
             ).clip(0, 1)
+
+            # ✅ 평균선 (Signal Line, EMA9)
+            out["Composite_Signal"] = out["Composite_Score"].ewm(span=9, adjust=False).mean()
+
+            # ✅ 골든/데드 교차 판정
+            cross_up = (out["Composite_Score"].shift(1) <= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] > out["Composite_Signal"])
+            cross_dn = (out["Composite_Score"].shift(1) >= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] < out["Composite_Signal"])
+
+            out["Composite_Golden"] = np.where(cross_up, 1, 0)
+            out["Composite_Dead"] = np.where(cross_dn, 1, 0)
 
             # ✅ 평균선 (Signal Line, EMA9)
             out["Composite_Signal"] = out["Composite_Score"].ewm(span=9, adjust=False).mean()
