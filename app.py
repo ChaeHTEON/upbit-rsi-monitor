@@ -1550,14 +1550,19 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
-            res_all = simulate(
-                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                bb_cond, "중복 포함 (연속 신호 모두)",
-                minutes_per_bar, market_code, bb_window, bb_dev,
-                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-            )
+        # ✅ 신규 2차 조건 추가: 복합지표(Composite)
+        if sec_cond == "복합지표(Composite) 강세만 진입":
+            # Composite Score가 0.7 이상인 강세 구간만 진입 허용
+            if "Composite_Score" in df.columns:
+                sec_mask = df["Composite_Score"] >= 0.7
+            else:
+                sec_mask = np.ones(len(df), dtype=bool)
+        elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+            # Composite Score의 골든크로스 발생 시점만 진입 허용
+            if "Composite_Golden" in df.columns:
+                sec_mask = df["Composite_Golden"] == 1
+            else:
+                sec_mask = np.ones(len(df), dtype=bool)
             res_dedup = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
                 bb_cond, "중복 제거 (연속 동일 결과 1개)",
