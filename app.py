@@ -1551,11 +1551,9 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
-            # ✅ 복합지표 조건 필터링
-            if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
-                df = df[df["Composite_Score"] >= 0.7].copy()
-            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입" and "Composite_Golden" in df.columns:
-                df = df[df["Composite_Golden"] == 1].copy()
+            if sec_cond == "복합지표(Composite) 강세만 진입":
+                if "Composite_Score" in df.columns:
+                    df = df[df["Composite_Score"] >= 0.7].copy()
 
             # ✅ 기본 simulate (모든 조건 공통)
             res_dedup = simulate(
