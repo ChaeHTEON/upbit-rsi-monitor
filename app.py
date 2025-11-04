@@ -1568,27 +1568,7 @@ def main():
                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
             )
 
-            # ✅ 복합지표(Composite) 강세만 진입 — 시각화용 음영 표시 (판정엔 영향 없음)
-            if sec_cond == "복합지표(Composite) 강세만 진입":
-                st.session_state.pop("composite_highlights", None)
-                if "Composite_Score" in df.columns:
-                    df_copy = df[["time", "Composite_Score"]].copy()
-                    strong_mask = df_copy["Composite_Score"] >= 0.7
-                    strong_ranges = []
-                    in_range = False
-                    start_time = None
-                    for t, flag in zip(df_copy["time"], strong_mask):
-                        if flag and not in_range:
-                            start_time = t
-                            in_range = True
-                        elif not flag and in_range:
-                            strong_ranges.append((start_time, t))
-                            in_range = False
-                    if in_range:
-                        strong_ranges.append((start_time, df_copy["time"].iloc[-1]))
-                    st.session_state["composite_highlights"] = strong_ranges
-
-            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+            if sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Golden" in df.columns:
                     # ✅ Composite_Golden = 1 발생 구간만 진입 허용
                     df = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
