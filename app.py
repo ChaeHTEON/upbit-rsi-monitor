@@ -1074,8 +1074,9 @@ def main():
                 anchor_idx = i0 + 3
                 if anchor_idx >= n:
                     return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
+                # ✅ 인덱스 타입 불일치 방지 (iloc로 접근)
+                signal_time = df.iloc[anchor_idx]["time"]
+                base_price  = float(df.iloc[anchor_idx]["close"])
     
             elif sec_cond == "양봉 2개 (범위 내)":
                 found, T_idx = 0, None
