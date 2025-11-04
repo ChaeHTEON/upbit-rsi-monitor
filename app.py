@@ -1501,7 +1501,7 @@ def main():
         sec_txt = f"{sec_cond}"
         bottom_txt = "ON" if (isinstance(bottom_mode, str) and bottom_mode != "없음") else "OFF"
         cci_txt = ("없음" if cci_mode == "없음"
-                   else f"{'과매수≥' + str(int(cci_over)) if cci_mode.startswith('과매수') else '과매도≤' + str(int(cci_under))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
+                   else f"{('과매수≥' + str(int(cci_over))) if cci_mode == '과매수' else ('과매도≤' + str(int(cci_under)))} · 기간 {int(cci_window)} · 신호 {int(cci_signal)}")
     
         # -----------------------------
         # 매수가 입력 + 최적화뷰 버튼
@@ -3039,6 +3039,12 @@ def main():
                 import traceback
                 st.error(f"감시 오류: {type(e).__name__}: {e}")
                 st.code("".join(traceback.format_tb(e.__traceback__)))
+
+    except Exception as e:
+        import traceback
+        st.error(f"오류 발생: {type(e).__name__}: {e}")
+        st.code("".join(traceback.format_tb(e.__traceback__)))
+
 
 
 if __name__ == "__main__":
