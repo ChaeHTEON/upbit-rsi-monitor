@@ -1590,18 +1590,20 @@ def main():
         # ✅ 수정: 보조지표 확대 + RSI 범례/가독성 강화 + CCI 시인성 개선
         # ✅ 수정: 보조지표 가로/세로 균등 정렬 + RSI 범례 표시 + 높이 1.5배 확대
         fig = make_subplots(
-            rows=5, cols=1, shared_xaxes=True,
+            rows=6, cols=1, shared_xaxes=True,
             specs=[
                 [{"secondary_y": True}],   # 가격
                 [{"secondary_y": False}],  # CCI
                 [{"secondary_y": False}],  # RSI
                 [{"secondary_y": False}],  # 거래량
-                [{"secondary_y": False}]   # MACD
+                [{"secondary_y": False}],  # MACD
+                [{"secondary_y": False}]   # ✅ Composite Score
             ],
-            # 보조지표 비율 조정 (MACD 추가)
-            row_heights=[0.60, 0.18, 0.18, 0.12, 0.12],
+            row_heights=[0.55, 0.15, 0.15, 0.10, 0.10, 0.10],
             vertical_spacing=0.03
         )
+
+        fig.update_layout(height=2300)
 
         fig.update_layout(height=2000)
 
@@ -1842,6 +1844,30 @@ def main():
             fig.update_yaxes(title_text="MACD", row=5, col=1)
         except Exception:
             pass
+
+        # ✅ 복합보조지표 (Composite Score) — RSI·CCI·MACD·거래량 통합지표
+        try:
+            if "Composite_Score" in df.columns:
+                fig.add_trace(
+                    go.Scatter(
+                        x=df["time"],
+                        y=df["Composite_Score"],
+                        name="Composite Score (RSI·CCI·MACD·VOL)",
+                        mode="lines",
+                        line=dict(color="orange", width=2.0),
+                        showlegend=True
+                    ),
+                    row=6, col=1
+                )
+                # 기준선 0.5 (중립)
+                fig.add_hline(
+                    y=0.5,
+                    line=dict(color="gray", dash="dot", width=1.2),
+                    row=6, col=1
+                )
+                fig.update_yaxes(title_text="Composite", range=[0, 1], row=6, col=1)
+        except Exception as e:
+            print("⚠️ Composite_Score 표시 오류:", e)
 
         # UI 텍스트 수정: "봉종류 선택 (참고용..)" → "봉종류 선택"
         st.selectbox("봉종류 선택", ["캔들", "라인", "OHLC"], key="chart_type")
