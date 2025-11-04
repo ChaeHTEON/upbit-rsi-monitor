@@ -1282,6 +1282,15 @@ def main():
     
         if res:
             df_res = pd.DataFrame(res).drop_duplicates(subset=["anchor_i"], keep="first").reset_index(drop=True)
+            
+            # ✅ 디버그용 신호 카운트 기록 (UI 표시 없음)
+            try:
+                st.session_state["dbg_base"] = len(base_sig_idx) if "base_sig_idx" in locals() else None
+                st.session_state["dbg_after_sec"] = len(res)
+                st.session_state["dbg_res"] = len(df_res)
+            except Exception:
+                pass
+
             return df_res
         return pd.DataFrame()
     
