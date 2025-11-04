@@ -1558,7 +1558,6 @@ def main():
 
                 # ✅ 선택된 기준값 이상만 필터링
                 df = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
-                else:
                     df_for_sim = df.copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
