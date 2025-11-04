@@ -1170,10 +1170,10 @@ def main():
                         anchor_idx = j
                         break
     
-                if anchor_idx is None or anchor_idx >= n:
+                if anchor_idx is None or anchor_idx < 0 or anchor_idx >= n:
                     return None, None
-                signal_time = df.at[anchor_idx, "time"]
-                base_price  = float(df.at[anchor_idx, "close"])
+                signal_time = df.iloc[anchor_idx]["time"]
+                base_price  = float(df.iloc[anchor_idx]["close"])
     
             # --- 성과 측정 ---
             eval_start = anchor_idx + 1
@@ -1197,7 +1197,7 @@ def main():
                     hit_idx = j
                     bars_after = hit_idx - anchor_idx
                     reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
+                    end_time = df.iloc[hit_idx]["time"] if 0 <= hit_idx < len(df) else None
                     end_close = stop_price
                     final_ret = (end_close / base_price - 1) * 100
                     result = "실패"
@@ -1209,7 +1209,7 @@ def main():
                     hit_idx = j
                     bars_after = hit_idx - anchor_idx
                     reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
+                    end_time = df.iloc[hit_idx]["time"] if 0 <= hit_idx < len(df) else None
                     end_close = target
                     final_ret = thr
                     result = "성공"
@@ -1580,7 +1580,10 @@ def main():
                 bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
             )
-        res = (res_all if 'res_all' in locals() else pd.DataFrame()) if dup_mode.startswith("중복 포함") else (res_dedup if 'res_dedup' in locals() else pd.DataFrame())
+        # ✅ 수정: res_all / res_dedup 미정의(UnboundLocalError) 방지
+        res_all = res_all if "res_all" in locals() else pd.DataFrame()
+        res_dedup = res_dedup if "res_dedup" in locals() else pd.DataFrame()
+        res = res_all if dup_mode.startswith("중복 포함") else res_dedup
 
         # -----------------------------
         # -----------------------------
