@@ -2057,6 +2057,34 @@ def main():
             hoverinfo="text"
         ), row=1, col=1)
 
+        # ✅ 복합지표(Composite_Score ≥ 0.7) 구간에 주황 별표 표시
+        try:
+            # df_plot에 Composite_Score가 없을 경우 df에서 보완
+            _src_df = df_plot if "Composite_Score" in df_plot.columns else df
+            if "Composite_Score" in _src_df.columns:
+                _mask_comp = _src_df["Composite_Score"] >= 0.7
+                _xs = _src_df.loc[_mask_comp, "time"]
+                _ys = _src_df.loc[_mask_comp, "close"]
+                if len(_xs) > 0:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=_xs,
+                            y=_ys,
+                            mode="markers",
+                            name="Composite 강세★",
+                            marker=dict(
+                                size=10,
+                                color="orange",
+                                symbol="star",
+                                line=dict(width=1, color="black")
+                            )
+                        ),
+                        row=1,
+                        col=1
+                    )
+        except Exception as e:
+            print("⚠️ Composite 강세 마커 오류:", e)
+
         # ☠️☠️☠️ 데드크로스(3단계) 해골 표시 추가
         try:
             if "EMA100" in df_plot.columns and "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
