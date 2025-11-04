@@ -1544,31 +1544,34 @@ def main():
             # ✅ 시뮬레이션용 데이터(df_for_sim)와 차트용 원본(df_orig)을 분리
             df_orig = df.copy()
 
-        elif sec_cond == "복합지표(Composite) 강세만 진입":
-            if "Composite_Score" in df.columns:
-                # ✅ 사용자 조절형 Composite 기준 (기본 0.7)
-                comp_thr = st.slider(
-                    "📊 복합지표 강세 기준 (Composite Score Threshold)",
-                    min_value=0.0,
-                    max_value=1.0,
-                    value=0.7,
-                    step=0.05,
-                    help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
-                )
-
-                # ✅ 선택된 기준값 이상만 필터링
-                df = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
+            # ✅ sec_cond 분기: df_for_sim 준비 (문법/타이포 수정)
+            df_for_sim = df.copy()
+            if sec_cond == "복합지표(Composite) 강세만 진입":
+                if "Composite_Score" in df.columns:
+                    # 사용자 조절형 Composite 기준 (기본 0.7)
+                    comp_thr = st.slider(
+                        "📊 복합지표 강세 기준 (Composite Score Threshold)",
+                        min_value=0.0,
+                        max_value=1.0,
+                        value=0.7,
+                        step=0.05,
+                        help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
+                    )
+                    # 선택된 기준값 이상만 필터링
+                    df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
+                else:
+                    # Composite_Score가 없으면 원본 유지(안전 동작)
                     df_for_sim = df.copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Golden" in df.columns:
-                    # ✅ Composite_Golden = 1 발생 구간만 진입 허용
-                    # 필터 후 인덱스 리셋(위치 기반 접근화)
+                    # Composite_Golden = 1 발생 구간만 진입 허용
                     df_for_sim = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
                 else:
-                    import pandas as pd
-                    df_for_sim = pd.DataFrame(columns=df.columns)
+                    # 컬럼이 없으면 빈 데이터로 안전 처리
+                    df_for_sim = df.iloc[0:0].copy()
             else:
+                # 위 조건 외에는 원본 전체 사용
                 df_for_sim = df.copy()
 
             # ✅ 기본 simulate (모든 조건 공통) — 시뮬레이션에는 df_for_sim 사용
