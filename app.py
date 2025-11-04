@@ -2916,8 +2916,10 @@ def add_indicators(df, bb_window, bb_dev, cci_window, cci_signal=9):
     except Exception as e:
         import sys, traceback
         etype, evalue, tb = sys.exc_info()
-        st.error(f"오류 발생: {etype.__name__}: {e}")
+        st.error(f"⚠️ 오류 발생: {etype.__name__}: {e}")
         st.code("".join(traceback.format_tb(tb)))
+        st.warning("🔸 위 오류로 일부 섹션이 표시되지 않았습니다. ⚙️ 기본 설정을 변경 후 다시 실행해보세요.")
+        # ❗ stop() 호출 금지 — 나머지 UI 유지
 
 if __name__ == "__main__":
     main()
