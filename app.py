@@ -1589,33 +1589,28 @@ def main():
                 bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
             )
-        # ✅ 수정: res_all / res_dedup 미정의(UnboundLocalError) 방지
+        else:
+            # ✅ 일반 분기: 복합지표 외의 모든 2차조건도 시뮬레이션 수행
+            res_all = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, "중복 포함 (연속 동일 결과 허용)",
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
+            res_dedup = simulate(
+                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                minutes_per_bar, market_code, bb_window, bb_dev,
+                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+            )
+
         res_all = res_all if "res_all" in locals() else pd.DataFrame()
         res_dedup = res_dedup if "res_dedup" in locals() else pd.DataFrame()
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
-
-        # -----------------------------
-        # -----------------------------
-        # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
-        # -----------------------------
-        max_bars = 5000
-        # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
-        st.session_state["volume_cond"] = volume_cond
-
-        if res is not None and not res.empty:
-            plot_res = (
-                res.sort_values("신호시간")
-                   .drop_duplicates(subset=["anchor_i"], keep="first")
-                   .reset_index(drop=True)
-            )
-        else:
-            plot_res = pd.DataFrame()
-
-        df_view = df.copy()
-        if len(df_view) > max_bars:
-            df_view = df_view.iloc[-max_bars:].reset_index(drop=True)
-        else:
-            df_view = df_view.reset_index(drop=True)
     
         # -----------------------------
         # 차트 (가격/RSI 상단 + CCI 하단) — X축 동기화
