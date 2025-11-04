@@ -1551,23 +1551,8 @@ def main():
         else:
             if sec_cond == "복합지표(Composite) 강세만 진입":
                 if "Composite_Score" in df.columns:
-                    # ✅ 데이터는 필터링하지 않고, Composite >= 0.7 구간만 차트에 음영 강조
-                    strong_mask = df["Composite_Score"] >= 0.7
-                    strong_ranges = []
-                    in_range = False
-                    start_time = None
-                    for t, flag in zip(df["time"], strong_mask):
-                        if flag and not in_range:
-                            start_time = t
-                            in_range = True
-                        elif not flag and in_range:
-                            strong_ranges.append((start_time, t))
-                            in_range = False
-                    if in_range:
-                        strong_ranges.append((start_time, df["time"].iloc[-1]))
-
-                    # 강조 구간 표시용 정보 보관
-                    st.session_state["composite_highlights"] = strong_ranges
+                    # 필터 후 인덱스 리셋(위치 기반 접근 안정화)
+                    df = df[df["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Golden" in df.columns:
@@ -1669,16 +1654,6 @@ def main():
         )
 
         fig.update_layout(height=2300)
-
-        # ✅ 복합지표 강세 구간 음영 표시 (Composite_Score >= 0.7)
-        if "composite_highlights" in st.session_state:
-            for start_t, end_t in st.session_state["composite_highlights"]:
-                fig.add_vrect(
-                    x0=start_t, x1=end_t,
-                    fillcolor="rgba(50, 200, 100, 0.15)",
-                    layer="below",
-                    line_width=0
-                )
 
         fig.update_layout(height=2000)
 
