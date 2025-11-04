@@ -2381,6 +2381,19 @@ def main():
             win  = succ / total * 100 if total else 0.0
             total_final = df_in["최종수익률(%)"].sum()
             return total, succ, fail, neu, win, total_final
+
+        # ✅ res_dedup / res_all 안전 초기화 (UnboundLocalError 방지)
+        if res is not None and not res.empty:
+            res_all = res.copy()
+            res_dedup = (
+                res.sort_values("신호시간")
+                   .drop_duplicates(subset=["anchor_i"], keep="first")
+                   .reset_index(drop=True)
+            )
+        else:
+            import pandas as pd
+            res_all = pd.DataFrame()
+            res_dedup = pd.DataFrame()
     
         for label, data in [("중복 제거 (연속 동일 결과 1개)", res_dedup), ("중복 포함 (연속 신호 모두)", res_all)]:
             total, succ, fail, neu, win, total_final = _summarize(data)
@@ -2449,7 +2462,7 @@ def main():
                     simulate_kwargs = dict(
                         rsi_mode=rsi_mode, rsi_low=rsi_low, rsi_high=rsi_high,
                         lookahead=lookahead, threshold_pct=threshold_pct, stoploss_pct=stoploss_pct,
-                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일...과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
+                        bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
                         sec_cond=sec_cond, bottom_mode=bottom_mode,
                         manual_supply_levels=manual_supply_levels,
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
@@ -2536,7 +2549,7 @@ def main():
                                         sec_cond=sec_c, hit_basis="종가 기준",
                                         miss_policy="(고정) 성공·실패·중립",
                                         bottom_mode=False, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal
                                     )
                                     win, total, succ, fail, neu = _winrate(res_s)
                                     total_ret = float(res_s["최종수익률(%)"].sum()) if "최종수익률(%)" in res_s else 0.0
