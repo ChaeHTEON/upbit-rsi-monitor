@@ -1549,6 +1549,36 @@ def main():
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
+            if sec_cond == "복합지표(Composite) 강세만 진입":
+                if "Composite_Score" in df.columns:
+                    # ✅ 기존 필터링 제거 (df 절대 수정 X)
+                    # ✅ 시각화용 구간만 추출
+                    strong_mask = df["Composite_Score"] >= 0.7
+                    strong_ranges = []
+                    in_range = False
+                    start_time = None
+                    for t, flag in zip(df["time"], strong_mask):
+                        if flag and not in_range:
+                            start_time = t
+                            in_range = True
+                        elif not flag and in_range:
+                            strong_ranges.append((start_time, t))
+                            in_range = False
+                    if in_range:
+                        strong_ranges.append((start_time, df["time"].iloc[-1]))
+            
+                    # ✅ 기존 정보 초기화 후 저장
+                    st.session_state["composite_highlights"] = strong_ranges
+
+            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+                if "Composite_Golden" in df.columns:
+                    # ✅ Composite_Golden = 1 발생 구간만 진입 허용
+                    # 필터 후 인덱스 리셋(위치 기반 접근 안정화)
+                    df = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
+                else:
+                    import pandas as pd
+                    df = pd.DataFrame(columns=df.columns)
+
             # ✅ 기본 simulate (모든 조건 공통)
             res_dedup = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
@@ -1558,23 +1588,6 @@ def main():
                 bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
                 cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
             )
-
-            res_all = simulate(
-                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                bb_cond, "중복 포함 (연속 신호 모두)",
-                minutes_per_bar, market_code, bb_window, bb_dev,
-                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-            )
-
-            if sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Golden" in df.columns:
-                    # ✅ Composite_Golden = 1 발생 구간만 진입 허용
-                    df = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
-                else:
-                    import pandas as pd
-                    df = pd.DataFrame(columns=df.columns)
 
             res_all = simulate(
                 df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
