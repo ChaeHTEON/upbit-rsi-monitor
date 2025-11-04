@@ -886,42 +886,29 @@ def main():
                 base_sig_idx = df.index[cross_30 & gcross & near_cond].tolist()
 
             elif strategy == "CCI_GoldenCross_NearMinus100":
-                # ✅ 개선된 CCI 조건 (-100 기준, 신호 감도 확장)
-                # 1) CCI가 -100 이하에서 상향 전환되거나 해당 구간 체류 중
-                # 2) 이후 10봉 이내에 CCI > CCI_sig 골든크로스 발생 시 신호로 인정
-                # 3) 분봉 단위에 따라 CCI 상단 조건 완화 (5분: ≤80, 10분 이상: ≤60)
+                # ✅ 단순화 + 실제 신호 발생 보장형
+                # 1) CCI가 -100 이하로 내려간 적이 있고
+                # 2) 이후 CCI가 신호선 위로 골든크로스 발생 시
+                # 3) 다음 캔들에서 진입 신호 발생
 
                 c = df["CCI"]
-                # 보조선 완화: rolling(20)으로 민감도 낮춤
+
+                # 보조 신호선 존재 여부 확인 (없으면 rolling 평균 생성)
                 if "CCI_sig" not in df.columns:
-                    df["CCI_sig"] = df["CCI"].rolling(20, min_periods=1).mean()
+                    df["CCI_sig"] = df["CCI"].rolling(14, min_periods=1).mean()
                 s = df["CCI_sig"]
 
-                cross_100 = (c.shift(1) <= -100) & (c > -100)
-                below_100 = (c <= -100)
+                # ✅ 조건 구성
+                was_below = (c.shift(1) <= -100) | (c.shift(2) <= -100) | (c.shift(3) <= -100)
+                golden_cross = (c.shift(1) <= s.shift(1)) & (c > s)
 
-                # 골든크로스 발생 index
-                gcross_idx = df.index[(c.shift(1) <= s.shift(1)) & (c > s)].tolist()
+                # ✅ 신호 발생: 과거 -100 이하 이력 존재 + 현재 골든크로스
+                df["Signal"] = ((was_below) & (golden_cross.shift(0))).astype(int)
 
-                # 분봉별 CCI 허용 범위 완화
-                try:
-                    tf_mins = int(minutes_per_bar)
-                except Exception:
-                    tf_mins = 5
-                if tf_mins <= 5:
-                    near_cond = (c <= 80)
-                else:
-                    near_cond = (c <= 60)
+                # ✅ 다음 캔들부터 진입 → 한 칸 시프트
+                df["Signal"] = df["Signal"].shift(1).fillna(0)
 
-                # 상향돌파 또는 -100 이하 체류 → 10봉 이내 골든 발생 시 신호 인정
-                sig_idx = []
-                for i in df.index[(cross_100 | below_100) & near_cond]:
-                    nxt = list(range(i, min(i + 10, len(df))))
-                    if any(j in gcross_idx for j in nxt):
-                        sig_idx.append(i)
-
-                base_sig_idx = sig_idx
-                # (미정의 변수 gcross 참조 제거 — NameError 방지)
+                base_sig_idx = df.index[df["Signal"] == 1].tolist()
 
             elif strategy == "Vol_Ratio_Imbalance":
                 _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
