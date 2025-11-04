@@ -1546,6 +1546,10 @@ def main():
         _skip_all = _no_bottom and _no_primary and _no_rsi and _no_bb and _no_cci and _no_sec
 
         # =============== ⑥ 시뮬레이션 실행 ===============
+        # =============== ⑥ 시뮬레이션 실행 ===============
+        # ✅ df_orig 기본값 지정 (모든 분기에서 참조 가능하도록)
+        df_orig = df.copy()
+
         if _skip_all:
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
