@@ -1545,27 +1545,34 @@ def main():
         _no_sec = (sec_cond == "없음")
         _skip_all = _no_bottom and _no_primary and _no_rsi and _no_bb and _no_cci and _no_sec
 
-        if _skip_all:
+if _skip_all:
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
+            # ✅ 시뮬레이션용 데이터(df_for_sim)와 차트용 원본(df_orig)을 분리
+            df_orig = df.copy()
+
             if sec_cond == "복합지표(Composite) 강세만 진입":
                 if "Composite_Score" in df.columns:
-                    # 필터 후 인덱스 리셋(위치 기반 접근 안정화)
-                    df = df[df["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
+                    # 필터 후 인덱스 리셋(위치 기반 접근화)
+                    df_for_sim = df[df["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
+                else:
+                    df_for_sim = df.copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Golden" in df.columns:
                     # ✅ Composite_Golden = 1 발생 구간만 진입 허용
-                    # 필터 후 인덱스 리셋(위치 기반 접근 안정화)
-                    df = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
+                    # 필터 후 인덱스 리셋(위치 기반 접근화)
+                    df_for_sim = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
                 else:
                     import pandas as pd
-                    df = pd.DataFrame(columns=df.columns)
+                    df_for_sim = pd.DataFrame(columns=df.columns)
+            else:
+                df_for_sim = df.copy()
 
-            # ✅ 기본 simulate (모든 조건 공통)
+            # ✅ 기본 simulate (모든 조건 공통) — 시뮬레이션에는 df_for_sim 사용
             res_dedup = simulate(
-                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                df_for_sim, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
                 bb_cond, "중복 제거 (연속 동일 결과 1개)",
                 minutes_per_bar, market_code, bb_window, bb_dev,
                 sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
@@ -1574,7 +1581,7 @@ def main():
             )
 
             res_all = simulate(
-                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                df_for_sim, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
                 bb_cond, "중복 포함 (연속 신호 모두)",
                 minutes_per_bar, market_code, bb_window, bb_dev,
                 sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
@@ -1594,10 +1601,8 @@ def main():
         if 'res_all' not in locals(): res_all = pd.DataFrame()
         if 'res_dedup' not in locals(): res_dedup = pd.DataFrame()
 
-        res = res_all if dup_mode.startswith("중복 포함") else res_dedup
-
         # -----------------------------
-        # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
+        # 동 표시 (특정 구간 선택 기능 제거)
         # -----------------------------
         max_bars = 5000
         # ✅ 거래량 조건을 세션에 보관 (전역 참조용)
@@ -1612,7 +1617,8 @@ def main():
         else:
             plot_res = pd.DataFrame()
 
-        df_view = df.copy()
+        # ✅ 차트는 항상 원본 전체(df_orig) 기준으로 그림
+        df_view = df_orig.copy()
         if len(df_view) > max_bars:
             df_view = df_view.iloc[-max_bars:].reset_index(drop=True)
         else:
