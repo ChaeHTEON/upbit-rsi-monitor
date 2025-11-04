@@ -1551,12 +1551,14 @@ def main():
         else:
             if sec_cond == "복합지표(Composite) 강세만 진입":
                 if "Composite_Score" in df.columns:
-                    df = df[df["Composite_Score"] >= 0.7].copy()
+                    # 필터 후 인덱스 리셋(위치 기반 접근 안정화)
+                    df = df[df["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Golden" in df.columns:
                     # ✅ Composite_Golden = 1 발생 구간만 진입 허용
-                    df = df[df["Composite_Golden"] == 1].copy()
+                    # 필터 후 인덱스 리셋(위치 기반 접근 안정화)
+                    df = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
                 else:
                     import pandas as pd
                     df = pd.DataFrame(columns=df.columns)
