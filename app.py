@@ -2998,137 +2998,16 @@ def main():
         with st.expander("⑤ 실시간 감시 (알람)", expanded=True):
             st.caption("📡 Streamlit 실행 시 자동으로 전 종목/전략을 감시하며 조건 충족 시 알림을 표시합니다.")
 
-            # ✅ 감시용 기본 세션 상태
-            if "alarm_log" not in st.session_state:
-                st.session_state["alarm_log"] = []
-
-            # ✅ 1) 감시 종목 선택 (기존 종목 선택 방식 동일)
-            watch_syms = st.multiselect(
-                "감시 코인",
-                ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"],
-                default=["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"]
-            )
-
-            # ✅ 2) 감시 타임프레임 선택 (기존 구조 동일)
-            watch_tfs = st.multiselect(
-                "감시 분봉 (다중 선택 가능)",
-                ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
-                default=["10분","60분"]
-            )
-
-            # ✅ 3) 매매기법 선택
-            strategies = st.multiselect(
-                "매매기법 선택 (3개 전략 지원)",
-                ["복합지표(Composite) 강세만 진입", "Vol_Ratio_Imbalance", "CCI_GoldenCross_NearMinus100"],
-                default=["복합지표(Composite) 강세만 진입","Vol_Ratio_Imbalance","CCI_GoldenCross_NearMinus100"]
-            )
-
-            # ✅ 4) 전략별 커스텀 옵션
-            col1, col2, col3 = st.columns([1,1,1])
-            with col1:
-                comp_thr = st.slider("Composite 강세 기준", 0.0, 1.0, 0.70, 0.05)
-            with col2:
-                vol_thr = st.number_input("Vol_Ratio 매수 기준", value=1.5, step=0.1)
-            with col3:
-                cci_sig = st.number_input("CCI Signal 기간", value=int(14), step=1)
-
-            col4, col5 = st.columns([1,1])
-            with col4:
-                tp_alarm = st.number_input("목표수익률(%)", value=0.7, step=0.1)
-            with col5:
-                sl_alarm = st.number_input("손절기준(%)", value=-0.6, step=0.1)
-
-            # ✅ 5) 테스트 모드
-            test_mode = st.toggle("🧪 테스트 모드 (조건 무시 즉시 트리거)")
-
-            # ✅ 감시 즉시 실행
+            # ✅ 감시 루프 (자동 감시 + 시간 보정 + 최신 캔들 반영)
             st.success("✅ 자동 감시 중입니다. 조건 충족 시 즉시 알림 표시됩니다.")
-
             triggered = []
-            # ✅ 감시 종목: ① 기본 선택 UI와 완전 동일하게 동작하도록 구성
-            # - 우선 ① 섹션에서 사용 중인 옵션/선택값을 그대로 재사용 (세션 키)
-            # - 해당 키가 없을 때만 안전 폴백(거래량 상위 기본 목록) 사용
-            import json, os
 
-            _SYMBOL_KEY_OPTIONS = "symbols_options_full"       # ① 섹션에서 사용한 전체 옵션(표시라벨 리스트)
-            _SYMBOL_KEY_SELECTED = "symbols_selected_labels"   # ① 섹션에서 사용한 현재 선택(표시라벨 리스트)
-            _TF_KEY_OPTIONS = "timeframes_options_full"        # ① 섹션의 분봉 옵션(라벨 리스트)
-            _TF_KEY_SELECTED = "timeframes_selected_labels"    # ① 섹션의 선택된 분봉(라벨 리스트)
+            # ⚙️ 기존 감시 코인·분봉 선택은 ① 기본 설정 UI와 동일한 세션 데이터 사용
+            #    (별도 중복 UI 제거)
+            watch_syms = st.session_state.get("symbols_selected_labels", ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"])
+            watch_tfs  = st.session_state.get("timeframes_selected_labels", ["10분","60분"])
 
-            # 🔐 영구 저장 파일(새 페이지/새 세션 진입 시에도 복원)
-            _WATCH_CFG_FILE = "watch_config.json"
-
-            # 1) JSON 로드 → 세션 초기화
-            if "watch_cfg_loaded" not in st.session_state:
-                try:
-                    if os.path.exists(_WATCH_CFG_FILE):
-                        with open(_WATCH_CFG_FILE, "r", encoding="utf-8") as f:
-                            st.session_state["watch_cfg"] = json.load(f)
-                    else:
-                        st.session_state["watch_cfg"] = {}
-                except Exception:
-                    st.session_state["watch_cfg"] = {}
-                st.session_state["watch_cfg_loaded"] = True
-
-            # 2) ① 섹션에서 이미 구성된 옵션/선택값 우선 재사용
-            #    없으면 폴백(거래량 상위 기본 목록, 10·60분) 사용
-            symbol_list_full = st.session_state.get(_SYMBOL_KEY_OPTIONS, None)
-            symbol_selected_default = st.session_state.get(_SYMBOL_KEY_SELECTED, None)
-            tf_list_full = st.session_state.get(_TF_KEY_OPTIONS, None)
-            tf_selected_default = st.session_state.get(_TF_KEY_SELECTED, None)
-
-            # 폴백(표시라벨은 "KRW-BTC - 비트코인 (BTC)" 형식)
-            if symbol_list_full is None:
-                symbol_list_full = [
-                    "KRW-BTC - 비트코인 (BTC)",
-                    "KRW-ETH - 이더리움 (ETH)",
-                    "KRW-XRP - 리플 (XRP)",
-                    "KRW-SOL - 솔라나 (SOL)",
-                    "KRW-DOGE - 도지코인 (DOGE)",
-                    "KRW-MNT - 맨틀 (MNT)"
-                ]
-            if symbol_selected_default is None:
-                symbol_selected_default = symbol_list_full[:]  # 전 종목 기본
-
-            if tf_list_full is None:
-                tf_list_full = ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"]
-            if tf_selected_default is None:
-                tf_selected_default = ["10분","60분"]
-
-            # 3) 이전에 저장한 감시 설정이 있으면 기본값으로 복원
-            watch_cfg = st.session_state.get("watch_cfg", {})
-            saved_syms = watch_cfg.get("watch_syms_labels", symbol_selected_default)
-            saved_tfs  = watch_cfg.get("watch_tfs_labels",  tf_selected_default)
-
-            # 4) 멀티셀렉트(UI 라벨/우선순위/정렬 ①과 동일)
-            watch_syms = st.multiselect(
-                "감시 코인 (① 기본선택과 동일, 거래량 우선 정렬)",
-                options=symbol_list_full,
-                default=saved_syms,
-                help="실시간 감시할 코인을 선택합니다. (① 기본선택과 동일 라벨/정렬 사용)",
-                key="watch_syms_alert"
-            )
-            watch_tfs = st.multiselect(
-                "감시 분봉 (다중 선택 가능)",
-                options=tf_list_full,
-                default=saved_tfs,
-                key="watch_tfs_alert"
-            )
-
-            # 5) 선택 즉시 세션·JSON에 영구 저장 (새 페이지/새 세션에서도 유지)
-            try:
-                st.session_state["watch_cfg"]["watch_syms_labels"] = watch_syms
-                st.session_state["watch_cfg"]["watch_tfs_labels"]  = watch_tfs
-                with open(_WATCH_CFG_FILE, "w", encoding="utf-8") as f:
-                    json.dump(st.session_state["watch_cfg"], f, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
-
-            # 6) 알람 루프 (시간 보정 + 최신 캔들 반영)
-            triggered = []
-            for sym_full in watch_syms:
-                # 표시라벨 → 심볼코드 추출 ("KRW-BTC - 비트코인 (BTC)" → "KRW-BTC")
-                sym = str(sym_full).split(" - ")[0].strip()
+            for sym in watch_syms:
                 for tf in watch_tfs:
                     try:
                         interval_pair, mpb_pair = TF_MAP[tf]
@@ -3140,7 +3019,7 @@ def main():
                     start_time = end_time - timedelta(minutes=mpb_pair * (warmup_bars + 2))
                     df_w = fetch_upbit_paged(sym, interval_pair, start_time, end_time, mpb_pair, warmup_bars)
 
-                    # ⏱ UTC→KST 변환
+                    # ⏱ UTC → KST 변환 (한국 시간 동기화)
                     if df_w is not None and not df_w.empty and "time" in df_w.columns:
                         df_w["time"] = pd.to_datetime(df_w["time"]) + pd.Timedelta(hours=9)
 
@@ -3148,66 +3027,29 @@ def main():
                         continue
 
                     df_w = add_indicators(df_w, bb_window, bb_dev, cci_window, cci_signal)
+                    res_w = simulate(
+                        df_w, rsi_mode, rsi_low, rsi_high, lookahead,
+                        threshold_pct, stoploss_pct, bb_cond,
+                        "중복 제거 (연속 동일 결과 1개)",
+                        mpb_pair, sym, bb_window, bb_dev,
+                        sec_cond=sec_cond, hit_basis="종가 기준",
+                        miss_policy="(고정) 성공·실패·중립",
+                        bottom_mode=(bottom_mode if isinstance(bottom_mode, str) and bottom_mode!="없음" else False),
+                        supply_levels=None, manual_supply_levels=manual_supply_levels,
+                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                    )
+                    if res_w is not None and not res_w.empty:
+                        last_signal = res_w.iloc[-1]["결과"]
+                        if last_signal == "성공":
+                            st.toast(f"✅ {sym}({tf}) 신호 발생!")
 
-                    # 이후 알람 조건 및 Toast 로직 동일
-
-                    # 🧪 테스트 모드: 즉시 알람 발생
-                    if test_mode:
-                        now_s = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-                        for strat in strategies:
-                            st.toast(f"🧪 [테스트] {sym} | {strat} ({tf}) 알람 발생 (TP:{tp_alarm} / SL:{sl_alarm})")
-                            triggered.append({
-                                "시간": now_s, "종목": sym, "전략": strat, "분봉": tf,
-                                "TP(%)": tp_alarm, "SL(%)": sl_alarm,
-                                "상태": "🧪 Test Triggered"
-                            })
-                        continue
-
-                    # ===== 실제 조건 판정 =====
-                    for strat in strategies:
-                        cond = False
-                        detail = ""
-
-                        if strat == "복합지표(Composite) 강세만 진입":
-                            if "Composite_Score" in df_w.columns:
-                                val = float(df_w["Composite_Score"].iloc[-1])
-                                cond = (val >= float(comp_thr))
-                                detail = f"Composite_Score={round(val,3)} (기준 {comp_thr})"
-
-                        elif strat == "Vol_Ratio_Imbalance":
-                            if "Vol_Ratio" in df_w.columns:
-                                vr = float(df_w["Vol_Ratio"].iloc[-1])
-                                cond = (vr > float(vol_thr))
-                                detail = f"Vol_Ratio={round(vr,3)} (> {vol_thr})"
-
-                        elif strat == "CCI_GoldenCross_NearMinus100":
-                            if "CCI" in df_w.columns:
-                                c = df_w["CCI"].astype(float)
-                                s = c.rolling(int(cci_sig), min_periods=1).mean()
-                                was_below = (c.shift(1) <= -100) | (c.shift(2) <= -100) | (c.shift(3) <= -100)
-                                golden = (c.shift(1) <= s.shift(1)) & (c > s)
-                                cond = bool((was_below & golden).iloc[-1])
-                                detail = f"CCI={round(c.iloc[-1],1)} / Sig={round(s.iloc[-1],1)} (최근 -100 & 골든)"
-
-                        if cond:
-                            now_s = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-                            st.toast(f"🔔 {sym} | {strat} ({tf}) 신호 발생! {detail}")
-                            triggered.append({
-                                "시간": now_s, "종목": sym, "전략": strat, "분봉": tf,
-                                "세부": detail, "TP(%)": tp_alarm, "SL(%)": sl_alarm,
-                                "상태": "✅ Triggered"
-                            })
-
-            # ✅ 기록 테이블
             st.markdown("#### 🧾 알람 기록")
             if triggered:
-                st.session_state["alarm_log"].extend(triggered)
-
-            if len(st.session_state["alarm_log"]) > 0:
-                df_log = pd.DataFrame(st.session_state["alarm_log"]).sort_values("시간", ascending=False).reset_index(drop=True)
-                st.dataframe(df_log, use_container_width=True)
+                st.session_state["alarm_log"] = st.session_state.get("alarm_log", []) + triggered
+                st.dataframe(pd.DataFrame(st.session_state["alarm_log"]).sort_values("시간", ascending=False))
             else:
                 st.info("아직 발생한 알람이 없습니다.")
+
     except Exception as e:
         import sys, traceback
         etype, evalue, tb = sys.exc_info()
@@ -3216,4 +3058,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
