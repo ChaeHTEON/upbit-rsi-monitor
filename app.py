@@ -1544,20 +1544,20 @@ def main():
             # ✅ 시뮬레이션용 데이터(df_for_sim)와 차트용 원본(df_orig)을 분리
             df_orig = df.copy()
 
-            elif sec_cond == "복합지표(Composite) 강세만 진입":
-                if "Composite_Score" in df.columns":
-                    # ✅ 사용자 조절형 Composite 기준 (기본 0.7)
-                    comp_thr = st.slider(
-                        "📊 복합지표 강세 기준 (Composite Score Threshold)",
-                        min_value=0.0,
-                        max_value=1.0,
-                        value=0.7,
-                        step=0.05,
-                        help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
-                    )
-    
-                    # ✅ 선택된 기준값 이상만 필터링
-                    df = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
+        elif sec_cond == "복합지표(Composite) 강세만 진입":
+            if "Composite_Score" in df.columns:
+                # ✅ 사용자 조절형 Composite 기준 (기본 0.7)
+                comp_thr = st.slider(
+                    "📊 복합지표 강세 기준 (Composite Score Threshold)",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.7,
+                    step=0.05,
+                    help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
+                )
+
+                # ✅ 선택된 기준값 이상만 필터링
+                df = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
                 else:
                     df_for_sim = df.copy()
 
