@@ -3034,10 +3034,12 @@ def main():
                         alarm_result = last_row["결과"]
                         if alarm_result == "성공":
                             st.toast(f"🚨 {market_code_saved}({tf_label_saved}) 신호 발생 — {alarm_time}")
-            except Exception as e:
-                import traceback
-                st.error(f"감시 오류: {type(e).__name__}: {e}")
-                st.code("".join(traceback.format_tb(e.__traceback__)))
+    except Exception as e:
+        import sys, traceback
+        etype, evalue, tb = sys.exc_info()
+        st.error(f"오류 발생: {etype.__name__}: {e}")
+        st.code("".join(traceback.format_tb(tb)))
+
 
 if __name__ == "__main__":
     main()
