@@ -1553,14 +1553,14 @@ def main():
                 # ✅ 실행 전 이전 Composite 음영 정보 초기화
                 st.session_state.pop("composite_highlights", None)
 
+                # ✅ df는 절대 건드리지 않고, 복제본(df_copy)으로 계산
                 if "Composite_Score" in df.columns:
-                    # ✅ 기존 필터링 제거 (df 절대 수정 X)
-                    # ✅ 시각화용 구간만 추출
-                    strong_mask = df["Composite_Score"] >= 0.7
+                    df_copy = df[["time", "Composite_Score"]].copy()
+                    strong_mask = df_copy["Composite_Score"] >= 0.7
                     strong_ranges = []
                     in_range = False
                     start_time = None
-                    for t, flag in zip(df["time"], strong_mask):
+                    for t, flag in zip(df_copy["time"], strong_mask):
                         if flag and not in_range:
                             start_time = t
                             in_range = True
@@ -1568,7 +1568,8 @@ def main():
                             strong_ranges.append((start_time, t))
                             in_range = False
                     if in_range:
-                        strong_ranges.append((start_time, df["time"].iloc[-1]))
+                        strong_ranges.append((start_time, df_copy["time"].iloc[-1]))
+                    st.session_state["composite_highlights"] = strong_ranges
             
                     # ✅ 기존 정보 초기화 후 저장
                     st.session_state["composite_highlights"] = strong_ranges
