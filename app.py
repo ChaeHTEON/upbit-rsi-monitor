@@ -3058,14 +3058,16 @@ def main():
                 "감시 코인 (거래량 상위 우선)",
                 options=[f"{sym} - {name}" for sym, name in symbol_list],
                 default=[f"{sym} - {name}" for sym, name in symbol_list],
-                help="실시간 감시할 코인을 선택합니다."
+                help="실시간 감시할 코인을 선택합니다.",
+                key="watch_syms_alert"   # ✅ 중복 방지용 고유 key 추가
             )
 
             # ✅ 감시 분봉: 기존 구조 동일 (예: 10분, 60분)
             watch_tfs = st.multiselect(
                 "감시 분봉 (다중 선택 가능)",
                 ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
-                default=["10분","60분"]
+                default=["10분","60분"],
+                key="watch_tfs_alert"   # ✅ 중복 방지용 고유 key 추가
             )
 
             # ✅ 감시 루프 (시간 보정 + 최신 캔들 반영)
