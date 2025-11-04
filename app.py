@@ -1848,6 +1848,7 @@ def main():
         # ✅ 복합보조지표 (Composite Score) — RSI·CCI·MACD·거래량 통합지표
         try:
             if "Composite_Score" in df.columns:
+                # 기본 Composite Score 라인
                 fig.add_trace(
                     go.Scatter(
                         x=df["time"],
@@ -1859,12 +1860,54 @@ def main():
                     ),
                     row=6, col=1
                 )
+
+                # ✅ 평균선 (Signal Line, EMA9)
+                if "Composite_Signal" in df.columns:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df["time"],
+                            y=df["Composite_Signal"],
+                            name="Composite Signal (EMA9)",
+                            mode="lines",
+                            line=dict(color="gray", width=1.5, dash="dot"),
+                            showlegend=True
+                        ),
+                        row=6, col=1
+                    )
+
                 # 기준선 0.5 (중립)
                 fig.add_hline(
                     y=0.5,
                     line=dict(color="gray", dash="dot", width=1.2),
                     row=6, col=1
                 )
+
+                # ✅ 골든/데드 교차 별표 표시
+                if "Composite_Golden" in df.columns and "Composite_Dead" in df.columns:
+                    xs_up = df.loc[df["Composite_Golden"] == 1, "time"]
+                    ys_up = df.loc[df["Composite_Golden"] == 1, "Composite_Score"]
+                    xs_dn = df.loc[df["Composite_Dead"] == 1, "time"]
+                    ys_dn = df.loc[df["Composite_Dead"] == 1, "Composite_Score"]
+
+                    if len(xs_up) > 0:
+                        fig.add_trace(
+                            go.Scatter(
+                                x=xs_up, y=ys_up, mode="markers",
+                                name="Composite 골든★",
+                                marker=dict(size=9, symbol="star", color="red", line=dict(width=1, color="black"))
+                            ),
+                            row=6, col=1
+                        )
+                    if len(xs_dn) > 0:
+                        fig.add_trace(
+                            go.Scatter(
+                                x=xs_dn, y=ys_dn, mode="markers",
+                                name="Composite 데드★",
+                                marker=dict(size=9, symbol="star", color="blue", line=dict(width=1, color="black"))
+                            ),
+                            row=6, col=1
+                        )
+
                 fig.update_yaxes(title_text="Composite", range=[0, 1], row=6, col=1)
         except Exception as e:
             print("⚠️ Composite_Score 표시 오류:", e)
