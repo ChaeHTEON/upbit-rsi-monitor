@@ -236,27 +236,27 @@ def main():
         with c2:
             st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
             primary_strategy = st.selectbox(
-                "매매기법 선택",
-                [
-                    "없음",
-                    "TGV",
-                    "RVB",
-                    "PR",
-                    "LCT",
-                    "4D_Sync",
-                    "240m_Sync",
-                    "Composite_Confirm",
-                    "Divergence_RVB",
-                    "Market_Divergence",
-                    "MACD_GoldenCross",
-                    "RSI_GoldenCross_Near30",
-                    "CCI_GoldenCross_NearMinus200",
-                    "EMA100_Above",
-                    "EMA100_Below",
-                    "Vol_Ratio_Imbalance"
-                ],
-                index=0
-            )
+                    "매매기법 선택",
+                    [
+                        "없음",
+                        "TGV",
+                        "RVB",
+                        "PR",
+                        "LCT",
+                        "4D_Sync",
+                        "240m_Sync",
+                        "Composite_Confirm",
+                        "Divergence_RVB",
+                        "Market_Divergence",
+                        "MACD_GoldenCross",
+                        "RSI_GoldenCross_Near30",
+                        "CCI_GoldenCross_NearMinus100",
+                        "EMA100_Above",
+                        "EMA100_Below",
+                        "Vol_Ratio_Imbalance"
+                    ],
+                    index=0
+                )
             st.session_state["primary_strategy"] = primary_strategy
             if primary_strategy != "없음":
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
@@ -921,9 +921,7 @@ def main():
                         sig_idx.append(i)
 
                 base_sig_idx = sig_idx
-
-                # ✅ 개선 포인트: -100 이하 상태에서도 골든크로스 인정
-                base_sig_idx = df.index[(cross_100 | below_100) & gcross & near_cond].tolist()
+                # (미정의 변수 gcross 참조 제거 — NameError 방지)
 
             elif strategy == "Vol_Ratio_Imbalance":
                 _vr_buy = st.session_state.get("volratio_buy_thr", 1.5)
@@ -1587,26 +1585,8 @@ def main():
         if 'res_all' not in locals(): res_all = pd.DataFrame()
 
         res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+        # (중복 실행 블록 제거 — IndentationError 방지)
 
-            # ✅ 조건별 simulate 실행
-            if sec_cond == "복합지표(Composite) 강세만 진입":
-                res_dedup = simulate(
-                    df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                    bb_cond, "중복 제거 (연속 동일 결과 1개)",
-                    minutes_per_bar, market_code, bb_window, bb_dev,
-                    sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-                    bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-                )
-            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                res_dedup = simulate(
-                    df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                    bb_cond, "중복 제거 (연속 동일 결과 1개)",
-                    minutes_per_bar, market_code, bb_window, bb_dev,
-                    sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-                    bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-                )
 
         # ✅ 후처리 안전보강 — res_all / res_dedup 존재 보장
         if 'res_all' not in locals(): res_all = pd.DataFrame()
