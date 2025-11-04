@@ -1545,7 +1545,8 @@ def main():
         _no_sec = (sec_cond == "없음")
         _skip_all = _no_bottom and _no_primary and _no_rsi and _no_bb and _no_cci and _no_sec
 
-if _skip_all:
+        # =============== ⑥ 시뮬레이션 실행 ===============
+        if _skip_all:
             res_all = pd.DataFrame()
             res_dedup = pd.DataFrame()
         else:
