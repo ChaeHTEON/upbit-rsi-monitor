@@ -683,6 +683,31 @@ def main():
             out["UpVol"].rolling(20, min_periods=1).sum() /
             out["DownVol"].rolling(20, min_periods=1).sum()
         )
+
+        # ✅ 신규: 복합 보조지표(Composite_Score) — RSI·CCI·MACD·Volume 통합 (0~1 스케일)
+        try:
+            # 표준화
+            rsi_n = (out["RSI13"] / 100.0).clip(0, 1)
+            cci_n = ((out["CCI"] + 300.0) / 600.0).clip(0, 1)
+            macd_std = out["MACD_hist"].rolling(50, min_periods=1).std().replace(0, np.nan).fillna(1.0)
+            macd_n = np.tanh(out["MACD_hist"] / macd_std)  # -1~1
+            macd_n = ((macd_n + 1.0) / 2.0).clip(0, 1)      # 0~1 로 변환
+            vol_ratio = (out["volume"] / out["volume"].rolling(20, min_periods=1).mean()).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            vol_n = (vol_ratio.clip(0, 3) / 3.0)            # 0~1
+
+            # 스코어화(가중합) — 추후 백테스트로 가중치 조정 가능
+            rsi_score = (1.0 - (rsi_n - 0.5).abs() * 2.0).clip(0, 1)
+            cci_score = (1.0 - (cci_n - 0.5).abs() * 2.0).clip(0, 1)
+            out["Composite_Score"] = (
+                0.3 * rsi_score +
+                0.3 * cci_score +
+                0.2 * macd_n +
+                0.2 * vol_n
+            ).clip(0, 1)
+        except Exception:
+            # 계산 중 일부 NaN/Inf 발생 시 안전 처리
+            out["Composite_Score"] = np.nan
+
         return out
     
     def simulate(df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct, bb_cond, dedup_mode,
