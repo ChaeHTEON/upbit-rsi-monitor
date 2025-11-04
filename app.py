@@ -2057,27 +2057,29 @@ def main():
             hoverinfo="text"
         ), row=1, col=1)
 
-        # ✅ 복합지표(Composite_Score ≥ 0.7) 구간에 주황 별표 표시
+        # ✅ 복합지표(Composite_Score ≥ 0.7) 구간 중 첫 발생만 별표 표시 (MACD와 구분)
         try:
-            # df_plot에 Composite_Score가 없을 경우 df에서 보완
             _src_df = df_plot if "Composite_Score" in df_plot.columns else df
             if "Composite_Score" in _src_df.columns:
-                _mask_comp = _src_df["Composite_Score"] >= 0.7
-                _xs = _src_df.loc[_mask_comp, "time"]
-                _ys = _src_df.loc[_mask_comp, "close"]
-                if len(_xs) > 0:
+                strong_mask = _src_df["Composite_Score"] >= 0.7
+                # 연속 True 구간 중 첫 True만 표시
+                first_idx = strong_mask & (~strong_mask.shift(1, fill_value=False))
+                xs_comp = _src_df.loc[first_idx, "time"]
+                ys_comp = _src_df.loc[first_idx, "close"]
+                if len(xs_comp) > 0:
                     fig.add_trace(
                         go.Scatter(
-                            x=_xs,
-                            y=_ys,
+                            x=xs_comp,
+                            y=ys_comp,
                             mode="markers",
                             name="Composite 강세★",
                             marker=dict(
-                                size=10,
-                                color="orange",
-                                symbol="star",
-                                line=dict(width=1, color="black")
-                            )
+                                size=11,
+                                color="gold",             # MACD와 구분
+                                symbol="diamond",         # 별 대신 다이아몬드형
+                                line=dict(width=1.2, color="black")
+                            ),
+                            showlegend=True              # ✅ 범례 표시
                         ),
                         row=1,
                         col=1
