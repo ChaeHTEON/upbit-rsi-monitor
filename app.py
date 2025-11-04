@@ -684,45 +684,48 @@ def main():
             out["DownVol"].rolling(20, min_periods=1).sum()
         )
 
-        # ✅ 신규: 복합 보조지표(Composite_Score)
+        # ✅ 신규: 복합 보조지표(Composite_Score) — 고정밀(High Precision) 버전
         try:
-            # RSI, CCI, MACD, 거래량을 0~1 정규화
-            rsi_score = (out["RSI13"] / 100.0).clip(0, 1)
-            cci_score = ((out["CCI"] + 200) / 400.0).clip(0, 1)
-            macd_n = ((out["MACD_hist"] - out["MACD_hist"].min()) /
-                      (out["MACD_hist"].max() - out["MACD_hist"].min() + 1e-9)).clip(0, 1)
-            vol_n = ((out["volume"] - out["volume"].min()) /
-                     (out["volume"].max() - out["volume"].min() + 1e-9)).clip(0, 1)
+            # ---- 가중치 및 임계값 설정 ----
+            w_rsi, w_cci, w_macd, w_vol = 0.4, 0.4, 0.15, 0.05
+            macd_thr, vol_thr = 0.15, 0.3  # 👉 미세 신호 제거 임계값 강화
 
+            # ---- 개별 정규화 ----
+            rsi_score = ((out["RSI13"] - 30) / 40.0).clip(0, 1)  # RSI<30은 0, >70은 1
+            cci_score = ((out["CCI"].clip(-150, 150) + 150) / 300.0).clip(0, 1)
+
+            # MACD: 변화율 기반 민감도 하향
+            macd_diff = out["MACD_hist"].diff().fillna(0)
+            macd_n = ((macd_diff - macd_diff.min()) /
+                      (macd_diff.max() - macd_diff.min() + 1e-9)).clip(0, 1)
+
+            # 거래량: 20봉 평균 대비 비율
+            vol_ratio = out["volume"] / (out["volume"].rolling(20, min_periods=1).mean() + 1e-9)
+            vol_n = ((vol_ratio / 3.0) - 1).clip(0, 1)  # 3배 이상 급등만 반영
+
+            # ---- 임계값 필터링 ----
+            macd_n = np.where(macd_n < macd_thr, 0, macd_n)
+            vol_n = np.where(vol_n < vol_thr, 0, vol_n)
+
+            # ---- 가중합 계산 ----
             out["Composite_Score"] = (
-                0.3 * rsi_score +
-                0.3 * cci_score +
-                0.2 * macd_n +
-                0.2 * vol_n
+                w_rsi * rsi_score +
+                w_cci * cci_score +
+                w_macd * macd_n +
+                w_vol * vol_n
             ).clip(0, 1)
 
-            # ✅ 평균선 (Signal Line, EMA9)
-            out["Composite_Signal"] = out["Composite_Score"].ewm(span=9, adjust=False).mean()
+            # ---- Signal EMA (길이 증가 → 더 안정적) ----
+            out["Composite_Signal"] = out["Composite_Score"].ewm(span=15, adjust=False).mean()
 
-            # ✅ 골든/데드 교차 판정
+            # ---- 교차 판정 ----
             cross_up = (out["Composite_Score"].shift(1) <= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] > out["Composite_Signal"])
             cross_dn = (out["Composite_Score"].shift(1) >= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] < out["Composite_Signal"])
-
-            out["Composite_Golden"] = np.where(cross_up, 1, 0)
-            out["Composite_Dead"] = np.where(cross_dn, 1, 0)
-
-            # ✅ 평균선 (Signal Line, EMA9)
-            out["Composite_Signal"] = out["Composite_Score"].ewm(span=9, adjust=False).mean()
-
-            # ✅ 골든/데드 교차 판정
-            cross_up = (out["Composite_Score"].shift(1) <= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] > out["Composite_Signal"])
-            cross_dn = (out["Composite_Score"].shift(1) >= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] < out["Composite_Signal"])
-
             out["Composite_Golden"] = np.where(cross_up, 1, 0)
             out["Composite_Dead"] = np.where(cross_dn, 1, 0)
 
         except Exception as e:
-            print("⚠️ Composite_Score 계산 오류:", e)
+            print("⚠️ Composite_Score 오류:", e)
             out["Composite_Score"] = np.nan
             out["Composite_Signal"] = np.nan
             out["Composite_Golden"] = 0
