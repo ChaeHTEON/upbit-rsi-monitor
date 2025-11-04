@@ -1559,30 +1559,37 @@ def main():
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Golden" in df.columns:
                     df = df[df["Composite_Golden"] == 1].copy()
-        # ✅ 신규 2차 조건 추가: 복합지표(Composite)
-        if sec_cond == "복합지표(Composite) 강세만 진입":
-            # Composite Score가 0.7 이상인 강세 구간만 진입 허용
-            if "Composite_Score" in df.columns:
-                sec_mask = df["Composite_Score"] >= 0.7
-            else:
-                sec_mask = np.ones(len(df), dtype=bool)
-        elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-            # Composite Score의 골든크로스 발생 시점만 진입 허용
-            if "Composite_Golden" in df.columns:
-                sec_mask = df["Composite_Golden"] == 1
-            else:
-                sec_mask = np.ones(len(df), dtype=bool)
-            res_dedup = simulate(
-                df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
-                bb_cond, "중복 제거 (연속 동일 결과 1개)",
-                minutes_per_bar, market_code, bb_window, bb_dev,
-                sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
-                bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
-                cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
-            )
-        res = (res_all if 'res_all' in locals() else pd.DataFrame()) if dup_mode.startswith("중복 포함") else (res_dedup if 'res_dedup' in locals() else pd.DataFrame())
 
-        # -----------------------------
+            # ✅ 기본 안전 초기화 (오류 방지)
+            res_all = pd.DataFrame()
+            res_dedup = pd.DataFrame()
+
+            # ✅ 조건별 simulate 실행
+            if sec_cond == "복합지표(Composite) 강세만 진입":
+                res_dedup = simulate(
+                    df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                    bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                    minutes_per_bar, market_code, bb_window, bb_dev,
+                    sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                    bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                )
+            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+                res_dedup = simulate(
+                    df, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
+                    bb_cond, "중복 제거 (연속 동일 결과 1개)",
+                    minutes_per_bar, market_code, bb_window, bb_dev,
+                    sec_cond=sec_cond, hit_basis=hit_basis, miss_policy="(고정) 성공·실패·중립",
+                    bottom_mode=bottom_mode, supply_levels=None, manual_supply_levels=manual_supply_levels,
+                    cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal
+                )
+
+        # ✅ 후처리 안전보강 — res_all / res_dedup 존재 보장
+        if 'res_all' not in locals(): res_all = pd.DataFrame()
+        if 'res_dedup' not in locals(): res_dedup = pd.DataFrame()
+
+        res = res_all if dup_mode.startswith("중복 포함") else res_dedup
+
         # -----------------------------
         # 신호 구간 자동 표시 (특정 구간 선택 기능 제거)
         # -----------------------------
