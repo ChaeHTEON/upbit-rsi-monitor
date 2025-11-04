@@ -1546,10 +1546,10 @@ def main():
 
             # ✅ sec_cond 분기: df_for_sim 준비 (문법/타이포 수정)
             df_for_sim = df.copy()
-            # ✅ 항상 Composite 강세 필터를 적용 (사용자 설정 없어도 기본 동작)
-            if "Composite_Score" in df.columns:
-                comp_thr = 0.7
-                if sec_cond == "복합지표(Composite) 강세만 진입":
+
+            if sec_cond == "복합지표(Composite) 강세만 진입":
+                if "Composite_Score" in df.columns:
+                    # 사용자 조절형 Composite 기준 (기본 0.7)
                     comp_thr = st.slider(
                         "📊 복합지표 강세 기준 (Composite Score Threshold)",
                         min_value=0.0,
@@ -1558,10 +1558,25 @@ def main():
                         step=0.05,
                         help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
                     )
-                # ✅ 항상 Composite_Score ≥ 0.7 이상 필터링
-                df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
+                    df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
+                else:
+                    df_for_sim = df.copy()
+
+            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+                if "Composite_Golden" in df.columns:
+                    df_for_sim = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
+                else:
+                    df_for_sim = df.iloc[0:0].copy()
+
             else:
                 df_for_sim = df.copy()
+
+            # ✅ 설정 선택 여부와 관계없이 기본 Composite 강세(≥0.7) 필터를 추가 적용
+            try:
+                if "Composite_Score" in df.columns:
+                    df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
+            except Exception:
+                pass
 
             # ✅ 메인 차트에 Composite 강세 구간 마커 표시
             try:
@@ -1588,17 +1603,6 @@ def main():
                         )
             except Exception as e:
                 print("⚠️ Composite 강세 마커 오류:", e)
-
-            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Golden" in df.columns:
-                    # Composite_Golden = 1 발생 구간만 진입 허용
-                    df_for_sim = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
-                else:
-                    # 컬럼이 없으면 빈 데이터로 안전 처리
-                    df_for_sim = df.iloc[0:0].copy()
-            else:
-                # 위 조건 외에는 원본 전체 사용
-                df_for_sim = df.copy()
 
             # ✅ 기본 simulate (모든 조건 공통) — 시뮬레이션에는 df_for_sim 사용
             res_dedup = simulate(
