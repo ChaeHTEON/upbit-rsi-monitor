@@ -1564,25 +1564,25 @@ def main():
                     df_for_sim = df.copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 수정: 0.2 이하 구간을 한 번이라도 통과한 후, 이후 어느 시점에서든 골든교차 발생 시 매수 신호
+                if "Composite_Score" in df.columns:
+                    # ✅ 수정: 0.2 이하 구간 진입 후, 이후 0.2 상향 돌파 구간에서 신호
                     buy_idx_list = []
                     was_below = False  # 0.2 이하 경험 여부
 
                     for i in range(1, len(df)):
+                        score_prev = df["Composite_Score"].iloc[i - 1]
                         score_curr = df["Composite_Score"].iloc[i]
-                        golden_now = df["Composite_Golden"].iloc[i]
 
-                        # ① 0.2 이하 구간 진입 시 flag ON (과거 하락 경험 기록)
+                        # ① 0.2 이하 구간 진입 시 flag ON
                         if score_curr <= 0.2:
                             was_below = True
 
-                        # ② 과거 0.2 이하 구간이 있었고, 이후 어느 시점에서든 골든 발생 시 신호
-                        elif was_below and golden_now == 1:
-                            buy_idx_list.append(i)  # 골든 발생 시점에서 매수 신호
-                            was_below = False  # ✅ 신호 발생 후 초기화 (새 사이클 시작)
+                        # ② 과거에 0.2 이하 경험이 있고, 현재 0.2를 상향 돌파하면 신호
+                        elif was_below and score_prev <= 0.2 and score_curr > 0.2:
+                            buy_idx_list.append(i)  # 상향 돌파 시점 매수 신호
+                            was_below = False  # 다음 사이클 준비
 
-                    # ③ 신호 존재 시 해당 캔들만 추출
+                    # ③ 신호가 존재하면 해당 캔들만 추출
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
