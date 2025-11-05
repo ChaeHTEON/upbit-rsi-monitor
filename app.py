@@ -1615,19 +1615,16 @@ def main():
                     color_mode = st.session_state.get("dml_color_mode", "빨간")
                     buy_idx_list = []
 
-                    below_mask = df["Composite_DML"] <= threshold_val
-                    above_mask = df["Composite_DML"] >= threshold_val
-                    golden_mask = df["Composite_Golden"] == 1
+                    # ✅ 완화 조건: 최근 5봉 내 임계값 이하 기록 + 현재 골든 발생
+                    window_n = 5
+                    for i in range(window_n, len(df) - 1):
+                        recent_low = (df["Composite_DML"].iloc[i - window_n:i] <= threshold_val).any()
+                        crossed_up = df["Composite_Golden"].iloc[i] == 1
 
-                    for i in range(1, len(df) - 1):
-                        # ① 직전까지 임계값 이하 구간이 존재해야 함
-                        if below_mask.iloc[:i].any():
-                            # ② 현재 시점 임계값 이상 & 골든 교차 발생
-                            if above_mask.iloc[i] and golden_mask.iloc[i]:
-                                # ③ 색상 필터링 조건: 빨간/파란 구분
-                                if (color_mode == "빨간" and df["Composite_DML"].iloc[i] > threshold_val) or \
-                                   (color_mode == "파란" and df["Composite_DML"].iloc[i] < threshold_val):
-                                    buy_idx_list.append(i + 1)
+                        if recent_low and crossed_up:
+                            if (color_mode == "빨간" and df["Composite_DML"].iloc[i] > threshold_val) or \
+                               (color_mode == "파란" and df["Composite_DML"].iloc[i] < threshold_val):
+                                buy_idx_list.append(i + 1)
 
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
