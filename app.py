@@ -1608,25 +1608,32 @@ def main():
                 else:
                     df_for_sim = df.iloc[0:0].copy()
 
-            # ✅ 신규 추가: 복합지표DML 골든 교차 (임계값 이하→상향)
+            # ✅ 신규 수정: 복합지표DML 골든 교차 (임계값 이하→상향)
             if sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
                 if "Composite_DML" in df.columns and "Composite_Golden" in df.columns:
                     threshold_val = float(st.session_state.get("dml_threshold", 0.0))
                     color_mode = st.session_state.get("dml_color_mode", "빨간")
                     buy_idx_list = []
 
-                    # ✅ 완화 조건: 최근 5봉 내 임계값 이하 기록 + 현재 골든 발생
-                    window_n = 5
-                    for i in range(window_n, len(df) - 1):
-                        recent_low = (df["Composite_DML"].iloc[i - window_n:i] <= threshold_val).any()
-                        crossed_up = df["Composite_Golden"].iloc[i] == 1
+                    below_flag = False  # 임계값 이하 구간 진입 여부 추적
+                    for i in range(1, len(df) - 1):
+                        dml_prev = df["Composite_DML"].iloc[i - 1]
+                        dml_curr = df["Composite_DML"].iloc[i]
+                        golden_now = df["Composite_Golden"].iloc[i] == 1
 
-                        if recent_low and crossed_up:
-                            if (color_mode == "빨간" and df["Composite_DML"].iloc[i] > threshold_val) or \
-                               (color_mode == "파란" and df["Composite_DML"].iloc[i] < threshold_val):
+                        # ① 임계값 이하 구간 진입 시 플래그 설정
+                        if dml_curr <= threshold_val:
+                            below_flag = True
+
+                        # ② 임계값 이하 → 이후 골든크로스 발생 시 신호 인식
+                        if below_flag and golden_now:
+                            # ③ 색상 필터 (빨간=상승 / 파란=하락)
+                            if (color_mode == "빨간" and dml_curr > threshold_val) or \
+                               (color_mode == "파란" and dml_curr < threshold_val):
                                 buy_idx_list.append(i + 1)
+                                below_flag = False  # 신호 발생 후 리셋
 
-                    if len(buy_idx_list) > 0:
+                    if buy_idx_list:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
                         df_for_sim = df.iloc[0:0].copy()
