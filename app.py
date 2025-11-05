@@ -1605,19 +1605,17 @@ def main():
                     golden_cross = (df["Composite_Golden"].shift(1) == 0) & (df["Composite_Golden"] == 1)
                     dead_cross   = (df["Composite_Dead"].shift(1) == 0) & (df["Composite_Dead"] == 1)
 
-                    for i in range(1, len(df)):
-                        comp_val = df["Composite_Score"].iloc[i]
-                        if np.isnan(comp_val):
+                    for i in range(1, len(df) - 1):
+                        curr_val = df["Composite_Score"].iloc[i]
+                        if np.isnan(curr_val):
                             continue
-                        # ⭐ 별이 찍힌 봉(i)의 Composite 값이 임계값 이하인 경우만 신호로 인정
-                        if comp_val <= threshold:
+                        if curr_val <= threshold:
                             if color_mode.startswith("공통") and (golden_cross.iloc[i] or dead_cross.iloc[i]):
-                                buy_idx_list.append(i)
+                                buy_idx_list.append(i + 1)
                             elif color_mode.startswith("빨간") and golden_cross.iloc[i]:
-                                buy_idx_list.append(i)
+                                buy_idx_list.append(i + 1)
                             elif color_mode.startswith("파란") and dead_cross.iloc[i]:
-                                buy_idx_list.append(i)
-
+                                buy_idx_list.append(i + 1)
                     sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
                         sec_mask[buy_idx_list] = True
