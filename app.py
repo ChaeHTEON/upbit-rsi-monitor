@@ -1606,18 +1606,16 @@ def main():
                     dead_cross   = (df["Composite_Dead"].shift(1) == 0) & (df["Composite_Dead"] == 1)
 
                     for i in range(1, len(df) - 1):
-                        curr_val = df["Composite_Score"].iloc[i]
-                        if np.isnan(curr_val):
+                        if np.isnan(df["Composite_Score"].iloc[i]):
                             continue
 
-                        # ✅ 임계값 1.0 이상일 경우엔 임계 비교 무시 → 별 기준 전부 신호
-                        if threshold >= 1.0:
-                            if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
-                                buy_idx_list.append(i + 1)
-                            elif color_mode.startswith("빨간") and (df["Composite_Golden"].iloc[i] == 1):
-                                buy_idx_list.append(i + 1)
-                            elif color_mode.startswith("파란") and (df["Composite_Dead"].iloc[i] == 1):
-                                buy_idx_list.append(i + 1)
+                        # ✅ 별이 찍힌 시점(i) 자체를 신호로 인식
+                        if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
+                            buy_idx_list.append(i + 1)
+                        elif color_mode.startswith("빨간") and (df["Composite_Golden"].iloc[i] == 1):
+                            buy_idx_list.append(i + 1)
+                        elif color_mode.startswith("파란") and (df["Composite_Dead"].iloc[i] == 1):
+                            buy_idx_list.append(i + 1)
                         else:
                             # ✅ threshold < 1.0 인 경우만 기존 임계값 조건 적용
                             if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)) and (curr_val <= threshold):
