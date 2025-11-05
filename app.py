@@ -1563,9 +1563,28 @@ def main():
                     df_for_sim = df.copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Golden" in df.columns:
-                    df_for_sim = df[df["Composite_Golden"] == 1].reset_index(drop=True).copy()
+                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
+                    # ✅ 변경: 복합지표가 0.2 이하로 하락 후, 0.2 이상으로 재상승 + 골든교차 발생 → 다음 캔들 매수
+                    buy_idx_list = []
+                    below_mask = df["Composite_Score"] <= 0.2
+                    above_mask = df["Composite_Score"] >= 0.2
+                    golden_mask = df["Composite_Golden"] == 1
+
+                    for i in range(1, len(df) - 1):
+                        # ① 직전까지 0.2 이하 구간이 존재해야 함
+                        if below_mask.iloc[:i].any():
+                            # ② 현재 시점 0.2 이상으로 상승 & 골든 교차 발생
+                            if above_mask.iloc[i] and golden_mask.iloc[i]:
+                                # ③ 다음 캔들(시점 i+1)을 매수 후보로 추가
+                                buy_idx_list.append(i + 1)
+
+                    if len(buy_idx_list) > 0:
+                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
+                    else:
+                        # 조건 미충족 시 빈 데이터 처리
+                        df_for_sim = df.iloc[0:0].copy()
                 else:
+                    # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
 
             else:
