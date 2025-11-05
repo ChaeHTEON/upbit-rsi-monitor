@@ -1607,7 +1607,7 @@ def main():
                             continue
 
                         # 임계 이하 구간 + 별 발생 시 신호
-                        if curr_val <= threshold:
+                        if prev_val <= threshold:
                             if color_mode.startswith("공통") and (is_golden or is_dead):
                                 if i + 1 < len(df):
                                     buy_idx_list.append(i + 1)
