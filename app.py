@@ -1606,20 +1606,19 @@ def main():
                     dead_cross   = (df["Composite_Dead"].shift(1) == 0) & (df["Composite_Dead"] == 1)
 
                     for i in range(1, len(df) - 1):
-                        try:
-                            curr_val = float(df["Composite_Score"].iloc[i])
-                        except Exception:
-                            continue
+                        curr_val = df["Composite_Score"].iloc[i]
                         if np.isnan(curr_val):
                             continue
 
-                        # ✅ 교차가 발생한 시점 기준으로 임계값 확인 (shift 적용)
-                        if (curr_val <= threshold) or (df["Composite_Score"].iloc[i - 1] <= threshold):
-                            if color_mode.startswith("공통") and (golden_cross.iloc[i] or dead_cross.iloc[i]):
+                        # ✅ 별(골든·데드) 자체를 기준으로 신호 판정
+                        if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
+                            if curr_val <= threshold:
                                 buy_idx_list.append(i + 1)
-                            elif color_mode.startswith("빨간") and golden_cross.iloc[i]:
+                        elif color_mode.startswith("빨간") and (df["Composite_Golden"].iloc[i] == 1):
+                            if curr_val <= threshold:
                                 buy_idx_list.append(i + 1)
-                            elif color_mode.startswith("파란") and dead_cross.iloc[i]:
+                        elif color_mode.startswith("파란") and (df["Composite_Dead"].iloc[i] == 1):
+                            if curr_val <= threshold:
                                 buy_idx_list.append(i + 1)
                     sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
