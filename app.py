@@ -1608,33 +1608,31 @@ def main():
                 else:
                     df_for_sim = df.iloc[0:0].copy()
 
-            # ✅ 수정: 복합지표DML 골든 교차 (임계값 이하→상향, 순차형 동작)
+            # ✅ 최종 보정: 복합지표DML 골든 교차 (임계값 이하→이후 N봉 내 상향)
             if sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
                 if "Composite_DML" in df.columns and "Composite_Golden" in df.columns:
                     threshold_val = float(st.session_state.get("dml_threshold", 0.0))
                     color_mode = st.session_state.get("dml_color_mode", "빨간")
+                    n_window = 5  # 임계값 돌파 이후 최대 5봉 내 골든 허용
                     buy_idx_list = []
 
-                    below_flag = False  # 임계값 이하 구간 진입 여부
+                    last_below_idx = None
                     for i in range(1, len(df) - 1):
                         dml_curr = df["Composite_DML"].iloc[i]
-                        golden_now = df["Composite_Golden"].iloc[i] == 1
+                        golden_now = (df["Composite_Golden"].iloc[i] == 1)
 
-                        # ① 임계값 이하 구간 진입
+                        # ① 임계값 이하 구간이면 최근 위치 저장
                         if dml_curr <= threshold_val:
-                            below_flag = True
+                            last_below_idx = i
 
-                        # ② 이후 골든 교차 발생 시 신호 발생
-                        if below_flag and golden_now:
-                            if (color_mode == "빨간" and dml_curr > threshold_val) or \
-                               (color_mode == "파란" and dml_curr < threshold_val):
+                        # ② 최근 임계값 이하 → n봉 내 골든 발생 시 신호
+                        if last_below_idx is not None and (i - last_below_idx) <= n_window and golden_now:
+                            if (color_mode == "빨간" and dml_curr >= threshold_val) or \
+                               (color_mode == "파란" and dml_curr <= threshold_val):
                                 buy_idx_list.append(i + 1)
-                                below_flag = False  # 한 번 발생 후 리셋
+                                last_below_idx = None  # 리셋
 
-                    if buy_idx_list:
-                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
-                    else:
-                        df_for_sim = df.iloc[0:0].copy()
+                    df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy() if buy_idx_list else df.iloc[0:0].copy()
                 else:
                     df_for_sim = df.iloc[0:0].copy()
 
