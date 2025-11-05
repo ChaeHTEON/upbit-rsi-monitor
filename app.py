@@ -1599,14 +1599,15 @@ def main():
                     # ✅ 핵심: 2차 조건은 '필터'로만 적용
                     # - 기존 1차 후보(base_sig_idx)가 있으면 교집합만 남김
                     # - 기존 후보가 없으면 '단독 생성'하지 않고 빈 목록 유지
-                    try:
+                       try:
                         cond_set = set(buy_idx_list)
                         if "base_sig_idx" in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
                             base_sig_idx = [i for i in base_sig_idx if i in cond_set]
                         else:
-                            base_sig_idx = []  # 단독 신호 생성 금지 (2차 조건은 필터)
+                            # ✅ 변경: 1차 후보가 비어도 복합지표 골든 교차로 단독 신호 생성 허용
+                            base_sig_idx = sorted(cond_set)
                     except Exception:
-                        base_sig_idx = []
+                        base_sig_idx = sorted(set(buy_idx_list))
                 else:
                     df_for_sim = df.copy()
             else:
