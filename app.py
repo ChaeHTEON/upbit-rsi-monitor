@@ -1569,51 +1569,34 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Signal" in df.columns:
-                    # ✅ 규칙: 2차 조건(필터) — 기존 1차 후보에만 적용. 단독 신호 생성 금지.
                     buy_idx_list = []
                     was_below = False
 
-                    # ---- 교차 판정 (직관적 정의 동일 유지) ----
                     prev_score = df["Composite_Score"].shift(1)
-                    prev_sig   = df["Composite_Signal"].shift(1)
+                    prev_sig = df["Composite_Signal"].shift(1)
                     cross_up = (prev_score <= prev_sig) & (df["Composite_Score"] > df["Composite_Signal"])
                     df["Composite_Golden"] = np.where(cross_up, 1, 0)
 
                     for i in range(1, len(df) - 1):
                         score_curr = float(df["Composite_Score"].iloc[i])
                         golden_now = int(df["Composite_Golden"].iloc[i])
-
-                        # ① 0.2 이하 진입 감지
                         if score_curr <= 0.2:
                             was_below = True
                             continue
-
-                        # ② 0.2 이하 구간 이후 0.2 이상으로 회복하며 골든크로스 발생 시
                         if was_below and (score_curr >= 0.2) and (golden_now == 1):
                             next_idx = i + 1
                             if next_idx < len(df):
                                 buy_idx_list.append(df.index[next_idx])
-                            was_below = False  # 같은 사이클 중복 방지
+                            was_below = False
 
-                    # ✅ df_for_sim은 전체 유지 (공통 로직과 인덱스 정합 보장)
-                    df_for_sim = df.copy()
-
-                    # ✅ 핵심: 2차 조건은 '필터'로만 적용
-                    # - 기존 1차 후보(base_sig_idx)가 있으면 교집합만 남김
-                    # - 기존 후보가 없으면 '단독 생성'하지 않고 빈 목록 유지
-                       try:
-                        cond_set = set(buy_idx_list)
-                        if "base_sig_idx" in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
-                            base_sig_idx = [i for i in base_sig_idx if i in cond_set]
-                        else:
-                            # ✅ 변경: 1차 후보가 비어도 복합지표 골든 교차로 단독 신호 생성 허용
-                            base_sig_idx = sorted(cond_set)
-                    except Exception:
-                        base_sig_idx = sorted(set(buy_idx_list))
+                    if len(buy_idx_list) > 0:
+                        df_for_sim = df.loc[buy_idx_list].reset_index(drop=True).copy()
+                    else:
+                        df_for_sim = df.iloc[0:0].copy()
                 else:
-                    df_for_sim = df.copy()
+                    df_for_sim = df.iloc[0:0].copy()
             else:
-                df_for_sim = df.copy
+                df_for_sim = df.copy()
                 
             # ✅ Composite 강세 필터는 '사용자가 해당 조건을 선택했을 때만' 적용
             try:
