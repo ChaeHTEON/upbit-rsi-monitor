@@ -983,7 +983,9 @@ def main():
                 if idx_sets:
                     base_sig_idx = sorted(set.intersection(*idx_sets)) if len(idx_sets) > 1 else sorted(idx_sets[0])
                 else:
-                    base_sig_idx = list(range(n)) if sec_cond != "없음" else []
+                    # ✅ 2차 조건(예: 복합지표 골든 교차)은 '필터'로만 사용한다.
+                    #    1차 후보가 없을 때 전 구간을 후보로 간주(=list(range(n))) 하던 버그를 제거.
+                    base_sig_idx = []
 
         
         # ✅ 거래량 1차 필터 공통 적용 (단, MACD_GoldenCross 전략은 예외)
