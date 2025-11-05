@@ -986,11 +986,10 @@ def main():
                     base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
         
-        # ✅ 거래량 1차 필터 공통 적용 (단, MACD_GoldenCross 전략은 예외)
+        # ✅ 거래량 1차 필터 공통 적용 (bottom_mode 여부와 무관)
         if 'base_sig_idx' in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
             try:
-                if st.session_state.get("primary_strategy", "없음") != "MACD_GoldenCross":
-                    base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
+                base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
             except Exception:
                 base_sig_idx = base_sig_idx
 
@@ -1563,67 +1562,31 @@ def main():
                 else:
                     df_for_sim = df.copy()
 
-        elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-            if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                # ✅ 수정: 0.2 이하 구간 이후, 0.2 이상으로 회복된 뒤 어느 시점에서든 골든 발생 시 신호
-                buy_idx_list = []
-                was_below = False
-                recovered = False
-
-                for i in range(1, len(df) - 1):
-                    score_curr = df["Composite_Score"].iloc[i]
-                    golden_now = (
-                        df["Composite_Golden"].iloc[i] or
-                        df["Composite_Golden"].iloc[i + 1]
-                    )  # 🔧 EMA 반응 지연 보정
-
-                    # ① 0.2 이하 구간 진입 시 flag ON
-                    if score_curr <= 0.2:
-                        was_below = True
-                        recovered = False
-
-                    # ② 0.2 이상 회복 시 회복 상태 유지
-                    elif was_below and score_curr > 0.2:
-                        recovered = True
-
-                    # ③ 과거에 하락(≤0.2) 후 회복했고, 지금 골든이면 신호
-                    if was_below and recovered and golden_now == 1:
-                        buy_idx_list.append(i)
-                        # 🔁 다음 사이클 대비 초기화
-                        was_below = False
-                        recovered = False
-
-                # ④ 신호 존재 시 추출
-                if len(buy_idx_list) > 0:
-                    df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
+            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
+                    # ✅ 개선: 직전 캔들이 0.2 이하, 현재 캔들이 0.2 이상 & 골든교차 발생 시 다음 캔들 매수
+                    buy_idx_list = []
+                    for i in range(1, len(df) - 1):
+                        prev_score = df["Composite_Score"].iloc[i - 1]
+                        curr_score = df["Composite_Score"].iloc[i]
+                        golden_now = df["Composite_Golden"].iloc[i]
+                        # ① 직전 0.2 이하 → ② 현재 0.2 이상 상향 돌파 → ③ 골든교차 발생
+                        if prev_score <= 0.2 and curr_score >= 0.2 and golden_now == 1:
+                            buy_idx_list.append(i + 1)  # 다음 캔들 매수 진입
+                    if len(buy_idx_list) > 0:
+                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
+                    else:
+                        df_for_sim = df.iloc[0:0].copy()
                 else:
+                    # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
-            else:
-                df_for_sim = df.iloc[0:0].copy()
 
-    # ------------------------------------------------------------
-    # ✅ 추가 삽입: 신호 0건일 때만 완화 기준으로 보강
-    #   - 원 조건이 너무 엄격해 신호가 0건이 되는 구간을 보완
-    #   - Composite 골든 발생 & 점수 ≥ 0.35 인 지점들만 추출
-    #   - 원본 로직보다 넓지만 과도 발신(노이즈)을 억제하는 최소 완화
-    # ------------------------------------------------------------
-    try:
-        if df_for_sim is not None and df_for_sim.empty:
-            _mask_relaxed = (df["Composite_Golden"] == 1) & (df["Composite_Score"] >= 0.35)
-            if bool(_mask_relaxed.any()):
-                df_for_sim = df.loc[_mask_relaxed].reset_index(drop=True).copy()
-            # 추가 안전장치: 여전히 0건이면 원본 df 유지(차트 영향 X, 시뮬만 대상)
-            if df_for_sim.empty:
-                df_for_sim = df.iloc[0:0].copy()
-    except Exception:
-        # 예외 시 원 상태 유지
-        pass
             else:
                 df_for_sim = df.copy()
 
-            # ✅ Composite 강세 필터는 '사용자가 해당 조건을 선택했을 때만' 적용
+            # ✅ 설정 선택 여부와 관계없이 기본 Composite 강세(≥0.7) 필터를 추가 적용
             try:
-                if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
+                if "Composite_Score" in df.columns:
                     df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
             except Exception:
                 pass
