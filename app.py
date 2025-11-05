@@ -1563,43 +1563,43 @@ def main():
                 else:
                     df_for_sim = df.copy()
 
-elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-    if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-        # ✅ 수정: 0.2 이하 구간 이후, 0.2 이상으로 회복된 뒤 어느 시점에서든 골든 발생 시 신호
-        buy_idx_list = []
-        was_below = False
-        recovered = False
-
-        for i in range(1, len(df) - 1):
-            score_curr = df["Composite_Score"].iloc[i]
-            golden_now = (
-                df["Composite_Golden"].iloc[i] or
-                df["Composite_Golden"].iloc[i + 1]
-            )  # 🔧 EMA 반응 지연 보정
-
-            # ① 0.2 이하 구간 진입 시 flag ON
-            if score_curr <= 0.2:
-                was_below = True
-                recovered = False
-
-            # ② 0.2 이상 회복 시 회복 상태 유지
-            elif was_below and score_curr > 0.2:
-                recovered = True
-
-            # ③ 과거에 하락(≤0.2) 후 회복했고, 지금 골든이면 신호
-            if was_below and recovered and golden_now == 1:
-                buy_idx_list.append(i)
-                # 🔁 다음 사이클 대비 초기화
+        elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+            if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
+                # ✅ 수정: 0.2 이하 구간 이후, 0.2 이상으로 회복된 뒤 어느 시점에서든 골든 발생 시 신호
+                buy_idx_list = []
                 was_below = False
                 recovered = False
 
-        # ④ 신호 존재 시 추출
-        if len(buy_idx_list) > 0:
-            df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
-        else:
-            df_for_sim = df.iloc[0:0].copy()
-    else:
-        df_for_sim = df.iloc[0:0].copy()
+                for i in range(1, len(df) - 1):
+                    score_curr = df["Composite_Score"].iloc[i]
+                    golden_now = (
+                        df["Composite_Golden"].iloc[i] or
+                        df["Composite_Golden"].iloc[i + 1]
+                    )  # 🔧 EMA 반응 지연 보정
+
+                    # ① 0.2 이하 구간 진입 시 flag ON
+                    if score_curr <= 0.2:
+                        was_below = True
+                        recovered = False
+
+                    # ② 0.2 이상 회복 시 회복 상태 유지
+                    elif was_below and score_curr > 0.2:
+                        recovered = True
+
+                    # ③ 과거에 하락(≤0.2) 후 회복했고, 지금 골든이면 신호
+                    if was_below and recovered and golden_now == 1:
+                        buy_idx_list.append(i)
+                        # 🔁 다음 사이클 대비 초기화
+                        was_below = False
+                        recovered = False
+
+                # ④ 신호 존재 시 추출
+                if len(buy_idx_list) > 0:
+                    df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
+                else:
+                    df_for_sim = df.iloc[0:0].copy()
+            else:
+                df_for_sim = df.iloc[0:0].copy()
 
     # ------------------------------------------------------------
     # ✅ 추가 삽입: 신호 0건일 때만 완화 기준으로 보강
