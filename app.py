@@ -1607,13 +1607,16 @@ def main():
                             continue
 
                         # 임계 이하 구간 + 별 발생 시 신호
-                        if prev_val <= threshold:
+                        if curr_val <= threshold:
                             if color_mode.startswith("공통") and (is_golden or is_dead):
-                                buy_idx_list.append(i)
+                                if i + 1 < len(df):
+                                    buy_idx_list.append(i + 1)
                             elif color_mode.startswith("빨간") and is_golden:
-                                buy_idx_list.append(i)
+                                if i + 1 < len(df):
+                                    buy_idx_list.append(i + 1)
                             elif color_mode.startswith("파란") and is_dead:
-                                buy_idx_list.append(i)
+                                if i + 1 < len(df):
+                                    buy_idx_list.append(i + 1)
 
                     sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
