@@ -1593,8 +1593,11 @@ def main():
     
             elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
                 if all(col in df.columns for col in ["Composite_Score", "Composite_Golden", "Composite_Dead"]):
-                    threshold = float(st.session_state.get("comp_threshold", 0.2))
-                    color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
+                    try:
+                        threshold = float(st.session_state.get("comp_threshold", 0.2) or 0.2)
+                    except Exception:
+                        threshold = 0.2
+                    color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)") or "공통(모두포함)"
                     buy_idx_list = []
 
                     # ✅ 별 발생(골든/데드) 시점 감지
