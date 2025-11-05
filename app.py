@@ -715,17 +715,15 @@ def main():
             macd_thr, vol_thr = 0.15, 0.3  # 👉 미세 신호 제거 임계값 강화
 
             # ---- 개별 정규화 ----
-            rsi_score = ((out["RSI13"] - 30) / 40.0).clip(0, 1)  # RSI<30은 0, >70은 1
+            rsi_score = ((out["RSI13"] - 30) / 40.0).clip(0, 1)
             cci_score = ((out["CCI"].clip(-150, 150) + 150) / 300.0).clip(0, 1)
 
-            # MACD: 변화율 기반 민감도 하향
             macd_diff = out["MACD_hist"].diff().fillna(0)
             macd_n = ((macd_diff - macd_diff.min()) /
                       (macd_diff.max() - macd_diff.min() + 1e-9)).clip(0, 1)
 
-            # 거래량: 20봉 평균 대비 비율
             vol_ratio = out["volume"] / (out["volume"].rolling(20, min_periods=1).mean() + 1e-9)
-            vol_n = ((vol_ratio / 3.0) - 1).clip(0, 1)  # 3배 이상 급등만 반영
+            vol_n = ((vol_ratio / 3.0) - 1).clip(0, 1)
 
             # ---- 임계값 필터링 ----
             macd_n = np.where(macd_n < macd_thr, 0, macd_n)
@@ -742,6 +740,9 @@ def main():
             # ---- Signal EMA (길이 증가 → 더 안정적) ----
             out["Composite_Signal"] = out["Composite_Score"].ewm(span=15, adjust=False).mean()
 
+            # ✅ 신규 추가: Composite_DML (Composite_Score - Composite_Signal)
+            out["Composite_DML"] = (out["Composite_Score"] - out["Composite_Signal"]).fillna(0)
+
             # ---- 교차 판정 ----
             cross_up = (out["Composite_Score"].shift(1) <= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] > out["Composite_Signal"])
             cross_dn = (out["Composite_Score"].shift(1) >= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] < out["Composite_Signal"])
@@ -752,6 +753,7 @@ def main():
             print("⚠️ Composite_Score 오류:", e)
             out["Composite_Score"] = np.nan
             out["Composite_Signal"] = np.nan
+            out["Composite_DML"] = np.nan
             out["Composite_Golden"] = 0
             out["Composite_Dead"] = 0
 
