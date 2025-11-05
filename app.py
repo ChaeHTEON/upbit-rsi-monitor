@@ -1591,7 +1591,7 @@ def main():
                 else:
                     sec_mask = np.ones(len(df), dtype=bool)
     
-elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
+            elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
                 if all(col in df.columns for col in ["Composite_Score", "Composite_Golden", "Composite_Dead"]):
                     # ✅ 최신 세션값 갱신
                     threshold = float(st.session_state.get("comp_threshold", 0.2))
