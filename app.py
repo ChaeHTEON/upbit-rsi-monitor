@@ -1598,22 +1598,26 @@ def main():
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
                     buy_idx_list = []
 
-                    for i in range(1, len(df)):
-                        prev_val  = df["Composite_Score"].iloc[i - 1]
+                    # ✅ 최신 슬라이더 값 강제 갱신
+                    threshold = float(st.session_state.get("comp_threshold", 0.2))
+                    color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
+
+                    for i in range(1, len(df) - 1):
+                        prev_val  = df["Composite_Score"].iloc[i - 1]  # 교차 이전 봉 기준
                         is_golden = (df["Composite_Golden"].iloc[i] == 1)
                         is_dead   = (df["Composite_Dead"].iloc[i] == 1)
+
                         if np.isnan(prev_val):
                             continue
+
+                        # 임계 이하 & 별 발생 시
                         if prev_val <= threshold:
                             if color_mode.startswith("공통") and (is_golden or is_dead):
-                                if i + 1 < len(df):
-                                    buy_idx_list.append(i + 1)
+                                buy_idx_list.append(i + 1)
                             elif color_mode.startswith("빨간") and is_golden:
-                                if i + 1 < len(df):
-                                    buy_idx_list.append(i + 1)
+                                buy_idx_list.append(i + 1)
                             elif color_mode.startswith("파란") and is_dead:
-                                if i + 1 < len(df):
-                                    buy_idx_list.append(i + 1)
+                                buy_idx_list.append(i + 1)
 
                     sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
