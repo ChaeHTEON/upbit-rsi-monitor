@@ -1601,17 +1601,21 @@ def main():
                         golden_val = df["Composite_Golden"].iloc[i]
                         if np.isnan(curr_val) or np.isnan(golden_val):
                             continue
-                        # ✅ 공통(모두포함): Composite_Score 임계 이하이면 바로 신호
+                        # 공통(모두포함): 임계 이하이면 색상 무시하고 신호 처리
                         if color_mode.startswith("공통") and curr_val <= threshold:
                             buy_idx_list.append(i)
-                        # ✅ 빨간별(매수): 임계 이하 + 상승(>0)
-                        elif color_mode.startswith("빨간") and curr_val <= threshold and golden_val > 0:
+                        # 빨간별: 임계 이하 + 골든값 양수(상승 신호)
+                        elif color_mode.startswith("빨간") and curr_val <= threshold and golden_val >= 0.1:
                             buy_idx_list.append(i)
-                        # ✅ 파란별(매도): 임계 이하 + 하락(<0)
-                        elif color_mode.startswith("파란") and curr_val <= threshold and golden_val < 0:
+                        # 파란별: 임계 이하 + 골든값 음수(하락 신호)
+                        elif color_mode.startswith("파란") and curr_val <= threshold and golden_val <= -0.1:
                             buy_idx_list.append(i)
-                    sec_mask = np.zeros(len(df), dtype=bool)
-                    sec_mask[buy_idx_list] = True
+                    # ✅ 중복 방지 및 마스크 생성
+                    if buy_idx_list:
+                        sec_mask = np.zeros(len(df), dtype=bool)
+                        sec_mask[buy_idx_list] = True
+                    else:
+                        sec_mask = np.zeros(len(df), dtype=bool)
                 else:
                     sec_mask = np.zeros(len(df), dtype=bool)
 
