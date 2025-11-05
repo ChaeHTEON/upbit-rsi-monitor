@@ -986,10 +986,11 @@ def main():
                     base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
         
-        # ✅ 거래량 1차 필터 공통 적용 (bottom_mode 여부와 무관)
+        # ✅ 거래량 1차 필터 공통 적용 (단, MACD_GoldenCross 전략은 예외)
         if 'base_sig_idx' in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
             try:
-                base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
+                if st.session_state.get("primary_strategy", "없음") != "MACD_GoldenCross":
+                    base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
             except Exception:
                 base_sig_idx = base_sig_idx
 
@@ -1584,9 +1585,9 @@ def main():
             else:
                 df_for_sim = df.copy()
 
-            # ✅ 설정 선택 여부와 관계없이 기본 Composite 강세(≥0.7) 필터를 추가 적용
+            # ✅ Composite 강세 필터는 '사용자가 해당 조건을 선택했을 때만' 적용
             try:
-                if "Composite_Score" in df.columns:
+                if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
                     df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
             except Exception:
                 pass
