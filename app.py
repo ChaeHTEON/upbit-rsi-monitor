@@ -1668,6 +1668,11 @@ def main():
                 print("⚠️ Composite 강세 마커 오류:", e)
 
             # ✅ 기본 simulate (모든 조건 공통) — 시뮬레이션에는 df_for_sim 사용
+            # ✅ 수정: warmup_bars 이전 신호도 임계 판단에 포함
+            df_for_sim = df_for_sim.copy()
+            if "time" in df_for_sim.columns and len(df_for_sim) > warmup_bars:
+                df_for_sim = df_for_sim.reset_index(drop=True)
+
             res_dedup = simulate(
                 df_for_sim, rsi_mode, rsi_low, rsi_high, lookahead, threshold_pct, stoploss_pct,
                 bb_cond, "중복 제거 (연속 동일 결과 1개)",
