@@ -344,31 +344,9 @@ def main():
                 "매물대 터치 후 반등(위→아래→반등)",
                 "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
                 "복합지표(Composite) 강세만 진입",
-                "복합지표(Composite) 골든 교차 시 진입",
-                "복합지표DML 골든 교차 (임계값 이하→상향)",  # ✅ 신규 2차 조건 추가
+                "복합지표(Composite) 골든 교차 시 진입"
             ]
         )
-
-        # ✅ 신규 추가: DML 조건용 슬라이더 및 색상 선택 (선택 시만 표시)
-        if sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
-            col_dml1, col_dml2 = st.columns(2)
-            with col_dml1:
-                st.slider(
-                    "임계값(DML)",
-                    min_value=-0.5,
-                    max_value=2.0,
-                    step=0.1,
-                    value=0.2,  # ✅ 실제 Composite_Score 스케일에 맞는 기본값
-                    key="dml_threshold",
-                    help="Composite_DML 임계값 이하→상향 돌파 시 신호 발생"
-                )
-            with col_dml2:
-                st.selectbox(
-                    "골든크로스 색상",
-                    ["빨간", "파란"],
-                    key="dml_color_mode",
-                    help="골든 교차 방향 필터 (빨간=상승, 파란=하락)"
-                )
     
         # ✅ 매물대 반등 조건일 때만 N봉 입력 노출
         if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
@@ -1608,37 +1586,6 @@ def main():
                 else:
                     df_for_sim = df.iloc[0:0].copy()
 
-            # ✅ 신규 수정: 복합지표DML 골든 교차 (임계값 이하→상향)
-            if sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
-                if "Composite_DML" in df.columns and "Composite_Golden" in df.columns:
-                    threshold_val = float(st.session_state.get("dml_threshold", 0.0))
-                    color_mode = st.session_state.get("dml_color_mode", "빨간")
-                    buy_idx_list = []
-
-                    below_flag = False  # 임계값 이하 구간 진입 여부 추적
-                    for i in range(1, len(df) - 1):
-                        dml_prev = df["Composite_DML"].iloc[i - 1]
-                        dml_curr = df["Composite_DML"].iloc[i]
-                        golden_now = df["Composite_Golden"].iloc[i] == 1
-
-                        # ① 임계값 이하 구간 진입 시 플래그 설정
-                        if dml_curr <= threshold_val:
-                            below_flag = True
-
-                        # ② 임계값 이하 → 이후 골든크로스 발생 시 신호 인식
-                        if below_flag and golden_now:
-                            # ③ 색상 필터 (빨간=상승 / 파란=하락)
-                            if (color_mode == "빨간" and dml_curr > threshold_val) or \
-                               (color_mode == "파란" and dml_curr < threshold_val):
-                                buy_idx_list.append(i + 1)
-                                below_flag = False  # 신호 발생 후 리셋
-
-                    if buy_idx_list:
-                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
-                    else:
-                        df_for_sim = df.iloc[0:0].copy()
-                else:
-                    df_for_sim = df.iloc[0:0].copy()
 
             # ✅ Composite 강세(≥0.7) 필터는 해당 2차조건을 선택했을 때만 적용
             try:
