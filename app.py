@@ -1592,30 +1592,26 @@ def main():
                     sec_mask = np.ones(len(df), dtype=bool)
     
             elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
-                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
+                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns and "Composite_Dead" in df.columns:
                     threshold = float(st.session_state.get("comp_threshold", 0.2))
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
                     buy_idx_list = []
                     for i in range(1, len(df)):
-                        curr_val = df["Composite_Score"].iloc[i]
-                        golden_val = df["Composite_Golden"].iloc[i]
-                        if np.isnan(curr_val) or np.isnan(golden_val):
+                        curr_val  = df["Composite_Score"].iloc[i]
+                        is_golden = bool(df["Composite_Golden"].iloc[i] == 1)
+                        is_dead   = bool(df["Composite_Dead"].iloc[i] == 1)
+                        if np.isnan(curr_val):
                             continue
-                        # 공통(모두포함): 임계 이하이면 색상 무시하고 신호 처리
-                        if color_mode.startswith("공통") and curr_val <= threshold:
-                            buy_idx_list.append(i)
-                        # 빨간별: 임계 이하 + 골든값 양수(상승 신호)
-                        elif color_mode.startswith("빨간") and curr_val <= threshold and golden_val >= 0.1:
-                            buy_idx_list.append(i)
-                        # 파란별: 임계 이하 + 골든값 음수(하락 신호)
-                        elif color_mode.startswith("파란") and curr_val <= threshold and golden_val <= -0.1:
-                            buy_idx_list.append(i)
-                    # ✅ 중복 방지 및 마스크 생성
+                        if curr_val <= threshold:
+                            if color_mode.startswith("공통") and (is_golden or is_dead):
+                                buy_idx_list.append(i)
+                            elif color_mode.startswith("빨간") and is_golden:
+                                buy_idx_list.append(i)
+                            elif color_mode.startswith("파란") and is_dead:
+                                buy_idx_list.append(i)
+                    sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
-                        sec_mask = np.zeros(len(df), dtype=bool)
                         sec_mask[buy_idx_list] = True
-                    else:
-                        sec_mask = np.zeros(len(df), dtype=bool)
                 else:
                     sec_mask = np.zeros(len(df), dtype=bool)
 
