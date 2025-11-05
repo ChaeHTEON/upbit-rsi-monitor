@@ -1591,23 +1591,23 @@ def main():
                 else:
                     sec_mask = np.ones(len(df), dtype=bool)
     
-            elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
+elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
                 if all(col in df.columns for col in ["Composite_Score", "Composite_Golden", "Composite_Dead"]):
-                    # ✅ 최신 세션값 갱신
                     threshold = float(st.session_state.get("comp_threshold", 0.2))
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
                     buy_idx_list = []
 
-                    # ✅ 0→1 전환만 감지 (연속 별 중복 제거)
+                    # ✅ 별의 새 교차 0→1 엣지만 감지
                     golden_cross = (df["Composite_Golden"].shift(1) == 0) & (df["Composite_Golden"] == 1)
                     dead_cross   = (df["Composite_Dead"].shift(1) == 0) & (df["Composite_Dead"] == 1)
 
                     for i in range(1, len(df) - 1):
-                        # 교차 직전 봉의 Composite 값 기준
+                        # ✅ 별 직전 봉(i-1)의 Composite 값으로 임계 판단
                         prev_val = df["Composite_Score"].iloc[i - 1]
                         if np.isnan(prev_val):
                             continue
                         if prev_val <= threshold:
+                            # ✅ 신호 = 별 발생 다음 봉(i + 1)
                             if color_mode.startswith("공통") and (golden_cross.iloc[i] or dead_cross.iloc[i]):
                                 buy_idx_list.append(i + 1)
                             elif color_mode.startswith("빨간") and golden_cross.iloc[i]:
