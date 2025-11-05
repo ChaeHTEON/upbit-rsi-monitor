@@ -1594,7 +1594,8 @@ def main():
             elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
                 if all(col in df.columns for col in ["Composite_Score", "Composite_Golden", "Composite_Dead"]):
                     try:
-                        threshold = float(st.session_state.get("comp_threshold", 0.2) or 0.2)
+                        thr_raw = st.session_state.get("comp_threshold", 0.2)
+                        threshold = float(thr_raw) if isinstance(thr_raw, (int, float, str)) and str(thr_raw).strip() != "" else 0.2
                     except Exception:
                         threshold = 0.2
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)") or "공통(모두포함)"
