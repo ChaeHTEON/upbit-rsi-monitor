@@ -1563,7 +1563,7 @@ def main():
                 else:
                     df_for_sim = df.copy()
 
-            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
+elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
                     # ✅ 개선: 0.2 이하 구간 이후, 0.2 이상으로 회복하며 골든크로스 발생 시마다 매수 신호 생성
                     buy_idx_list = []
@@ -1590,6 +1590,32 @@ def main():
                 else:
                     # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
+
+                # ▶ 추가: ‘골든’과 무관하게 **0.2 상향 돌파만으로** 신호 생성 (요청 사양)
+                try:
+                    if "Composite_Score" in df.columns:
+                        # 기존 분기에서 신호가 0개였을 때만, 0.2 상향돌파 신호를 보조로 생성
+                        if len(df_for_sim) == 0:
+                            thr_buy_idx = []
+                            was_below = False
+                            for i in range(1, len(df)):
+                                prev_s = float(df["Composite_Score"].iloc[i - 1])
+                                curr_s = float(df["Composite_Score"].iloc[i])
+                                # 0.2 이하 상태 들어가면 플래그 ON
+                                if curr_s <= 0.2:
+                                    was_below = True
+                                # 이전 ≤0.2 → 현재 >0.2 이면 '상향 돌파'로 다음 캔들 매수
+                                elif was_below and prev_s <= 0.2 and curr_s > 0.2:
+                                    if i + 1 < len(df):
+                                        thr_buy_idx.append(i + 1)
+                                    # 요청대로 돌파 순간 상태 초기화
+                                    was_below = False
+                            if len(thr_buy_idx) > 0:
+                                df_for_sim = df.iloc[thr_buy_idx].reset_index(drop=True).copy()
+                            else:
+                                df_for_sim = df.iloc[0:0].copy()
+                except Exception:
+                    pass
 
                     # ▶ 추가: '골든' 신호 없이 **0.2 상향 돌파 자체**를 신호로 사용 (요청 사양)
                     try:
