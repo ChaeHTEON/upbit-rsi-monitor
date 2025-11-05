@@ -1591,6 +1591,23 @@ def main():
                     # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
 
+                    # ▶ 추가: '골든' 신호 없이 **0.2 상향 돌파 자체**를 신호로 사용 (요청 사양)
+                    try:
+                        thr_buy_idx = []
+                        for i in range(1, len(df)):
+                            prev_s = df["Composite_Score"].iloc[i - 1]
+                            curr_s = df["Composite_Score"].iloc[i]
+                            # 이전 <= 0.2, 현재 > 0.2 이면 다음 캔들에서 매수
+                            if prev_s <= 0.2 and curr_s > 0.2:
+                                if i + 1 < len(df):
+                                    thr_buy_idx.append(i + 1)
+                        if len(thr_buy_idx) > 0:
+                            df_for_sim = df.iloc[thr_buy_idx].reset_index(drop=True).copy()
+                        else:
+                            df_for_sim = df.iloc[0:0].copy()
+                    except Exception:
+                        pass
+
             else:
                 df_for_sim = df.copy()
 
