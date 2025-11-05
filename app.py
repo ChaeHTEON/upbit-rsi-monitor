@@ -1565,29 +1565,32 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Signal" in df.columns:
-                    # ✅ 개선: 모든 0.2 이하 → 0.2 이상 회복 + 골든교차 발생 시 신호 생성 (반복 허용)
+                    # ✅ 규칙: 0.2 이하로 내려갔다가(기간 무제한) 다시 0.2 이상으로 복귀하는 '어느 시점'에서
+                    #         Composite_Score가 Composite_Signal을 상향 돌파(골든크로스)하면
+                    #         '다음 캔들'을 매수 진입 시점으로 채택
                     buy_idx_list = []
                     was_below = False
 
-                    # ---- 교차 판정 정합화 (시점 보정) ----
-                    score_prev = df["Composite_Score"].shift(1)
-                    sig_prev   = df["Composite_Signal"].shift(1)
-                    cross_up = (score_prev < sig_prev) & (df["Composite_Score"] >= df["Composite_Signal"])
+                    # ---- 교차 판정 (직관적 정의) ----
+                    prev_score = df["Composite_Score"].shift(1)
+                    prev_sig   = df["Composite_Signal"].shift(1)
+                    cross_up = (prev_score <= prev_sig) & (df["Composite_Score"] > df["Composite_Signal"])
                     df["Composite_Golden"] = np.where(cross_up, 1, 0)
 
                     for i in range(1, len(df) - 1):
-                        score_prev = df["Composite_Score"].iloc[i - 1]
-                        score_curr = df["Composite_Score"].iloc[i]
-                        golden_now = df["Composite_Golden"].iloc[i]
+                        score_curr = float(df["Composite_Score"].iloc[i])
+                        golden_now = int(df["Composite_Golden"].iloc[i])
 
-                        # ① 0.2 이하 구간 진입 감지
+                        # ① 0.2 이하 진입 감지(유지)
                         if score_curr <= 0.2:
                             was_below = True
+                            continue
 
-                        # ② 과거에 0.2 이하 구간이 존재하고, 이번 캔들이 0.2 이상 회복하며 골든크로스 발생
-                        elif was_below and score_prev <= 0.22 and score_curr >= 0.18 and golden_now == 1:
-                            buy_idx_list.append(i + 1)  # 다음 캔들 매수 (존재 시)
-                            # ✅ 초기화하지 않음: 이후 반복 0.2↓→0.2↑ 구간 모두 허용
+                        # ② 과거에 '한 번이라도' 0.2 이하가 있었고,
+                        #    현재 0.2 이상이며, 동시에 골든크로스 발생 → 다음 캔들 매수
+                        if was_below and (score_curr >= 0.2) and (golden_now == 1):
+                            buy_idx_list.append(i + 1)  # 다음 캔들 매수
+                            was_below = False          # 같은 사이클 중복 방지
 
                     # ✅ 매수 후보 DataFrame 구성
                     if len(buy_idx_list) > 0:
@@ -1595,8 +1598,7 @@ def main():
                     else:
                         df_for_sim = df.iloc[0:0].copy()
 
-                    # ✅ 이 조건에서는 강세(≥0.7) 필터 미적용
-                    # (다른 조건에서는 기존 필터 로직 유지)
+                    # ✅ 이 조건에서는 강세(≥0.7) 필터 미적용 (현행 유지)
                 else:
                     # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
