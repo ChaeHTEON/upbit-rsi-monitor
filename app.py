@@ -1610,15 +1610,21 @@ def main():
                         if np.isnan(curr_val):
                             continue
 
-                        # ✅ 별(골든·데드) 자체를 기준으로 신호 판정
-                        if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
-                            if curr_val <= threshold:
+                        # ✅ 임계값 1.0 이상일 경우엔 임계 비교 무시 → 별 기준 전부 신호
+                        if threshold >= 1.0:
+                            if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
                                 buy_idx_list.append(i + 1)
-                        elif color_mode.startswith("빨간") and (df["Composite_Golden"].iloc[i] == 1):
-                            if curr_val <= threshold:
+                            elif color_mode.startswith("빨간") and (df["Composite_Golden"].iloc[i] == 1):
                                 buy_idx_list.append(i + 1)
-                        elif color_mode.startswith("파란") and (df["Composite_Dead"].iloc[i] == 1):
-                            if curr_val <= threshold:
+                            elif color_mode.startswith("파란") and (df["Composite_Dead"].iloc[i] == 1):
+                                buy_idx_list.append(i + 1)
+                        else:
+                            # ✅ threshold < 1.0 인 경우만 기존 임계값 조건 적용
+                            if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)) and (curr_val <= threshold):
+                                buy_idx_list.append(i + 1)
+                            elif color_mode.startswith("빨간") and (df["Composite_Golden"].iloc[i] == 1) and (curr_val <= threshold):
+                                buy_idx_list.append(i + 1)
+                            elif color_mode.startswith("파란") and (df["Composite_Dead"].iloc[i] == 1) and (curr_val <= threshold):
                                 buy_idx_list.append(i + 1)
                     sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
