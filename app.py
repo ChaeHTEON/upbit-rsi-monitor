@@ -1564,19 +1564,27 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 변경: 복합지표가 0.2 이하로 하락 후, 0.2 이상으로 재상승 + 골든교차 발생 → 다음 캔들 매수
+                    # ✅ 수정: 0.2 돌파 후 골든크로스 이전에 다시 0.2 이하로 떨어질 수 있으므로, 0.2 이하 구간에서 '무장' 상태 리셋
                     buy_idx_list = []
-                    below_mask = df["Composite_Score"] <= 0.2
-                    above_mask = df["Composite_Score"] >= 0.2
-                    golden_mask = df["Composite_Golden"] == 1
+                    armed = False  # 무장 상태: 0.2 이하 구간 진입 시 True, 다시 0.2 이하로 떨어지면 False로 리셋
 
                     for i in range(1, len(df) - 1):
-                        # ① 직전까지 0.2 이하 구간이 존재해야 함
-                        if below_mask.iloc[:i].any():
-                            # ② 현재 시점 0.2 이상으로 상승 & 골든 교차 발생
-                            if above_mask.iloc[i] and golden_mask.iloc[i]:
-                                # ③ 다음 캔들(시점 i+1)을 매수 후보로 추가
-                                buy_idx_list.append(i + 1)
+                        prev_val = df["Composite_Score"].iloc[i - 1]
+                        curr_val = df["Composite_Score"].iloc[i]
+                        golden_now = (df["Composite_Golden"].iloc[i] == 1)
+
+                        # ① Composite_Score가 0.2 이하로 내려가면 무장 상태 진입
+                        if curr_val <= 0.2:
+                            armed = True
+
+                        # ② 무장 상태에서 0.2 이상으로 회복 + 골든크로스 발생 시 → 매수 후보
+                        elif armed and curr_val >= 0.2 and golden_now:
+                            buy_idx_list.append(i + 1)
+                            armed = False  # 교차 후 무장 해제
+
+                        # ③ 0.2 이상에서 다시 0.2 이하로 떨어질 경우 무장 상태 리셋
+                        elif curr_val <= 0.2:
+                            armed = True
 
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
