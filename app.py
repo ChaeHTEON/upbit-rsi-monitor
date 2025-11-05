@@ -1606,17 +1606,21 @@ def main():
                             continue
                         if prev_val <= threshold:
                             if color_mode.startswith("공통") and (golden_cross.iloc[i] or dead_cross.iloc[i]):
-                                buy_idx_list.append(i + 1)
+                                buy_idx_list.append(i)
                             elif color_mode.startswith("빨간") and golden_cross.iloc[i]:
-                                buy_idx_list.append(i + 1)
+                                buy_idx_list.append(i)
                             elif color_mode.startswith("파란") and dead_cross.iloc[i]:
-                                buy_idx_list.append(i + 1)
+                                buy_idx_list.append(i)
 
                     sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
                         sec_mask[buy_idx_list] = True
+
+                    # ✅ 수정: df_for_sim은 반드시 원본 df 인덱스로 필터링해야 함
+                    df_for_sim = df.loc[sec_mask].copy()
                 else:
                     sec_mask = np.zeros(len(df), dtype=bool)
+                    df_for_sim = df.copy()
 
             # ✅ Composite 강세(≥0.7) 필터는 해당 2차조건을 선택했을 때만 적용
             try:
