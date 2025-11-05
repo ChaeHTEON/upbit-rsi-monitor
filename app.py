@@ -344,10 +344,31 @@ def main():
                 "매물대 터치 후 반등(위→아래→반등)",
                 "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
                 "복합지표(Composite) 강세만 진입",
-                "복합지표(Composite) 골든 교차 시 진입"
+                "복합지표(Composite) 골든 교차 시 진입",
                 "복합지표DML 골든 교차 (임계값 이하→상향)",  # ✅ 신규 2차 조건 추가
             ]
         )
+
+        # ✅ 신규 추가: DML 조건용 슬라이더 및 색상 선택 (선택 시만 표시)
+        if sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
+            col_dml1, col_dml2 = st.columns(2)
+            with col_dml1:
+                st.slider(
+                    "임계값(DML)",
+                    min_value=-5.0,
+                    max_value=5.0,
+                    step=0.5,
+                    value=0.0,
+                    key="dml_threshold",
+                    help="Composite_DML 임계값 이하→상향 돌파 시 신호 발생"
+                )
+            with col_dml2:
+                st.selectbox(
+                    "골든크로스 색상",
+                    ["빨간", "파란"],
+                    key="dml_color_mode",
+                    help="골든 교차 방향 필터 (빨간=상승, 파란=하락)"
+                )
     
         # ✅ 매물대 반등 조건일 때만 N봉 입력 노출
         if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
