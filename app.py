@@ -358,7 +358,7 @@ def main():
                     min_value=-5.0,
                     max_value=5.0,
                     step=0.5,
-                    value=0.0,
+                    value=2.0,  # ✅ 기본값 2.0로 상향
                     key="dml_threshold",
                     help="Composite_DML 임계값 이하→상향 돌파 시 신호 발생"
                 )
@@ -1640,9 +1640,9 @@ def main():
             else:
                 df_for_sim = df.copy()
 
-            # ✅ 설정 선택 여부와 관계없이 기본 Composite 강세(≥0.7) 필터를 추가 적용
+            # ✅ Composite 강세(≥0.7) 필터는 해당 2차조건을 선택했을 때만 적용
             try:
-                if "Composite_Score" in df.columns:
+                if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
                     df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
             except Exception:
                 pass
