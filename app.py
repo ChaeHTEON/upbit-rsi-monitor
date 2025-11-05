@@ -1606,16 +1606,20 @@ def main():
                     dead_cross   = (df["Composite_Dead"].shift(1) == 0) & (df["Composite_Dead"] == 1)
 
                     for i in range(1, len(df) - 1):
-                        if np.isnan(df["Composite_Score"].iloc[i]):
+                        prev_val = df["Composite_Score"].iloc[i - 1]
+                        if np.isnan(prev_val):
                             continue
 
-                        # ✅ 별이 찍힌 시점(i) 자체를 신호로 인식
+                        # ✅ 직전 봉 값이 임계 이하일 때 발생한 교차만 신호로 인정
                         if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
-                            buy_idx_list.append(i + 1)
+                            if prev_val <= threshold:
+                                buy_idx_list.append(i + 1)
                         elif color_mode.startswith("빨간") and (df["Composite_Golden"].iloc[i] == 1):
-                            buy_idx_list.append(i + 1)
+                            if prev_val <= threshold:
+                                buy_idx_list.append(i + 1)
                         elif color_mode.startswith("파란") and (df["Composite_Dead"].iloc[i] == 1):
-                            buy_idx_list.append(i + 1)
+                            if prev_val <= threshold:
+                                buy_idx_list.append(i + 1)
                         else:
                             # ✅ threshold < 1.0 인 경우만 기존 임계값 조건 적용
                             if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)) and (curr_val <= threshold):
