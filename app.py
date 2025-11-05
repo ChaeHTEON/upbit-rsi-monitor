@@ -983,9 +983,7 @@ def main():
                 if idx_sets:
                     base_sig_idx = sorted(set.intersection(*idx_sets)) if len(idx_sets) > 1 else sorted(idx_sets[0])
                 else:
-                    # ✅ 2차 조건(예: 복합지표 골든 교차)은 '필터'로만 사용한다.
-                    #    1차 후보가 없을 때 전 구간을 후보로 간주(=list(range(n))) 하던 버그를 제거.
-                    base_sig_idx = []
+                    base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
         
         # ✅ 거래량 1차 필터 공통 적용 (단, MACD_GoldenCross 전략은 예외)
@@ -1523,8 +1521,6 @@ def main():
             st.rerun()
     
 # ===== 시뮬레이션 (중복 포함/제거) =====
-        # ✅ 거래량 조건 세션값을 시뮬레이션 전에 확정
-        st.session_state["volume_cond"] = volume_cond
         # ✅ 기본 판정 기준(전역 미정의 방지)
         hit_basis = "종가 기준"
 
@@ -1568,36 +1564,36 @@ def main():
                     df_for_sim = df.copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Score" in df.columns and "Composite_Signal" in df.columns:
+                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
+                    # ✅ 개선: 0.2 이하 구간 이후, 0.2 이상으로 회복하며 골든크로스 발생 시마다 매수 신호 생성
                     buy_idx_list = []
-                    was_below = False
-
-                    prev_score = df["Composite_Score"].shift(1)
-                    prev_sig = df["Composite_Signal"].shift(1)
-                    cross_up = (prev_score <= prev_sig) & (df["Composite_Score"] > df["Composite_Signal"])
-                    df["Composite_Golden"] = np.where(cross_up, 1, 0)
+                    was_below = False  # 최근 0.2 이하 상태 여부
 
                     for i in range(1, len(df) - 1):
-                        score_curr = float(df["Composite_Score"].iloc[i])
-                        golden_now = int(df["Composite_Golden"].iloc[i])
+                        score_prev = df["Composite_Score"].iloc[i - 1]
+                        score_curr = df["Composite_Score"].iloc[i]
+                        golden_now = df["Composite_Golden"].iloc[i]
+
+                        # ① 0.2 이하 구간 진입 감지
                         if score_curr <= 0.2:
                             was_below = True
-                            continue
-                        if was_below and (score_curr >= 0.2) and (golden_now == 1):
-                            next_idx = i + 1
-                            if next_idx < len(df):
-                                buy_idx_list.append(df.index[next_idx])
-                            was_below = False
+
+                        # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2 이상으로 회복 + 골든교차 발생 시
+                        elif was_below and score_prev <= 0.2 and score_curr >= 0.2 and golden_now == 1:
+                            buy_idx_list.append(i + 1)  # 다음 캔들 매수
+                            # 상태 초기화하지 않음 → 이후 다시 0.2 이하로 내려갔다 올라오면 또 신호 가능
 
                     if len(buy_idx_list) > 0:
-                        df_for_sim = df.loc[buy_idx_list].reset_index(drop=True).copy()
+                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
                         df_for_sim = df.iloc[0:0].copy()
                 else:
+                    # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
+
             else:
                 df_for_sim = df.copy()
-                
+
             # ✅ Composite 강세 필터는 '사용자가 해당 조건을 선택했을 때만' 적용
             try:
                 if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
