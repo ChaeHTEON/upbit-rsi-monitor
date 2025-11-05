@@ -1565,7 +1565,7 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 개선: 0.2 이하 구간 이후, 0.2 이상으로 회복하며 골든크로스 발생 시마다 매수 신호 생성
+                    # ✅ 개선: 과거 0.2 이하 구간 이후, 언제든 0.2 상향 돌파하며 골든크로스 발생 시 매수 신호
                     buy_idx_list = []
                     was_below = False  # 최근 0.2 이하 상태 여부
 
@@ -1574,16 +1574,16 @@ def main():
                         score_curr = df["Composite_Score"].iloc[i]
                         golden_now = df["Composite_Golden"].iloc[i]
 
-                        # ① 0.2 이하 구간 진입 감지
+                        # ① Composite 점수가 0.2 이하로 내려간 적이 있으면 플래그 활성화
                         if score_curr <= 0.2:
                             was_below = True
 
-                        # ② 과거에 0.2 이하 구간이 있었고, (시간이 얼마나 지났든)
-                        #    '현재' 0.2를 상향 돌파하면서 동시에 골든 크로스가 발생하면 신호
-                        elif was_below and (score_prev <= 0.2) and (score_curr > 0.2) and (golden_now == 1):
+                        # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2를 초과하면서 골든크로스 발생 시
+                        elif was_below and (score_curr > 0.2) and (golden_now == 1):
                             buy_idx_list.append(i + 1)  # 다음 캔들 매수
-                            was_below = False  # ✅ 요청대로 '돌파 순간' 조건 초기화
+                            was_below = False  # ✅ 초기화: 다음 하락 사이클 대비
 
+                    # ③ 신호가 존재하면 해당 시점만 추출
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
