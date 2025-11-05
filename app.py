@@ -1593,22 +1593,28 @@ def main():
     
             elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns and "Composite_Dead" in df.columns:
+                    # ✅ 시뮬레이션 실행 시점에서 최신 슬라이더 값 갱신
                     threshold = float(st.session_state.get("comp_threshold", 0.2))
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
                     buy_idx_list = []
+
                     for i in range(1, len(df)):
-                        curr_val  = df["Composite_Score"].iloc[i]
-                        is_golden = bool(df["Composite_Golden"].iloc[i] == 1)
-                        is_dead   = bool(df["Composite_Dead"].iloc[i] == 1)
-                        if np.isnan(curr_val):
+                        prev_val  = df["Composite_Score"].iloc[i - 1]  # ✅ 교차 기준 이전 봉
+                        is_golden = (df["Composite_Golden"].iloc[i] == 1)
+                        is_dead   = (df["Composite_Dead"].iloc[i] == 1)
+
+                        if np.isnan(prev_val):
                             continue
-                        if curr_val <= threshold:
+
+                        # 임계 이하 구간 + 별 발생 시 신호
+                        if prev_val <= threshold:
                             if color_mode.startswith("공통") and (is_golden or is_dead):
                                 buy_idx_list.append(i)
                             elif color_mode.startswith("빨간") and is_golden:
                                 buy_idx_list.append(i)
                             elif color_mode.startswith("파란") and is_dead:
                                 buy_idx_list.append(i)
+
                     sec_mask = np.zeros(len(df), dtype=bool)
                     if buy_idx_list:
                         sec_mask[buy_idx_list] = True
