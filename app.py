@@ -1561,11 +1561,23 @@ def main():
                     df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
                 else:
                     df_for_sim = df.copy()
-
-            elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 수정: 0.2 하향 돌파 시 무장 → 0.2 이상 회복 후 골든교차 발생 시 신호 → 0.2 재하락 시 리셋
+        
+                elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                     buy_idx_list = []
+                    if "Composite_Score" in df.columns and "Composite_Signal" in df.columns and "Composite_Golden" in df.columns:
+                        was_below = False
+                        for i in range(1, len(df)):
+                            prev_val = df["Composite_Score"].iloc[i - 1]
+                            curr_val = df["Composite_Score"].iloc[i]
+                            if prev_val < 0.2:
+                                was_below = True
+                            # ✅ 복합지표가 0.2 이상에서 골든크로스 발생 시 진입
+                            if was_below and df["Composite_Golden"].iloc[i] == 1:
+                                buy_idx_list.append(i)
+                                was_below = False  # 교차 후 상태 초기화
+                            # ✅ 리셋: 골든교차 이전에 다시 0.2 이하로 떨어질 경우
+                            if curr_val < 0.2:
+                        was_below = True
                     armed = False
                     seen_up = False
 
