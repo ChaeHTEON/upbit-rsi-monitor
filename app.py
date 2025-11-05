@@ -1565,22 +1565,23 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 개선: 과거에 0.2 이하 구간이 존재하고, 이후 0.2 이상으로 처음 회복 + 골든교차 발생 시 다음 캔들 매수
+                    # ✅ 개선: 0.2 이하 구간 이후, 0.2 이상으로 회복하며 골든크로스 발생 시마다 매수 신호 생성
                     buy_idx_list = []
-                    was_below = False  # 과거에 0.2 이하 진입 여부
+                    was_below = False  # 최근 0.2 이하 상태 여부
 
                     for i in range(1, len(df) - 1):
-                        score = df["Composite_Score"].iloc[i]
+                        score_prev = df["Composite_Score"].iloc[i - 1]
+                        score_curr = df["Composite_Score"].iloc[i]
                         golden_now = df["Composite_Golden"].iloc[i]
 
-                        # ① 과거에 0.2 이하로 진입한 적이 있는가?
-                        if score <= 0.2:
+                        # ① 0.2 이하 구간 진입 감지
+                        if score_curr <= 0.2:
                             was_below = True
 
-                        # ② 과거에 0.2 이하로 내려간 적이 있고, 이번에 처음 0.2 이상으로 회복하며 골든교차 발생
-                        elif was_below and score >= 0.2 and golden_now == 1:
+                        # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2 이상으로 회복 + 골든교차 발생 시
+                        elif was_below and score_prev <= 0.2 and score_curr >= 0.2 and golden_now == 1:
                             buy_idx_list.append(i + 1)  # 다음 캔들 매수
-                            was_below = False  # 한 번 신호 후 상태 초기화
+                            # 상태 초기화하지 않음 → 이후 다시 0.2 이하로 내려갔다 올라오면 또 신호 가능
 
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
