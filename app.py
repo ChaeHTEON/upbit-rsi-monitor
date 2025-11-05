@@ -1622,8 +1622,8 @@ def main():
                     if buy_idx_list:
                         sec_mask[buy_idx_list] = True
 
-                    # ✅ df_for_sim은 sec_mask 기준으로 정확히 필터링
-                    df_for_sim = df.loc[sec_mask].copy()
+                    # ✅ 수정: df_for_sim은 반드시 원본 df 인덱스로 필터링 + 인덱스 초기화
+                    df_for_sim = df.loc[sec_mask].copy().reset_index(drop=True)
                 else:
                     sec_mask = np.zeros(len(df), dtype=bool)
                     df_for_sim = df.copy()
