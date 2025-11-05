@@ -1597,17 +1597,19 @@ def main():
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
                     buy_idx_list = []
                     for i in range(1, len(df)):
-                        prev_val = df["Composite"].iloc[i - 1]
                         curr_val = df["Composite"].iloc[i]
                         golden_val = df["Composite_Golden"].iloc[i]
-                        # 조건: Composite 값이 임계 이하이고 골든크로스 발생
-                        if curr_val <= threshold:
-                            if color_mode.startswith("빨간") and golden_val > 0:
-                                buy_idx_list.append(i)
-                            elif color_mode.startswith("파란") and golden_val < 0:
-                                buy_idx_list.append(i)
-                            elif color_mode.startswith("공통"):
-                                buy_idx_list.append(i)
+                        if np.isnan(curr_val) or np.isnan(golden_val):
+                            continue
+                        # ✅ 공통(모두포함): Composite 임계 이하이면 바로 신호
+                        if color_mode.startswith("공통") and curr_val <= threshold:
+                            buy_idx_list.append(i)
+                        # ✅ 빨간별: Composite 임계 이하 + 상승(>0)
+                        elif color_mode.startswith("빨간") and curr_val <= threshold and golden_val > 0:
+                            buy_idx_list.append(i)
+                        # ✅ 파란별: Composite 임계 이하 + 하락(<0)
+                        elif color_mode.startswith("파란") and curr_val <= threshold and golden_val < 0:
+                            buy_idx_list.append(i)
                     sec_mask = np.zeros(len(df), dtype=bool)
                     sec_mask[buy_idx_list] = True
                 else:
