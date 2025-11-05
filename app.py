@@ -1578,10 +1578,11 @@ def main():
                         if score_curr <= 0.2:
                             was_below = True
 
-                        # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2 이상으로 회복 + 골든교차 발생 시
-                        elif was_below and score_prev <= 0.2 and score_curr >= 0.2 and golden_now == 1:
+                        # ② 과거에 0.2 이하 구간이 있었고, (시간이 얼마나 지났든)
+                        #    '현재' 0.2를 상향 돌파하면서 동시에 골든 크로스가 발생하면 신호
+                        elif was_below and (score_prev <= 0.2) and (score_curr > 0.2) and (golden_now == 1):
                             buy_idx_list.append(i + 1)  # 다음 캔들 매수
-                            # 상태 초기화하지 않음 → 이후 다시 0.2 이하로 내려갔다 올라오면 또 신호 가능
+                            was_below = False  # ✅ 요청대로 '돌파 순간' 조건 초기화
 
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
