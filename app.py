@@ -1617,6 +1617,8 @@ def main():
             try:
                 if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
                     df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
+                elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
+                    df_for_sim = df_for_sim[sec_mask].reset_index(drop=True).copy()
             except Exception:
                 pass
 
