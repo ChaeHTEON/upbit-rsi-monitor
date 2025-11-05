@@ -1564,35 +1564,44 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 수정: 0.2 돌파 후 골든크로스 이전에 다시 0.2 이하로 떨어질 수 있으므로, 0.2 이하 구간에서 '무장' 상태 리셋
+                    # ✅ 수정: 0.2 하향 돌파 시 무장 → 0.2 이상 회복 후 골든크로스 발생 시 신호 → 0.2 재하락 시 리셋
                     buy_idx_list = []
-                    armed = False  # 무장 상태: 0.2 이하 구간 진입 시 True, 다시 0.2 이하로 떨어지면 False로 리셋
+                    armed = False        # 하락 감지 후 True
+                    seen_up = False      # 0.2 이상 돌파 감지
 
                     for i in range(1, len(df) - 1):
                         prev_val = df["Composite_Score"].iloc[i - 1]
                         curr_val = df["Composite_Score"].iloc[i]
                         golden_now = (df["Composite_Golden"].iloc[i] == 1)
 
-                        # ① Composite_Score가 0.2 이하로 내려가면 무장 상태 진입
-                        if curr_val <= 0.2:
+                        # ① 0.2 하향 돌파 시 무장
+                        if (prev_val > 0.2) and (curr_val <= 0.2):
                             armed = True
+                            seen_up = False
+                            continue
 
-                        # ② 무장 상태에서 0.2 이상으로 회복 + 골든크로스 발생 시 → 매수 후보
-                        elif armed and curr_val >= 0.2 and golden_now:
-                            buy_idx_list.append(i + 1)
-                            armed = False  # 교차 후 무장 해제
+                        # ② 무장 후 0.2 이상 재상승 시 플래그 설정
+                        if armed and (curr_val > 0.2):
+                            seen_up = True
 
-                        # ③ 0.2 이상에서 다시 0.2 이하로 떨어질 경우 무장 상태 리셋
-                        elif curr_val <= 0.2:
-                            armed = True
+                        # ③ 무장+상승 후 골든크로스 발생 시 신호 (다음 봉 기준)
+                        if armed and seen_up and golden_now:
+                            next_idx = i + 1 if (i + 1) < len(df) else i
+                            buy_idx_list.append(next_idx)
+                            armed = False
+                            seen_up = False
+                            continue
+
+                        # ④ 골든 발생 전 다시 0.2 이하로 떨어지면 리셋
+                        if armed and seen_up and (curr_val <= 0.2):
+                            armed = False
+                            seen_up = False
 
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
-                        # 조건 미충족 시 빈 데이터 처리
                         df_for_sim = df.iloc[0:0].copy()
                 else:
-                    # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
 
             else:
