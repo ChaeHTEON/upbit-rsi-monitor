@@ -355,10 +355,10 @@ def main():
             with col_dml1:
                 st.slider(
                     "임계값(DML)",
-                    min_value=-5.0,
-                    max_value=5.0,
-                    step=0.5,
-                    value=2.0,  # ✅ 기본값 2.0로 상향
+                    min_value=-0.5,
+                    max_value=2.0,
+                    step=0.1,
+                    value=0.2,  # ✅ 실제 Composite_Score 스케일에 맞는 기본값
                     key="dml_threshold",
                     help="Composite_DML 임계값 이하→상향 돌파 시 신호 발생"
                 )
