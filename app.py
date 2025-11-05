@@ -344,9 +344,31 @@ def main():
                 "매물대 터치 후 반등(위→아래→반등)",
                 "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
                 "복합지표(Composite) 강세만 진입",
-                "복합지표(Composite) 골든 교차 시 진입"
+                "복합지표(Composite) 골든 교차 시 진입",
+                "복합지표(Composite) 임계 이하 골든교차"  # ✅ 신규 2차 조건 추가
             ]
         )
+
+        # ✅ 신규: Composite 임계 이하 골든교차 옵션 UI
+        if sec_cond == "복합지표(Composite) 임계 이하 골든교차":
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                st.slider(
+                    "임계값(Composite)",
+                    min_value=-0.5,
+                    max_value=1.0,
+                    step=0.1,
+                    value=0.2,
+                    key="comp_threshold",
+                    help="Composite 값이 임계 이하일 때의 골든교차만 신호로 인식"
+                )
+            with col_c2:
+                st.selectbox(
+                    "골든교차 색상",
+                    ["빨간별(매수)", "파란별(매도)", "공통(모두포함)"],
+                    key="comp_color_mode",
+                    help="특정 색상(매수/매도/모두)에 대한 신호 필터"
+                )
     
         # ✅ 매물대 반등 조건일 때만 N봉 입력 노출
         if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
@@ -1562,30 +1584,34 @@ def main():
                     df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
                 else:
                     df_for_sim = df.copy()
-
+    
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 변경: 복합지표가 0.2 이하로 하락 후, 0.2 이상으로 재상승 + 골든교차 발생 → 다음 캔들 매수
-                    buy_idx_list = []
-                    below_mask = df["Composite_Score"] <= 0.2
-                    above_mask = df["Composite_Score"] >= 0.2
-                    golden_mask = df["Composite_Golden"] == 1
-
-                    for i in range(1, len(df) - 1):
-                        # ① 직전까지 0.2 이하 구간이 존재해야 함
-                        if below_mask.iloc[:i].any():
-                            # ② 현재 시점 0.2 이상으로 상승 & 골든 교차 발생
-                            if above_mask.iloc[i] and golden_mask.iloc[i]:
-                                # ③ 다음 캔들(시점 i+1)을 매수 후보로 추가
-                                buy_idx_list.append(i + 1)
-
-                    if len(buy_idx_list) > 0:
-                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
-                    else:
-                        df_for_sim = df.iloc[0:0].copy()
+                if "Composite_Score" in df.columns:
+                    sec_mask = df["Composite_Score"] >= 0.7
                 else:
-                    df_for_sim = df.iloc[0:0].copy()
-
+                    sec_mask = np.ones(len(df), dtype=bool)
+    
+            elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
+                if "Composite" in df.columns and "Composite_Golden" in df.columns:
+                    threshold = float(st.session_state.get("comp_threshold", 0.2))
+                    color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
+                    buy_idx_list = []
+                    for i in range(1, len(df)):
+                        prev_val = df["Composite"].iloc[i - 1]
+                        curr_val = df["Composite"].iloc[i]
+                        golden_val = df["Composite_Golden"].iloc[i]
+                        # 조건: Composite 값이 임계 이하이고 골든크로스 발생
+                        if curr_val <= threshold:
+                            if color_mode.startswith("빨간") and golden_val > 0:
+                                buy_idx_list.append(i)
+                            elif color_mode.startswith("파란") and golden_val < 0:
+                                buy_idx_list.append(i)
+                            elif color_mode.startswith("공통"):
+                                buy_idx_list.append(i)
+                    sec_mask = np.zeros(len(df), dtype=bool)
+                    sec_mask[buy_idx_list] = True
+                else:
+                    sec_mask = np.zeros(len(df), dtype=bool)
 
             # ✅ Composite 강세(≥0.7) 필터는 해당 2차조건을 선택했을 때만 적용
             try:
