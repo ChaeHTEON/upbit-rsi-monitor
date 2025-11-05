@@ -899,7 +899,7 @@ def main():
                 s = df["CCI_sig"]
 
                 # ✅ 조건 구성
-                was_below = (c.shift(1) <= -100) | (c.shift(2) <= -100) | (c.shift(3) <= -100)
+                was_below = (c.shift(1).rolling(50).min() <= -100)
                 golden_cross = (c.shift(1) <= s.shift(1)) & (c > s)
 
                 # ✅ 신호 발생: 과거 -100 이하 이력 존재 + 현재 골든크로스
