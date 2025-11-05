@@ -1565,7 +1565,7 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Signal" in df.columns:
-                    # ✅ 수정: 0.2 이하로 내려갔다가(기간 무제한) 다시 0.2 이상으로 복귀 + 골든교차 발생 시
+                    # ✅ 수정: 0.2 이하로 내려갔다가(기간 무제한) 다시 0.2 이상으로 복귀 + 골든교스 발생 시
                     #         실제 인덱스 기반으로 다음 캔들을 매수 진입 시점으로 추가
                     buy_idx_list = []
                     was_below = False
@@ -1596,6 +1596,14 @@ def main():
                     # ✅ 매수 후보 DataFrame 구성 (인덱스 기반 loc 사용)
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.loc[buy_idx_list].reset_index(drop=True).copy()
+
+                        # ✅ 추가: 거래량 필터 인덱스 정합성 보정
+                        # 공통부의 vol_ok가 '원본 df 인덱스' 기준으로 만들어져 있으므로,
+                        # 현재 분기에서 만든 df_for_sim(부분 프레임)에 맞게 재정렬/축약한다.
+                        try:
+                            vol_ok = vol_ok.loc[buy_idx_list].reset_index(drop=True)
+                        except Exception:
+                            pass
                     else:
                         df_for_sim = df.iloc[0:0].copy()
 
