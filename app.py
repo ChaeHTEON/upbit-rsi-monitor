@@ -1591,6 +1591,23 @@ def main():
                 # 컬럼이 없으면 빈 데이터로 안전 처리
                 df_for_sim = df.iloc[0:0].copy()
 
+                    # ① 0.2 이하 구간 진입 감지
+                    if score_curr <= 0.2:
+                        was_below = True
+
+                    # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2 이상으로 회복 + 골든교차 발생 시
+                    elif was_below and score_prev <= 0.2 and score_curr >= 0.2 and golden_now == 1:
+                        buy_idx_list.append(i + 1)  # 다음 캔들 매수
+                        # 상태 초기화하지 않음 → 이후 다시 0.2 이하로 내려갔다 올라오면 또 신호 가능
+
+                if len(buy_idx_list) > 0:
+                    df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
+                else:
+                    df_for_sim = df.iloc[0:0].copy()
+            else:
+                # 컬럼이 없으면 빈 데이터로 안전 처리
+                df_for_sim = df.iloc[0:0].copy()
+
                 # ▶ 추가: ‘골든’과 무관하게 **0.2 상향 돌파만으로** 신호 생성 (요청 사양)
                 try:
                     if "Composite_Score" in df.columns:
