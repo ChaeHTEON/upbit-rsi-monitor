@@ -1566,7 +1566,7 @@ def main():
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Signal" in df.columns:
                     # ✅ 수정: 0.2 이하로 내려갔다가(기간 무제한) 다시 0.2 이상으로 복귀 + 골든교스 발생 시
-                    #         실제 인덱스 기반으로 다음 캔들을 매수 진입 시점으로 추가
+                    #         '다음 캔들(원본 인덱스)'을 매수 후보로 수집하고, df_for_sim은 전체 시계열 유지
                     buy_idx_list = []
                     was_below = False
 
@@ -1593,26 +1593,22 @@ def main():
                                 buy_idx_list.append(df.index[next_idx])
                             was_below = False  # 중복 방지
 
-                    # ✅ 매수 후보 DataFrame 구성 (인덱스 기반 loc 사용)
-                    if len(buy_idx_list) > 0:
-                        df_for_sim = df.loc[buy_idx_list].reset_index(drop=True).copy()
+                    # ✅ df_for_sim은 전체 시계열 유지 (후속 공통 로직 정상 동작)
+                    df_for_sim = df.copy()
 
-                        # ✅ 추가: 거래량 필터 인덱스 정합성 보정
-                        # 공통부의 vol_ok가 '원본 df 인덱스' 기준으로 만들어져 있으므로,
-                        # 현재 분기에서 만든 df_for_sim(부분 프레임)에 맞게 재정렬/축약한다.
-                        try:
-                            vol_ok = vol_ok.loc[buy_idx_list].reset_index(drop=True)
-                        except Exception:
-                            pass
-                    else:
-                        df_for_sim = df.iloc[0:0].copy()
-
-                    # ✅ 강세(≥0.7) 필터 미적용 (현행 유지)
+                    # ✅ base_sig_idx에 반영: 기존 값이 있으면 교집합, 없으면 신규로 설정
+                    try:
+                        if "base_sig_idx" in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
+                            base_sig_idx = [i for i in base_sig_idx if i in set(buy_idx_list)]
+                        else:
+                            base_sig_idx = list(dict.fromkeys(buy_idx_list))
+                    except Exception:
+                        base_sig_idx = list(dict.fromkeys(buy_idx_list))
                 else:
-                    df_for_sim = df.iloc[0:0].copy()
+                    # 컬럼이 없으면 빈 데이터로 안전 처리
+                    df_for_sim = df.copy()
             else:
                 df_for_sim = df.copy()
-
             # ✅ Composite 강세 필터는 '사용자가 해당 조건을 선택했을 때만' 적용
             try:
                 if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
