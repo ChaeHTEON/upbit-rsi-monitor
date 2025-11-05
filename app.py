@@ -1570,7 +1570,6 @@ def main():
                     was_below = False  # 최근 0.2 이하 상태 여부
 
                     for i in range(1, len(df) - 1):
-                        score_prev = df["Composite_Score"].iloc[i - 1]
                         score_curr = df["Composite_Score"].iloc[i]
                         golden_now = df["Composite_Golden"].iloc[i]
 
@@ -1580,7 +1579,7 @@ def main():
 
                         # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2를 초과하면서 골든크로스 발생 시
                         elif was_below and (score_curr > 0.2) and (golden_now == 1):
-                            buy_idx_list.append(i + 1)  # 다음 캔들 매수
+                            buy_idx_list.append(i)  # ✅ 현재 캔들에서 매수
                             was_below = False  # ✅ 초기화: 다음 하락 사이클 대비
 
                     # ③ 신호가 존재하면 해당 시점만 추출
