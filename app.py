@@ -1523,6 +1523,8 @@ def main():
             st.rerun()
     
 # ===== 시뮬레이션 (중복 포함/제거) =====
+        # ✅ 거래량 조건 세션값을 시뮬레이션 전에 확정
+        st.session_state["volume_cond"] = volume_cond
         # ✅ 기본 판정 기준(전역 미정의 방지)
         hit_basis = "종가 기준"
 
