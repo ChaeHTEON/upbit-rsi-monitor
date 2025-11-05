@@ -1591,7 +1591,7 @@ def main():
                 else:
                     sec_mask = np.ones(len(df), dtype=bool)
     
-            elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
+elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns and "Composite_Dead" in df.columns:
                     # ✅ 시뮬레이션 실행 시점에서 최신 슬라이더 값 갱신
                     threshold = float(st.session_state.get("comp_threshold", 0.2))
@@ -1603,20 +1603,26 @@ def main():
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
 
                     for i in range(1, len(df) - 1):
-                        prev_val  = df["Composite_Score"].iloc[i - 1]  # 교차 이전 봉 기준
-                        is_golden = (df["Composite_Golden"].iloc[i] == 1)
-                        is_dead   = (df["Composite_Dead"].iloc[i] == 1)
+                        # ⭐ 별(골든/데드)이 '새로 생긴' 시점만 인식(0→1 엣지)
+                        was_golden = (df["Composite_Golden"].iloc[i - 1] == 1)
+                        is_golden  = (df["Composite_Golden"].iloc[i]     == 1)
+                        golden_edge = (not was_golden) and is_golden
 
-                        if np.isnan(prev_val):
+                        was_dead = (df["Composite_Dead"].iloc[i - 1] == 1)
+                        is_dead  = (df["Composite_Dead"].iloc[i]     == 1)
+                        dead_edge = (not was_dead) and is_dead
+
+                        # 임계 비교는 '별이 찍힌 그 봉(i)'의 Composite 값으로 판단
+                        comp_val = df["Composite_Score"].iloc[i]
+                        if np.isnan(comp_val):
                             continue
 
-                        # 임계 이하 & 별 발생 시
-                        if prev_val <= threshold:
-                            if color_mode.startswith("공통") and (is_golden or is_dead):
+                        if comp_val <= threshold:
+                            if color_mode.startswith("공통") and (golden_edge or dead_edge):
+                                buy_idx_list.append(i + 1)   # 진입 시점 = 다음 봉
+                            elif color_mode.startswith("빨간") and golden_edge:
                                 buy_idx_list.append(i + 1)
-                            elif color_mode.startswith("빨간") and is_golden:
-                                buy_idx_list.append(i + 1)
-                            elif color_mode.startswith("파란") and is_dead:
+                            elif color_mode.startswith("파란") and dead_edge:
                                 buy_idx_list.append(i + 1)
 
                     sec_mask = np.zeros(len(df), dtype=bool)
