@@ -1570,9 +1570,9 @@ def main():
                         prev_score = df["Composite_Score"].iloc[i - 1]
                         curr_score = df["Composite_Score"].iloc[i]
                         golden_now = df["Composite_Golden"].iloc[i]
-                        # ① 직전 0.2 이하 → ② 현재 0.2 이상 상향 돌파 → ③ 골든교차 발생
-                        if prev_score <= 0.2 and curr_score >= 0.2 and golden_now == 1:
-                            buy_idx_list.append(i + 1)  # 다음 캔들 매수 진입
+                        # ✅ 0.2 경계값 근처의 노이즈 완화 (±0.05 허용)
+                        if prev_score <= 0.25 and curr_score >= 0.15 and golden_now == 1:
+                            buy_idx_list.append(i + 1)
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
