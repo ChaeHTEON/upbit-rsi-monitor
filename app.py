@@ -1597,14 +1597,16 @@ def main():
                     color_mode = st.session_state.get("comp_color_mode", "공통(모두포함)")
                     buy_idx_list = []
 
+                    # ✅ 별 발생(골든/데드) 시점 감지
                     golden_cross = (df["Composite_Golden"].shift(1) == 0) & (df["Composite_Golden"] == 1)
                     dead_cross   = (df["Composite_Dead"].shift(1) == 0) & (df["Composite_Dead"] == 1)
 
-                    for i in range(1, len(df) - 1):
-                        prev_val = df["Composite_Score"].iloc[i - 1]
-                        if np.isnan(prev_val):
+                    for i in range(1, len(df)):
+                        comp_val = df["Composite_Score"].iloc[i]
+                        if np.isnan(comp_val):
                             continue
-                        if prev_val <= threshold:
+                        # ⭐ 별이 찍힌 봉(i)의 Composite 값이 임계값 이하인 경우만 신호로 인정
+                        if comp_val <= threshold:
                             if color_mode.startswith("공통") and (golden_cross.iloc[i] or dead_cross.iloc[i]):
                                 buy_idx_list.append(i)
                             elif color_mode.startswith("빨간") and golden_cross.iloc[i]:
@@ -1616,7 +1618,7 @@ def main():
                     if buy_idx_list:
                         sec_mask[buy_idx_list] = True
 
-                    # ✅ 수정: df_for_sim은 반드시 원본 df 인덱스로 필터링해야 함
+                    # ✅ df_for_sim은 sec_mask 기준으로 정확히 필터링
                     df_for_sim = df.loc[sec_mask].copy()
                 else:
                     sec_mask = np.zeros(len(df), dtype=bool)
@@ -1626,8 +1628,6 @@ def main():
             try:
                 if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
                     df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
-                elif sec_cond == "복합지표(Composite) 임계 이하 골든교차":
-                    df_for_sim = df_for_sim[sec_mask].reset_index(drop=True).copy()
             except Exception:
                 pass
 
