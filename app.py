@@ -1564,10 +1564,16 @@ def main():
                     df_for_sim = df.copy()
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
-                if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 개선: 0.2 이하 구간 이후, 0.2 이상으로 회복하며 골든크로스 발생 시마다 매수 신호 생성
+                if "Composite_Score" in df.columns and "Composite_Signal" in df.columns:
+                    # ✅ 개선: 모든 0.2 이하 → 0.2 이상 회복 + 골든교차 발생 시 신호 생성 (반복 허용)
                     buy_idx_list = []
-                    was_below = False  # 최근 0.2 이하 상태 여부
+                    was_below = False
+
+                    # ---- 교차 판정 정합화 (시점 보정) ----
+                    score_prev = df["Composite_Score"].shift(1)
+                    sig_prev   = df["Composite_Signal"].shift(1)
+                    cross_up = (score_prev < sig_prev) & (df["Composite_Score"] >= df["Composite_Signal"])
+                    df["Composite_Golden"] = np.where(cross_up, 1, 0)
 
                     for i in range(1, len(df) - 1):
                         score_prev = df["Composite_Score"].iloc[i - 1]
@@ -1578,15 +1584,19 @@ def main():
                         if score_curr <= 0.2:
                             was_below = True
 
-                        # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2 이상으로 회복 + 골든교차 발생 시
-                        elif was_below and score_prev <= 0.2 and score_curr >= 0.2 and golden_now == 1:
-                            buy_idx_list.append(i + 1)  # 다음 캔들 매수
-                            # 상태 초기화하지 않음 → 이후 다시 0.2 이하로 내려갔다 올라오면 또 신호 가능
+                        # ② 과거에 0.2 이하 구간이 존재하고, 이번 캔들이 0.2 이상 회복하며 골든크로스 발생
+                        elif was_below and score_prev <= 0.22 and score_curr >= 0.18 and golden_now == 1:
+                            buy_idx_list.append(i + 1)  # 다음 캔들 매수 (존재 시)
+                            # ✅ 초기화하지 않음: 이후 반복 0.2↓→0.2↑ 구간 모두 허용
 
+                    # ✅ 매수 후보 DataFrame 구성
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
                         df_for_sim = df.iloc[0:0].copy()
+
+                    # ✅ 이 조건에서는 강세(≥0.7) 필터 미적용
+                    # (다른 조건에서는 기존 필터 로직 유지)
                 else:
                     # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
