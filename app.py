@@ -345,6 +345,7 @@ def main():
                 "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
                 "복합지표(Composite) 강세만 진입",
                 "복합지표(Composite) 골든 교차 시 진입"
+                "복합지표DML 골든 교차 (임계값 이하→상향)",  # ✅ 신규 2차 조건 추가
             ]
         )
     
@@ -1585,6 +1586,34 @@ def main():
                         df_for_sim = df.iloc[0:0].copy()
                 else:
                     # 컬럼이 없으면 빈 데이터로 안전 처리
+                    df_for_sim = df.iloc[0:0].copy()
+
+            # ✅ 신규 추가: 복합지표DML 골든 교차 (임계값 이하→상향)
+            elif sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
+                if "Composite_DML" in df.columns and "Composite_Golden" in df.columns:
+                    buy_idx_list = []
+                    threshold_val = st.session_state.get("dml_threshold", 0.0)
+                    color_mode = st.session_state.get("dml_color_mode", "빨간")
+
+                    below_mask = df["Composite_DML"] <= threshold_val
+                    above_mask = df["Composite_DML"] >= threshold_val
+                    golden_mask = df["Composite_Golden"] == 1
+
+                    for i in range(1, len(df) - 1):
+                        # ① 직전까지 임계값 이하 구간이 존재해야 함
+                        if below_mask.iloc[:i].any():
+                            # ② 현재 시점 임계값 이상 & 골든 교차 발생
+                            if above_mask.iloc[i] and golden_mask.iloc[i]:
+                                # ③ 색상 필터링 조건: 빨간/파란 구분
+                                if (color_mode == "빨간" and df["Composite_DML"].iloc[i] > threshold_val) or \
+                                   (color_mode == "파란" and df["Composite_DML"].iloc[i] < threshold_val):
+                                    buy_idx_list.append(i + 1)
+
+                    if len(buy_idx_list) > 0:
+                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
+                    else:
+                        df_for_sim = df.iloc[0:0].copy()
+                else:
                     df_for_sim = df.iloc[0:0].copy()
 
             else:
