@@ -344,31 +344,9 @@ def main():
                 "매물대 터치 후 반등(위→아래→반등)",
                 "매물대 자동 (하단→상단 재진입 + BB하단 위 양봉)",
                 "복합지표(Composite) 강세만 진입",
-                "복합지표(Composite) 골든 교차 시 진입",
-                "복합지표DML 골든 교차 (임계값 이하→상향)",  # ✅ 신규 2차 조건 추가
+                "복합지표(Composite) 골든 교차 시 진입"
             ]
         )
-
-        # ✅ 신규 추가: DML 조건용 슬라이더 및 색상 선택 (선택 시만 표시)
-        if sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
-            col_dml1, col_dml2 = st.columns(2)
-            with col_dml1:
-                st.slider(
-                    "임계값(DML)",
-                    min_value=-0.5,
-                    max_value=2.0,
-                    step=0.1,
-                    value=0.2,  # ✅ 실제 Composite_Score 스케일에 맞는 기본값
-                    key="dml_threshold",
-                    help="Composite_DML 임계값 이하→상향 돌파 시 신호 발생"
-                )
-            with col_dml2:
-                st.selectbox(
-                    "골든크로스 색상",
-                    ["빨간", "파란"],
-                    key="dml_color_mode",
-                    help="골든 교차 방향 필터 (빨간=상승, 파란=하락)"
-                )
     
         # ✅ 매물대 반등 조건일 때만 N봉 입력 노출
         if sec_cond == "매물대 터치 후 반등(위→아래→반등)":
@@ -715,15 +693,17 @@ def main():
             macd_thr, vol_thr = 0.15, 0.3  # 👉 미세 신호 제거 임계값 강화
 
             # ---- 개별 정규화 ----
-            rsi_score = ((out["RSI13"] - 30) / 40.0).clip(0, 1)
+            rsi_score = ((out["RSI13"] - 30) / 40.0).clip(0, 1)  # RSI<30은 0, >70은 1
             cci_score = ((out["CCI"].clip(-150, 150) + 150) / 300.0).clip(0, 1)
 
+            # MACD: 변화율 기반 민감도 하향
             macd_diff = out["MACD_hist"].diff().fillna(0)
             macd_n = ((macd_diff - macd_diff.min()) /
                       (macd_diff.max() - macd_diff.min() + 1e-9)).clip(0, 1)
 
+            # 거래량: 20봉 평균 대비 비율
             vol_ratio = out["volume"] / (out["volume"].rolling(20, min_periods=1).mean() + 1e-9)
-            vol_n = ((vol_ratio / 3.0) - 1).clip(0, 1)
+            vol_n = ((vol_ratio / 3.0) - 1).clip(0, 1)  # 3배 이상 급등만 반영
 
             # ---- 임계값 필터링 ----
             macd_n = np.where(macd_n < macd_thr, 0, macd_n)
@@ -740,9 +720,6 @@ def main():
             # ---- Signal EMA (길이 증가 → 더 안정적) ----
             out["Composite_Signal"] = out["Composite_Score"].ewm(span=15, adjust=False).mean()
 
-            # ✅ 신규 추가: Composite_DML (Composite_Score - Composite_Signal)
-            out["Composite_DML"] = (out["Composite_Score"] - out["Composite_Signal"]).fillna(0)
-
             # ---- 교차 판정 ----
             cross_up = (out["Composite_Score"].shift(1) <= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] > out["Composite_Signal"])
             cross_dn = (out["Composite_Score"].shift(1) >= out["Composite_Signal"].shift(1)) & (out["Composite_Score"] < out["Composite_Signal"])
@@ -753,7 +730,6 @@ def main():
             print("⚠️ Composite_Score 오류:", e)
             out["Composite_Score"] = np.nan
             out["Composite_Signal"] = np.nan
-            out["Composite_DML"] = np.nan
             out["Composite_Golden"] = 0
             out["Composite_Dead"] = 0
 
@@ -1010,10 +986,11 @@ def main():
                     base_sig_idx = list(range(n)) if sec_cond != "없음" else []
 
         
-        # ✅ 거래량 1차 필터 공통 적용 (bottom_mode 여부와 무관)
+        # ✅ 거래량 1차 필터 공통 적용 (단, MACD_GoldenCross 전략은 예외)
         if 'base_sig_idx' in locals() and isinstance(base_sig_idx, list) and len(base_sig_idx) > 0:
             try:
-                base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
+                if st.session_state.get("primary_strategy", "없음") != "MACD_GoldenCross":
+                    base_sig_idx = [i for i in base_sig_idx if bool(vol_ok.loc[i])]
             except Exception:
                 base_sig_idx = base_sig_idx
 
@@ -1557,6 +1534,7 @@ def main():
         _skip_all = _no_bottom and _no_primary and _no_rsi and _no_bb and _no_cci and _no_sec
 
         # =============== ⑥ 시뮬레이션 실행 ===============
+        # =============== ⑥ 시뮬레이션 실행 ===============
         # ✅ df_orig 기본값 지정 (모든 분기에서 참조 가능하도록)
         df_orig = df.copy()
 
@@ -1587,56 +1565,36 @@ def main():
 
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns and "Composite_Golden" in df.columns:
-                    # ✅ 변경: 복합지표가 0.2 이하로 하락 후, 0.2 이상으로 재상승 + 골든교차 발생 → 다음 캔들 매수
+                    # ✅ 개선: 0.2 이하 구간 이후, 0.2 이상으로 회복하며 골든크로스 발생 시마다 매수 신호 생성
                     buy_idx_list = []
-                    below_mask = df["Composite_Score"] <= 0.2
-                    above_mask = df["Composite_Score"] >= 0.2
-                    golden_mask = df["Composite_Golden"] == 1
+                    was_below = False  # 최근 0.2 이하 상태 여부
 
                     for i in range(1, len(df) - 1):
-                        # ① 직전까지 0.2 이하 구간이 존재해야 함
-                        if below_mask.iloc[:i].any():
-                            # ② 현재 시점 0.2 이상으로 상승 & 골든 교차 발생
-                            if above_mask.iloc[i] and golden_mask.iloc[i]:
-                                # ③ 다음 캔들(시점 i+1)을 매수 후보로 추가
-                                buy_idx_list.append(i + 1)
+                        score_prev = df["Composite_Score"].iloc[i - 1]
+                        score_curr = df["Composite_Score"].iloc[i]
+                        golden_now = df["Composite_Golden"].iloc[i]
+
+                        # ① 0.2 이하 구간 진입 감지
+                        if score_curr <= 0.2:
+                            was_below = True
+
+                        # ② 과거에 0.2 이하 구간이 있었고, 현재 0.2 이상으로 회복 + 골든교차 발생 시
+                        elif was_below and score_prev <= 0.2 and score_curr >= 0.2 and golden_now == 1:
+                            buy_idx_list.append(i + 1)  # 다음 캔들 매수
+                            # 상태 초기화하지 않음 → 이후 다시 0.2 이하로 내려갔다 올라오면 또 신호 가능
 
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
                         df_for_sim = df.iloc[0:0].copy()
                 else:
+                    # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
 
-            # ✅ 최종 보정: 복합지표DML 골든 교차 (임계값 이하→이후 N봉 내 상향)
-            if sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
-                if "Composite_DML" in df.columns and "Composite_Golden" in df.columns:
-                    threshold_val = float(st.session_state.get("dml_threshold", 0.0))
-                    color_mode = st.session_state.get("dml_color_mode", "빨간")
-                    n_window = 5  # 임계값 돌파 이후 최대 5봉 내 골든 허용
-                    buy_idx_list = []
+            else:
+                df_for_sim = df.copy()
 
-                    last_below_idx = None
-                    for i in range(1, len(df) - 1):
-                        dml_curr = df["Composite_DML"].iloc[i]
-                        golden_now = (df["Composite_Golden"].iloc[i] == 1)
-
-                        # ① 임계값 이하 구간이면 최근 위치 저장
-                        if dml_curr <= threshold_val:
-                            last_below_idx = i
-
-                        # ② 최근 임계값 이하 → n봉 내 골든 발생 시 신호
-                        if last_below_idx is not None and (i - last_below_idx) <= n_window and golden_now:
-                            if (color_mode == "빨간" and dml_curr >= threshold_val) or \
-                               (color_mode == "파란" and dml_curr <= threshold_val):
-                                buy_idx_list.append(i + 1)
-                                last_below_idx = None  # 리셋
-
-                    df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy() if buy_idx_list else df.iloc[0:0].copy()
-                else:
-                    df_for_sim = df.iloc[0:0].copy()
-
-            # ✅ Composite 강세(≥0.7) 필터는 해당 2차조건을 선택했을 때만 적용
+            # ✅ Composite 강세 필터는 '사용자가 해당 조건을 선택했을 때만' 적용
             try:
                 if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
                     df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
