@@ -1557,7 +1557,6 @@ def main():
         _skip_all = _no_bottom and _no_primary and _no_rsi and _no_bb and _no_cci and _no_sec
 
         # =============== ⑥ 시뮬레이션 실행 ===============
-        # =============== ⑥ 시뮬레이션 실행 ===============
         # ✅ df_orig 기본값 지정 (모든 분기에서 참조 가능하도록)
         df_orig = df.copy()
 
@@ -1605,11 +1604,31 @@ def main():
                     if len(buy_idx_list) > 0:
                         df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
                     else:
-                        # 조건 미충족 시 빈 데이터 처리
                         df_for_sim = df.iloc[0:0].copy()
                 else:
-                    # 컬럼이 없으면 빈 데이터로 안전 처리
                     df_for_sim = df.iloc[0:0].copy()
+
+            # ✅ 신규 추가: 복합지표DML 골든 교차 (임계값 이하→상향)
+            elif sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
+                if "Composite_DML" in df.columns and "Composite_Golden" in df.columns:
+                    threshold = float(st.session_state.get("dml_threshold", 0.0))
+                    color_mode = st.session_state.get("dml_color_mode", "빨간")
+                    buy_idx_list = []
+                    for i in range(1, len(df) - 1):
+                        # ① Composite_DML이 임계값 이하였다가 임계값을 돌파하는 시점
+                        crossed_up = (df["Composite_DML"].iloc[i - 1] <= threshold) and (df["Composite_DML"].iloc[i] > threshold)
+                        # ② Composite_Golden 발생 시점
+                        if crossed_up and df["Composite_Golden"].iloc[i] == 1:
+                            buy_idx_list.append(i + 1)
+                    if len(buy_idx_list) > 0:
+                        df_for_sim = df.iloc[buy_idx_list].reset_index(drop=True).copy()
+                    else:
+                        df_for_sim = df.iloc[0:0].copy()
+                else:
+                    df_for_sim = df.iloc[0:0].copy()
+
+            else:
+                df_for_sim = df.copy()
 
             # ✅ 신규 추가: 복합지표DML 골든 교차 (임계값 이하→상향)
             elif sec_cond == "복합지표DML 골든 교차 (임계값 이하→상향)":
