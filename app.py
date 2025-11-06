@@ -2444,33 +2444,16 @@ def main():
         # ✅ RSI(13) 라벨 추가, MACD/CCI/거래량 라벨 정렬 통합, 메인차트 범례 간격 보정
         # ✅ 범례 전용 레이아웃 분리 (UI 독립)
         # ✅ 범례 완전 분리형: Streamlit HTML 박스로 차트 위 분리 표시
-        st.markdown(
-            """
-            <div style="
-                background-color:#fafafa;
-                border:1px solid #ddd;
-                border-radius:8px;
-                padding:6px 10px;
-                margin-bottom:10px;
-                font-size:13px;
-                line-height:1.4;
-                overflow-x:auto;
-                white-space:nowrap;
-            ">
-                📊 <b>범례 안내:</b> 주요 색상 및 기호는 RSI·CCI·MACD·BB 지표를 나타내며, 
-                차트 내 캔들·보조지표와 겹치지 않도록 독립 표시됩니다.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
         fig.update_layout(
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
             xaxis_rangeslider_visible=False,
-            height=720,
-            showlegend=False,  # 🔹 Plotly 내부 범례 숨김
-            margin=dict(l=60, r=60, t=60, b=40),
+            height=740,  # 🔹 약간의 상단 여백 확보
+            legend_orientation="h",
+            legend_y=1.09,  # 🔹 제목보다 살짝 위로 띄움
+            legend_tracegroupgap=6,
+            legend_bgcolor="rgba(255,255,255,0.8)",  # 🔹 반투명 배경으로 시각 분리
+            margin=dict(l=60, r=60, t=90, b=40),  # 🔹 상단 여백 확장
             plot_bgcolor="white",
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=12),
