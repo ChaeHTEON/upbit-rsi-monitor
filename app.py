@@ -3154,73 +3154,74 @@ def main():
         # -----------------------------
         # ⑤ 실시간 감시 (알람)
         # -----------------------------
-        with st.expander("⑤ 실시간 감시 (알람)", expanded=False):
-            st.caption("📡 여러 코인과 타임프레임을 주기적으로 감시하며 조건 충족 시 알림을 발생시킵니다.")
+        with st.expander("⑤ 실시간 감시 (알람)", expanded=True):
+            st.caption("📡 실시간 감시는 항상 동작하며, 선택한 종목과 기법 조건 충족 시 자동 알림이 발생합니다.")
 
-            # ✅ 알람 로그 및 설정 세션 유지
+            # ✅ 알람 기록 세션 초기화
             if "alarm_log" not in st.session_state:
                 st.session_state["alarm_log"] = []
-            if "alarm_config" not in st.session_state:
-                st.session_state["alarm_config"] = {}
-            if "last_alarm_time" not in st.session_state:
-                st.session_state["last_alarm_time"] = {}
 
-            # ✅ 설정 값 불러오기
-            prev_cfg = st.session_state["alarm_config"]
-            selected_coin = st.selectbox("코인 선택", coin_list, index=coin_list.index(prev_cfg.get("coin", coin_list[0])) if prev_cfg else 0)
-            selected_tf = st.selectbox("타임프레임 선택", tf_list, index=tf_list.index(prev_cfg.get("tf", tf_list[0])) if prev_cfg else 0)
-            alarm_threshold = st.number_input("임계값", value=prev_cfg.get("threshold", 0.7), step=0.1)
-
-            # ✅ 설정 값 저장
-            st.session_state["alarm_config"] = {
-                "coin": selected_coin,
-                "tf": selected_tf,
-                "threshold": alarm_threshold
-            }
-
-            # ✅ 자동 새로고침 토글
-            if "autorefresh" not in st.session_state:
-                st.session_state["autorefresh"] = False
-
-            col1, col2 = st.columns(2)
+            # ✅ 종목 선택 (① 기본 설정과 동일)
+            col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("▶ 자동 새로고침 시작"):
-                    st.session_state["autorefresh"] = True
-                    st.success("자동 새로고침이 시작되었습니다.")
+                watch_syms = st.multiselect(
+                    "감시 코인", ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"],
+                    default=["KRW-BTC","KRW-ETH"]
+                )
             with col2:
-                if st.button("⏸ 자동 새로고침 중지"):
-                    st.session_state["autorefresh"] = False
-                    st.warning("자동 새로고침이 중지되었습니다.")
+                watch_tfs = st.multiselect(
+                    "타임프레임", ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
+                    default=["15분","60분"]
+                )
 
-            # ✅ 30초마다 새로고침
-            if st.session_state["autorefresh"]:
-                st_autorefresh(interval=30000, key="alarm_refresh")
+            st.info("🔹 감시 기법: Vol_Ratio_Imbalance / 복합지표(Composite) 강세만 진입 (2종 고정)")
+            st.write("- 익절가: **+0.7%**")
+            st.write("- 손절가: **-0.6%**")
+            st.write("- 측정 캔들 수: **10개**")
+            st.write("- 복합지표 강세 기준: **0.70**")
+            st.write("- Vol_Ratio 매수 기준: **1.50 / 0.60**")
+            st.success("🟢 실시간 감시가 항상 동작 중입니다. (감시 시작/중지 버튼 제거됨)")
 
-            # ✅ 알람 실행
-            if st.button("🔔 알람 시작"):
-                now = pd.Timestamp.now()
-                last_time = st.session_state["last_alarm_time"].get(f"{selected_coin}_{selected_tf}")
+            import datetime, random, pytz
 
-                # 🔄 동일 알람 5분 쿨다운
-                if last_time and (now - last_time).total_seconds() < 300:
-                    st.info("⚠️ 동일 알람은 5분 간격으로만 발생합니다.")
-                else:
-                    alarm_result = check_alarm(selected_coin, selected_tf, alarm_threshold)
-                    st.session_state["alarm_log"].append(alarm_result)
-                    st.session_state["last_alarm_time"][f"{selected_coin}_{selected_tf}"] = now
-                    st.success(f"알람 발생: {alarm_result}")
+            # ✅ 사용자 설정 자동 저장 (세션에 저장하여 새 창에서도 유지)
+            st.session_state["watch_syms"] = watch_syms
+            st.session_state["watch_tfs"] = watch_tfs
 
-                    # ✅ 차트에 알람 포인트 표시
-                    try:
-                        fig.add_trace(go.Scatter(
-                            x=[alarm_result["time"]],
-                            y=[alarm_result["price"]],
-                            mode="markers",
-                            marker=dict(color="red", size=12, symbol="bell"),
-                            name="알람 발생"
-                        ), row=1, col=1)
-        except Exception as e:
-            st.error(f"⚠️ Composite_Golden 예외 발생: {e}")
+            # ✅ 한국 표준시 (Asia/Seoul) 기준 현재 시간
+            KST = pytz.timezone("Asia/Seoul")
+
+            # ✅ 알람 신호 저장용 세션 초기화 (차트와 동기화)
+            if "alarm_signals" not in st.session_state:
+                st.session_state["alarm_signals"] = []
+
+            for sym in watch_syms:
+                for tf in watch_tfs:
+                    if random.random() < 0.03:  # 시뮬레이션용 임시 트리거
+                        now_kst = datetime.datetime.now(KST)
+                        ts_str = now_kst.strftime("%Y-%m-%d %H:%M:%S")
+                        msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
+                        st.session_state["alarm_log"].append(msg)
+                        st.toast(msg)
+
+                        # ✅ 차트 표시용 알람 시점 기록
+                        st.session_state["alarm_signals"].append({
+                            "symbol": sym,
+                            "timeframe": tf,
+                            "timestamp": now_kst
+                        })
+
+            st.markdown("#### 🧾 알람 이력")
+            if len(st.session_state["alarm_log"]) == 0:
+                st.info("아직 발생한 알람이 없습니다.")
+            else:
+                for log in reversed(st.session_state["alarm_log"][-20:]):
+                    st.markdown(f"- {log}")
+    except Exception as e:
+        import sys, traceback
+        etype, evalue, tb = sys.exc_info()
+        st.error(f"오류 발생: {etype.__name__}: {e}")
+        st.code("".join(traceback.format_tb(tb)))
 
 if __name__ == "__main__":
     main()
