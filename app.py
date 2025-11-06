@@ -3219,8 +3219,8 @@ def main():
                             marker=dict(color="red", size=12, symbol="bell"),
                             name="알람 발생"
                         ), row=1, col=1)
-                    except Exception as e:
-                        st.warning(f"알람 마커 표시 실패: {e}")
+        except Exception as e:
+            st.error(f"⚠️ Composite_Golden 예외 발생: {e}")
 
 if __name__ == "__main__":
     main()
