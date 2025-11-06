@@ -2442,27 +2442,6 @@ def main():
         import numpy as _np
         _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{_np.random.randint(1e9)}"
         # ✅ RSI(13) 라벨 추가, MACD/CCI/거래량 라벨 정렬 통합, 메인차트 범례 간격 보정
-        # ✅ 범례를 차트 위 별도 UI로 분리 표시 (Streamlit 전용 상단 박스)
-        st.markdown(
-            """
-            <div style="
-                background-color:#fafafa;
-                border:1px solid #ddd;
-                border-radius:8px;
-                padding:8px 12px;
-                margin-bottom:10px;
-                font-size:13px;
-                line-height:1.5;
-                overflow-x:auto;
-                white-space:nowrap;
-            ">
-                📊 <b>차트 범례 안내</b> — RSI(13), CCI(14), MACD, 볼린저밴드 등 주요 지표의 색상 및 심볼 의미를 표시합니다.<br>
-                각 항목은 차트 내 신호와 동일하며, 차트와 겹치지 않도록 독립 영역에 표시됩니다.
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
         fig.update_layout(
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
@@ -2472,10 +2451,13 @@ def main():
             legend_y=1.04,  # 범례 살짝 위로 이동
             margin=dict(l=60, r=60, t=60, b=40),  # 좌우 여백 확장 → Y축 텍스트 정렬 균등화
             yaxis=dict(title="가격", autorange=True, fixedrange=False, title_standoff=10),
-            yaxis2=dict(title="RSI(13)", range=[0, 100], autorange
-        )
-        # ✅ 추가: Plotly 내부 범례만 숨김 (차트 스타일 불변)
-        fig.update_layout(showlegend=False)
+            yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False, title_standoff=10),
+            yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True, fixedrange=False, title_standoff=10),
+            yaxis4=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False, title_standoff=10),  # 🔵 파란박스 위치용 RSI(13)
+            yaxis5=dict(title="거래량", autorange=True, fixedrange=False, title_standoff=10),
+            yaxis6=dict(title="MACD", autorange=True, fixedrange=False, title_standoff=10),
+            uirevision=_uirev,
+            hovermode="closest"
         )
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
@@ -2499,18 +2481,6 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
-            # ✅ 추가: 차트와 완전히 분리된 '범례 전용' 상단 박스
-            st.markdown(
-                """
-                <div style="background-color:#fafafa; border:1px solid #ddd; border-radius:8px;
-                padding:8px 12px; margin-bottom:8px; font-size:13px; line-height:1.5;
-                overflow-x:auto; white-space:nowrap;">
-                  <b>📊 차트 범례 안내</b> — RSI·CCI·MACD·BB·EMA(100) 등 각 색상/심볼의 의미를 표시합니다.
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
             st.plotly_chart(
                 fig,
                 use_container_width=True,
