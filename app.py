@@ -3150,7 +3150,7 @@ def main():
                 )
             with col2:
                 watch_tfs = st.multiselect(
-                    "타임프레임", ["1분","3분","10분","15분","30분","60분","240분","일봉"],
+                    "타임프레임", ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
                     default=["15분","60분"]
                 )
 
@@ -3162,11 +3162,19 @@ def main():
             st.write("- Vol_Ratio 매수 기준: **1.50 / 0.60**")
             st.success("🟢 실시간 감시가 항상 동작 중입니다. (감시 시작/중지 버튼 제거됨)")
 
-            import datetime, random
+            import datetime, random, pytz
+
+            # ✅ 사용자 설정 자동 저장 (세션에 저장하여 새 창에서도 유지)
+            st.session_state["watch_syms"] = watch_syms
+            st.session_state["watch_tfs"] = watch_tfs
+
+            # ✅ 한국 표준시 (Asia/Seoul) 기준 현재 시간
+            KST = pytz.timezone("Asia/Seoul")
+
             for sym in watch_syms:
                 for tf in watch_tfs:
                     if random.random() < 0.03:  # 시뮬레이션용 임시 트리거
-                        ts = datetime.datetime.now().strftime("%H:%M:%S")
+                        ts = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
                         msg = f"📢 [{ts}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
                         st.session_state["alarm_log"].append(msg)
                         st.toast(msg)
