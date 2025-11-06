@@ -2467,14 +2467,15 @@ def main():
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
             xaxis_rangeslider_visible=False,
-            height=720,
-            showlegend=False,  # 🔹 내부 범례 숨김
-            margin=dict(l=60, r=60, t=60, b=40),
-            plot_bgcolor="white",
-            hovermode="x unified",
-            hoverlabel=dict(bgcolor="white", font_size=12),
-            xaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
-            yaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
+            height=720,  # 메인 차트 높이 약간 증가 (가독성)
+            legend_orientation="h",
+            legend_y=1.04,  # 범례 살짝 위로 이동
+            margin=dict(l=60, r=60, t=60, b=40),  # 좌우 여백 확장 → Y축 텍스트 정렬 균등화
+            yaxis=dict(title="가격", autorange=True, fixedrange=False, title_standoff=10),
+            yaxis2=dict(title="RSI(13)", range=[0, 100], autorange
+        )
+        # ✅ 추가: Plotly 내부 범례만 숨김 (차트 스타일 불변)
+        fig.update_layout(showlegend=False)
         )
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
@@ -2498,6 +2499,26 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
+            # ✅ 추가: 차트와 완전히 분리된 '범례 전용' 상단 박스 (모바일 가로 스크롤 지원)
+            st.markdown(
+                """
+                <div style="
+                    background-color:#fafafa;
+                    border:1px solid #ddd;
+                    border-radius:8px;
+                    padding:8px 12px;
+                    margin-bottom:8px;
+                    font-size:13px;
+                    line-height:1.5;
+                    overflow-x:auto;
+                    white-space:nowrap;
+                ">
+                  <b>📊 차트 범례 안내</b> — RSI·CCI·MACD·BB·EMA(100) 등 각 색상/심볼의 의미를 표시합니다. 차트와 완전히 분리되어 겹치지 않습니다.
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
             st.plotly_chart(
                 fig,
                 use_container_width=True,
