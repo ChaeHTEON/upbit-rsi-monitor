@@ -1607,10 +1607,9 @@ def main():
 
                     for i in range(1, len(df) - 1):
                         prev_val = df["Composite_Score"].iloc[i - 1]
-                        curr_val = df["Composite_Score"].iloc[i]  # ✅ 추가: else 분기에서 참조되는 현재값 정의
                         if np.isnan(prev_val):
                             continue
-                    
+
                         # ✅ 직전 봉 값이 임계 이하일 때 발생한 교차만 신호로 인정
                         if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
                             if prev_val <= threshold:
@@ -2128,22 +2127,22 @@ def main():
 
         # ✅ 실시간 알람 발생 시점 🔔 마커 표시
         if "alarm_signals" in st.session_state and len(st.session_state["alarm_signals"]) > 0:
-            symbol = market_code
+            symbol = market_code  # 현재 차트의 심볼
             timeframe = tf_label.replace("봉", "")
-            alarms = [
+            alarm_df = [
                 sig for sig in st.session_state["alarm_signals"]
                 if sig["symbol"] == symbol and sig["timeframe"].startswith(timeframe)
             ]
-            if len(alarms) > 0:
-                alarm_times = [sig["timestamp"] for sig in alarms]
-                df_alarm = df_plot[df_plot["time"].astype(str).isin(alarm_times)]
+            if len(alarm_df) > 0:
+                alarm_times = [sig["timestamp"] for sig in alarm_df]
+                df_alarm = df_plot[df_plot["time"].isin(alarm_times)]
                 if not df_alarm.empty:
                     fig.add_trace(go.Scatter(
                         x=df_alarm["time"],
                         y=df_alarm["close"],
                         mode="markers",
                         name="🔔 알람 시점",
-                        marker=dict(symbol="star", size=14, color="red", line=dict(width=1, color="black")),
+                        marker=dict(symbol="star", size=16, color="red", line=dict(width=1, color="black")),
                     ), row=1, col=1)
 
         # ✅ 복합지표(Composite_Score ≥ 0.7) 구간 중 첫 발생만 별표 표시 (MACD와 구분)
@@ -3151,91 +3150,74 @@ def main():
         # -----------------------------
         # ⑤ 실시간 감시 (알람)
         # -----------------------------
-        try:
-            with st.expander("⑤ 실시간 감시 (알람)", expanded=True):
-                st.caption("📡 실시간 감시는 항상 동작하며, 선택한 종목과 기법 조건 충족 시 자동 알림이 발생합니다.")
+        with st.expander("⑤ 실시간 감시 (알람)", expanded=True):
+            st.caption("📡 실시간 감시는 항상 동작하며, 선택한 종목과 기법 조건 충족 시 자동 알림이 발생합니다.")
 
-                # ✅ 알람 기록 세션 초기화
-                if "alarm_log" not in st.session_state:
-                    st.session_state["alarm_log"] = []
+            # ✅ 알람 기록 세션 초기화
+            if "alarm_log" not in st.session_state:
+                st.session_state["alarm_log"] = []
 
-                # ✅ 종목 선택 (① 기본 설정과 동일)
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    watch_syms = st.multiselect(
-                        "감시 코인", ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"],
-                        default=["KRW-BTC","KRW-ETH"]
-                    )
-                with col2:
-                    watch_tfs = st.multiselect(
-                        "타임프레임", ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
-                        default=["15분","60분"]
-                    )
-
-                st.info("🔹 감시 기법: Vol_Ratio_Imbalance / 복합지표(Composite) 강세만 진입 (2종 고정)")
-                st.write("- 익절가: **+0.7%**")
-                st.write("- 손절가: **-0.6%**")
-                st.write("- 측정 캔들 수: **10개**")
-                st.write("- 복합지표 강세 기준: **0.70**")
-                st.write("- Vol_Ratio 매수 기준: **1.50 / 0.60**")
-                st.success("🟢 실시간 감시가 항상 동작 중입니다. (감시 시작/중지 버튼 제거됨)")
-
-                import datetime, random, pytz
-                KST = pytz.timezone("Asia/Seoul")
-
-                # ✅ 종목 및 타임프레임 설정 유지 (세션 저장 후 불러오기)
-                if "watch_syms" not in st.session_state:
-                    st.session_state["watch_syms"] = ["KRW-BTC", "KRW-ETH"]
-                if "watch_tfs" not in st.session_state:
-                    st.session_state["watch_tfs"] = ["15분", "60분"]
-
+            # ✅ 종목 선택 (① 기본 설정과 동일)
+            col1, col2 = st.columns([1, 1])
+            with col1:
                 watch_syms = st.multiselect(
-                    "감시 코인",
-                    ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE", "KRW-MNT"],
-                    default=st.session_state["watch_syms"]
+                    "감시 코인", ["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE","KRW-MNT"],
+                    default=["KRW-BTC","KRW-ETH"]
                 )
+            with col2:
                 watch_tfs = st.multiselect(
-                    "타임프레임",
-                    ["1분", "3분", "5분", "10분", "15분", "30분", "60분", "240분", "일봉"],
-                    default=st.session_state["watch_tfs"]
+                    "타임프레임", ["1분","3분","5분","10분","15분","30분","60분","240분","일봉"],
+                    default=["15분","60분"]
                 )
 
-                st.session_state["watch_syms"] = watch_syms
-                st.session_state["watch_tfs"] = watch_tfs
+            st.info("🔹 감시 기법: Vol_Ratio_Imbalance / 복합지표(Composite) 강세만 진입 (2종 고정)")
+            st.write("- 익절가: **+0.7%**")
+            st.write("- 손절가: **-0.6%**")
+            st.write("- 측정 캔들 수: **10개**")
+            st.write("- 복합지표 강세 기준: **0.70**")
+            st.write("- Vol_Ratio 매수 기준: **1.50 / 0.60**")
+            st.success("🟢 실시간 감시가 항상 동작 중입니다. (감시 시작/중지 버튼 제거됨)")
 
-                # ✅ 알람 로그 및 신호 저장 초기화
-                if "alarm_log" not in st.session_state:
-                    st.session_state["alarm_log"] = []
-                if "alarm_signals" not in st.session_state:
-                    st.session_state["alarm_signals"] = []
+            import datetime, random, pytz
 
-                # ✅ 감시 루프
-                for sym in watch_syms:
-                    for tf in watch_tfs:
-                        if random.random() < 0.03:
-                            now_kst = datetime.datetime.now(KST)
-                            ts_min = now_kst.replace(second=0, microsecond=0)
-                            ts_str = ts_min.strftime("%Y-%m-%d %H:%M:%S")
-                            msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
-                            st.session_state["alarm_log"].append(msg)
-                            st.toast(msg)
+            # ✅ 사용자 설정 자동 저장 (세션에 저장하여 새 창에서도 유지)
+            st.session_state["watch_syms"] = watch_syms
+            st.session_state["watch_tfs"] = watch_tfs
 
-                            # ✅ 차트 표시용 알람 시점 기록
-                            st.session_state["alarm_signals"].append({
-                                "symbol": sym,
-                                "timeframe": tf,
-                                "timestamp": ts_str
-                            })
+            # ✅ 한국 표준시 (Asia/Seoul) 기준 현재 시간
+            KST = pytz.timezone("Asia/Seoul")
 
-                st.markdown("#### 🧾 알람 이력")
-                if len(st.session_state["alarm_log"]) == 0:
-                    st.info("아직 발생한 알람이 없습니다.")
-                else:
-                    for log in reversed(st.session_state["alarm_log"][-20:]):
-                        st.markdown(f"- {log}")
+            # ✅ 알람 신호 저장용 세션 초기화 (차트와 동기화)
+            if "alarm_signals" not in st.session_state:
+                st.session_state["alarm_signals"] = []
 
-        except Exception as e:
-            import sys, traceback
-            etype, evalue, tb = sys.exc_info()
-            st.error(f"오류 발생: {etype.__name__}: {e}")
-            st.code("".join(traceback.format_tb(tb)))
+            for sym in watch_syms:
+                for tf in watch_tfs:
+                    if random.random() < 0.03:  # 시뮬레이션용 임시 트리거
+                        now_kst = datetime.datetime.now(KST)
+                        ts_str = now_kst.strftime("%Y-%m-%d %H:%M:%S")
+                        msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
+                        st.session_state["alarm_log"].append(msg)
+                        st.toast(msg)
+
+                        # ✅ 차트 표시용 알람 시점 기록
+                        st.session_state["alarm_signals"].append({
+                            "symbol": sym,
+                            "timeframe": tf,
+                            "timestamp": now_kst
+                        })
+
+            st.markdown("#### 🧾 알람 이력")
+            if len(st.session_state["alarm_log"]) == 0:
+                st.info("아직 발생한 알람이 없습니다.")
+            else:
+                for log in reversed(st.session_state["alarm_log"][-20:]):
+                    st.markdown(f"- {log}")
+    except Exception as e:
+        import sys, traceback
+        etype, evalue, tb = sys.exc_info()
+        st.error(f"오류 발생: {etype.__name__}: {e}")
+        st.code("".join(traceback.format_tb(tb)))
+
+if __name__ == "__main__":
+    main()
