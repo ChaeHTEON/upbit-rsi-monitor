@@ -1607,9 +1607,10 @@ def main():
 
                     for i in range(1, len(df) - 1):
                         prev_val = df["Composite_Score"].iloc[i - 1]
+                        curr_val = df["Composite_Score"].iloc[i]  # ✅ 추가: else 분기에서 참조되는 현재값 정의
                         if np.isnan(prev_val):
                             continue
-
+                    
                         # ✅ 직전 봉 값이 임계 이하일 때 발생한 교차만 신호로 인정
                         if color_mode.startswith("공통") and ((df["Composite_Golden"].iloc[i] == 1) or (df["Composite_Dead"].iloc[i] == 1)):
                             if prev_val <= threshold:
