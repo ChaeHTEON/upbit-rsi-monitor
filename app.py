@@ -2195,8 +2195,7 @@ def main():
                     fig.add_trace(go.Scatter(
                         x=xs_ema, y=ys_ema, mode="markers",
                         name="☠️ EMA100 하회",
-                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black")),
-                        visible="legendonly"  # ✅ 디폴트 비활성화 (범례 클릭 시 표시)
+                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black"))
                     ), row=1, col=1)
         except Exception:
             pass
@@ -2448,18 +2447,10 @@ def main():
             dragmode="pan",
             xaxis_rangeslider_visible=False,
             height=720,
-            legend_orientation="v",
-            legend_x=1.02,
-            legend_y=1,
-            legend_font=dict(size=9),            # 🔹 범례 폰트 크기 축소
-            legend_itemclick="toggleothers",     # 🔹 클릭 시 나머지 항목 유지
-            legend_itemdoubleclick="toggle",     # 🔹 더블클릭 시 토글
-            legend_title_text="",                # 🔹 불필요한 타이틀 제거
-            legend_tracegroupgap=4,              # 🔹 항목 간격 최소화
-            legend_bgcolor="rgba(255,255,255,0.7)",
-            legend_bordercolor="lightgray",
-            legend_borderwidth=0.5,
-            margin=dict(l=60, r=100, t=60, b=40),  # 🔹 오른쪽 여백 살짝 축소
+            legend_orientation="v",       # 🔹 세로형으로 변경
+            legend_x=1.02,                # 🔹 오른쪽 외곽 정렬
+            legend_y=1,                   # 🔹 위쪽 기준 정렬
+            margin=dict(l=60, r=120, t=60, b=40),  # 🔹 오른쪽 여백 확장
             plot_bgcolor="white",
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=12),
@@ -2488,55 +2479,10 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
-            # ✅ 새로고침 버튼 (차트 바로 위, 줌 상태 유지)
-            cols = st.columns([1, 8])
-            with cols[0]:
-                # ✅ 전체화면 모드일 때만 새로고침 버튼 표시
-                if st.session_state.get("is_fullscreen", False):
-                    if st.button("🔄", help="데이터 새로고침 (전체화면 전용)"):
-                        st.session_state["refresh"] = True
-                        st.rerun()  # ✅ 최신 Streamlit 대응 (experimental 제거)
-            with cols[1]:
-                pass
-
             st.plotly_chart(
                 fig,
                 use_container_width=True,
                 config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "autosize", "responsive": True},
-            )
-
-            # ✅ Plotly 모드바에 새로고침 아이콘 추가 (전체화면에서도 표시)
-            from streamlit.components.v1 import html
-            html(
-                """
-                <script>
-                const waitForPlotly = setInterval(() => {
-                    const bars = window.parent.document.querySelectorAll('.modebar-group');
-                    if (bars.length > 0) {
-                        clearInterval(waitForPlotly);
-                        const bar = bars[0];
-                        if (!bar.querySelector('.modebar-btn.refresh-btn')) {
-                            const btn = document.createElement('a');
-                            btn.className = 'modebar-btn refresh-btn';
-                            btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20"><path fill="currentColor" d="M10 2a8 8 0 1 0 8 8h-1.5a6.5 6.5 0 1 1-1.9-4.6l-1.6 1.6V2h5v5l-1.8-1.8A8 8 0 0 0 10 2z"/></svg>';
-                            btn.style.cursor = 'pointer';
-                            btn.title = '데이터 새로고침';
-                            btn.onclick = () => {
-                                window.parent.postMessage({ type: 'refresh_chart' }, '*');
-                            };
-                            bar.appendChild(btn);
-                        }
-                    }
-                }, 1000);
-
-                window.addEventListener('message', (event) => {
-                    if (event.data.type === 'refresh_chart') {
-                        window.parent.postMessage({ type: 'streamlit:rerun' }, '*');
-                    }
-                });
-                </script>
-                """,
-                height=0,
             )
     
         # -----------------------------
