@@ -3212,18 +3212,34 @@ def main():
 
             for sym in watch_syms:
                 for tf in watch_tfs:
-                    if random.random() < 0.03:  # 시뮬레이션용 임시 트리거
+                    # ✅ 복합지표(Composite) 강세만 진입 조건 시뮬레이션
+                    if random.random() < 0.02:
                         now_kst = datetime.datetime.now(KST)
                         ts_str = now_kst.strftime("%Y-%m-%d %H:%M:%S")
-                        msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
+                        msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합지표)"
                         st.session_state["alarm_log"].append(msg)
                         st.toast(msg)
 
-                        # ✅ 차트 표시용 알람 시점 기록
                         st.session_state["alarm_signals"].append({
                             "symbol": sym,
                             "timeframe": tf,
-                            "timestamp": now_kst
+                            "timestamp": now_kst,
+                            "type": "Composite"
+                        })
+
+                    # ✅ Vol_Ratio 불균형 신호 (별도)
+                    if random.random() < 0.02:
+                        now_kst = datetime.datetime.now(KST)
+                        ts_str = now_kst.strftime("%Y-%m-%d %H:%M:%S")
+                        msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (Vol_Ratio)"
+                        st.session_state["alarm_log"].append(msg)
+                        st.toast(msg)
+
+                        st.session_state["alarm_signals"].append({
+                            "symbol": sym,
+                            "timeframe": tf,
+                            "timestamp": now_kst,
+                            "type": "Vol_Ratio"
                         })
 
             st.markdown("#### 🧾 알람 이력")
