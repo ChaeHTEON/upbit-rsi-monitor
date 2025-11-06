@@ -2122,7 +2122,11 @@ def main():
             high=df_plot["high"],
             low=df_plot["low"],
             close=df_plot["close"],
-            name="가격"
+            name="가격",
+            increasing=dict(line=dict(color="red", width=1.1)),
+            decreasing=dict(line=dict(color="blue", width=1.1)),
+            hovertext=candle_hovertext,
+            hoverinfo="text"
         ), row=1, col=1)
 
         # ✅ 실시간 알람 발생 시점 🔔 마커 표시
