@@ -2195,7 +2195,8 @@ def main():
                     fig.add_trace(go.Scatter(
                         x=xs_ema, y=ys_ema, mode="markers",
                         name="☠️ EMA100 하회",
-                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black"))
+                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black")),
+                        visible="legendonly"  # ✅ 디폴트 비활성화 (범례 클릭 시 표시)
                     ), row=1, col=1)
         except Exception:
             pass
