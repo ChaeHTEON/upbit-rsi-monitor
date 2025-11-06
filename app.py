@@ -2127,22 +2127,22 @@ def main():
 
         # ✅ 실시간 알람 발생 시점 🔔 마커 표시
         if "alarm_signals" in st.session_state and len(st.session_state["alarm_signals"]) > 0:
-            symbol = market_code  # 현재 차트의 심볼
+            symbol = market_code
             timeframe = tf_label.replace("봉", "")
-            alarm_df = [
+            alarms = [
                 sig for sig in st.session_state["alarm_signals"]
                 if sig["symbol"] == symbol and sig["timeframe"].startswith(timeframe)
             ]
-            if len(alarm_df) > 0:
-                alarm_times = [sig["timestamp"] for sig in alarm_df]
-                df_alarm = df_plot[df_plot["time"].isin(alarm_times)]
+            if len(alarms) > 0:
+                alarm_times = [sig["timestamp"] for sig in alarms]
+                df_alarm = df_plot[df_plot["time"].astype(str).isin(alarm_times)]
                 if not df_alarm.empty:
                     fig.add_trace(go.Scatter(
                         x=df_alarm["time"],
                         y=df_alarm["close"],
                         mode="markers",
                         name="🔔 알람 시점",
-                        marker=dict(symbol="star", size=16, color="red", line=dict(width=1, color="black")),
+                        marker=dict(symbol="star", size=14, color="red", line=dict(width=1, color="black")),
                     ), row=1, col=1)
 
         # ✅ 복합지표(Composite_Score ≥ 0.7) 구간 중 첫 발생만 별표 표시 (MACD와 구분)
