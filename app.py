@@ -2505,10 +2505,38 @@ def main():
                 config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "autosize", "responsive": True},
             )
 
-            st.plotly_chart(
-                fig,
-                use_container_width=True,
-                config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "autosize", "responsive": True},
+            # ✅ Plotly 모드바에 새로고침 아이콘 추가 (전체화면에서도 표시)
+            from streamlit.components.v1 import html
+            html(
+                """
+                <script>
+                const waitForPlotly = setInterval(() => {
+                    const bars = window.parent.document.querySelectorAll('.modebar-group');
+                    if (bars.length > 0) {
+                        clearInterval(waitForPlotly);
+                        const bar = bars[0];
+                        if (!bar.querySelector('.modebar-btn.refresh-btn')) {
+                            const btn = document.createElement('a');
+                            btn.className = 'modebar-btn refresh-btn';
+                            btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20"><path fill="currentColor" d="M10 2a8 8 0 1 0 8 8h-1.5a6.5 6.5 0 1 1-1.9-4.6l-1.6 1.6V2h5v5l-1.8-1.8A8 8 0 0 0 10 2z"/></svg>';
+                            btn.style.cursor = 'pointer';
+                            btn.title = '데이터 새로고침';
+                            btn.onclick = () => {
+                                window.parent.postMessage({ type: 'refresh_chart' }, '*');
+                            };
+                            bar.appendChild(btn);
+                        }
+                    }
+                }, 1000);
+
+                window.addEventListener('message', (event) => {
+                    if (event.data.type === 'refresh_chart') {
+                        window.parent.postMessage({ type: 'streamlit:rerun' }, '*');
+                    }
+                });
+                </script>
+                """,
+                height=0,
             )
     
         # -----------------------------
