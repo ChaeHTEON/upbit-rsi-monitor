@@ -2122,12 +2122,28 @@ def main():
             high=df_plot["high"],
             low=df_plot["low"],
             close=df_plot["close"],
-            name="가격",
-            increasing=dict(line=dict(color="red", width=1.1)),
-            decreasing=dict(line=dict(color="blue", width=1.1)),
-            hovertext=candle_hovertext,
-            hoverinfo="text"
+            name="가격"
         ), row=1, col=1)
+
+        # ✅ 실시간 알람 발생 시점 🔔 마커 표시
+        if "alarm_signals" in st.session_state and len(st.session_state["alarm_signals"]) > 0:
+            symbol = market_code  # 현재 차트의 심볼
+            timeframe = tf_label.replace("봉", "")
+            alarm_df = [
+                sig for sig in st.session_state["alarm_signals"]
+                if sig["symbol"] == symbol and sig["timeframe"].startswith(timeframe)
+            ]
+            if len(alarm_df) > 0:
+                alarm_times = [sig["timestamp"] for sig in alarm_df]
+                df_alarm = df_plot[df_plot["time"].isin(alarm_times)]
+                if not df_alarm.empty:
+                    fig.add_trace(go.Scatter(
+                        x=df_alarm["time"],
+                        y=df_alarm["close"],
+                        mode="markers",
+                        name="🔔 알람 시점",
+                        marker=dict(symbol="star", size=16, color="red", line=dict(width=1, color="black")),
+                    ), row=1, col=1)
 
         # ✅ 복합지표(Composite_Score ≥ 0.7) 구간 중 첫 발생만 별표 표시 (MACD와 구분)
         try:
@@ -3171,13 +3187,25 @@ def main():
             # ✅ 한국 표준시 (Asia/Seoul) 기준 현재 시간
             KST = pytz.timezone("Asia/Seoul")
 
+            # ✅ 알람 신호 저장용 세션 초기화 (차트와 동기화)
+            if "alarm_signals" not in st.session_state:
+                st.session_state["alarm_signals"] = []
+
             for sym in watch_syms:
                 for tf in watch_tfs:
                     if random.random() < 0.03:  # 시뮬레이션용 임시 트리거
-                        ts = datetime.datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
-                        msg = f"📢 [{ts}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
+                        now_kst = datetime.datetime.now(KST)
+                        ts_str = now_kst.strftime("%Y-%m-%d %H:%M:%S")
+                        msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
                         st.session_state["alarm_log"].append(msg)
                         st.toast(msg)
+
+                        # ✅ 차트 표시용 알람 시점 기록
+                        st.session_state["alarm_signals"].append({
+                            "symbol": sym,
+                            "timeframe": tf,
+                            "timestamp": now_kst
+                        })
 
             st.markdown("#### 🧾 알람 이력")
             if len(st.session_state["alarm_log"]) == 0:
