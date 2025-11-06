@@ -2448,10 +2448,18 @@ def main():
             dragmode="pan",
             xaxis_rangeslider_visible=False,
             height=720,
-            legend_orientation="v",       # 🔹 세로형으로 변경
-            legend_x=1.02,                # 🔹 오른쪽 외곽 정렬
-            legend_y=1,                   # 🔹 위쪽 기준 정렬
-            margin=dict(l=60, r=120, t=60, b=40),  # 🔹 오른쪽 여백 확장
+            legend_orientation="v",
+            legend_x=1.02,
+            legend_y=1,
+            legend_font=dict(size=9),            # 🔹 범례 폰트 크기 축소
+            legend_itemclick="toggleothers",     # 🔹 클릭 시 나머지 항목 유지
+            legend_itemdoubleclick="toggle",     # 🔹 더블클릭 시 토글
+            legend_title_text="",                # 🔹 불필요한 타이틀 제거
+            legend_tracegroupgap=4,              # 🔹 항목 간격 최소화
+            legend_bgcolor="rgba(255,255,255,0.7)",
+            legend_bordercolor="lightgray",
+            legend_borderwidth=0.5,
+            margin=dict(l=60, r=100, t=60, b=40),  # 🔹 오른쪽 여백 살짝 축소
             plot_bgcolor="white",
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=12),
