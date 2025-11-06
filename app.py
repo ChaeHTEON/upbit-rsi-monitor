@@ -2446,11 +2446,12 @@ def main():
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
             xaxis_rangeslider_visible=False,
-            height=720,
-            legend_orientation="v",
-            legend_x=1.02,
-            legend_y=1,
-            margin=dict(l=60, r=120, t=60, b=40),
+            height=760,  # 🔹 약간의 세로 여백 추가
+            legend_orientation="h",
+            legend_y=1.08,  # 🔹 범례를 제목 위쪽으로 살짝 이동
+            legend_tracegroupgap=8,  # 🔹 범례 항목 간격 추가
+            legend_bgcolor="rgba(255,255,255,0.6)",  # 🔹 반투명 배경으로 차트와 구분
+            margin=dict(l=60, r=60, t=90, b=40),  # 🔹 상단 여백 확장
             plot_bgcolor="white",
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=12),
