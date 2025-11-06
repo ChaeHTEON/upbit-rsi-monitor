@@ -2443,29 +2443,39 @@ def main():
         _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{_np.random.randint(1e9)}"
         # ✅ RSI(13) 라벨 추가, MACD/CCI/거래량 라벨 정렬 통합, 메인차트 범례 간격 보정
         # ✅ 범례 전용 레이아웃 분리 (UI 독립)
+        # ✅ 범례 완전 분리형: Streamlit HTML 박스로 차트 위 분리 표시
+        st.markdown(
+            """
+            <div style="
+                background-color:#fafafa;
+                border:1px solid #ddd;
+                border-radius:8px;
+                padding:6px 10px;
+                margin-bottom:10px;
+                font-size:13px;
+                line-height:1.4;
+                overflow-x:auto;
+                white-space:nowrap;
+            ">
+                📊 <b>범례 안내:</b> 주요 색상 및 기호는 RSI·CCI·MACD·BB 지표를 나타내며, 
+                차트 내 캔들·보조지표와 겹치지 않도록 독립 표시됩니다.
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
         fig.update_layout(
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
             xaxis_rangeslider_visible=False,
-            height=760,
-            margin=dict(l=60, r=60, t=140, b=40),  # 🔹 상단 여백 크게 확보
+            height=720,
+            showlegend=False,  # 🔹 Plotly 내부 범례 숨김
+            margin=dict(l=60, r=60, t=60, b=40),
             plot_bgcolor="white",
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=12),
             xaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
             yaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
-            legend=dict(
-                orientation="h",         # 가로형 유지
-                yanchor="top",
-                y=1.18,                  # 🔹 제목보다 더 위쪽으로 배치
-                xanchor="center",
-                x=0.5,
-                bgcolor="rgba(250,250,250,0.95)",  # 🔹 독립 배경 (완전 흰색 박스 느낌)
-                bordercolor="lightgray",            # 🔹 경계선 추가
-                borderwidth=1,
-                font=dict(size=11),
-                tracegroupgap=10
-            ),
         )
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
