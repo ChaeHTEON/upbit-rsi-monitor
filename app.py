@@ -2499,21 +2499,13 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
-            # ✅ 추가: 차트와 완전히 분리된 '범례 전용' 상단 박스 (모바일 가로 스크롤 지원)
+            # ✅ 추가: 차트와 완전히 분리된 '범례 전용' 상단 박스
             st.markdown(
                 """
-                <div style="
-                    background-color:#fafafa;
-                    border:1px solid #ddd;
-                    border-radius:8px;
-                    padding:8px 12px;
-                    margin-bottom:8px;
-                    font-size:13px;
-                    line-height:1.5;
-                    overflow-x:auto;
-                    white-space:nowrap;
-                ">
-                  <b>📊 차트 범례 안내</b> — RSI·CCI·MACD·BB·EMA(100) 등 각 색상/심볼의 의미를 표시합니다. 차트와 완전히 분리되어 겹치지 않습니다.
+                <div style="background-color:#fafafa; border:1px solid #ddd; border-radius:8px;
+                padding:8px 12px; margin-bottom:8px; font-size:13px; line-height:1.5;
+                overflow-x:auto; white-space:nowrap;">
+                  <b>📊 차트 범례 안내</b> — RSI·CCI·MACD·BB·EMA(100) 등 각 색상/심볼의 의미를 표시합니다.
                 </div>
                 """,
                 unsafe_allow_html=True
