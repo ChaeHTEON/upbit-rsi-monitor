@@ -2491,11 +2491,19 @@ def main():
             # ✅ 새로고침 버튼 (차트 바로 위, 줌 상태 유지)
             cols = st.columns([1, 8])
             with cols[0]:
-                if st.button("🔄", help="데이터 새로고침 (줌/이동 상태 유지)"):
-                    st.session_state["refresh"] = True
-                    st.experimental_rerun()
+                # ✅ 전체화면 모드일 때만 새로고침 버튼 표시
+                if st.session_state.get("is_fullscreen", False):
+                    if st.button("🔄", help="데이터 새로고침 (전체화면 전용)"):
+                        st.session_state["refresh"] = True
+                        st.rerun()  # ✅ 최신 Streamlit 대응 (experimental 제거)
             with cols[1]:
-                pass  # 오른쪽 영역은 비워둠 (차트 상단 여백 정렬용)
+                pass
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                config={"scrollZoom": True, "displayModeBar": True, "doubleClick": "autosize", "responsive": True},
+            )
 
             st.plotly_chart(
                 fig,
