@@ -2446,18 +2446,16 @@ def main():
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
             xaxis_rangeslider_visible=False,
-            height=720,  # 메인 차트 높이 약간 증가 (가독성)
-            legend_orientation="h",
-            legend_y=1.04,  # 범례 살짝 위로 이동
-            margin=dict(l=60, r=60, t=60, b=40),  # 좌우 여백 확장 → Y축 텍스트 정렬 균등화
-            yaxis=dict(title="가격", autorange=True, fixedrange=False, title_standoff=10),
-            yaxis2=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False, title_standoff=10),
-            yaxis3=dict(title=f"CCI({int(cci_window)})", autorange=True, fixedrange=False, title_standoff=10),
-            yaxis4=dict(title="RSI(13)", range=[0, 100], autorange=False, fixedrange=False, title_standoff=10),  # 🔵 파란박스 위치용 RSI(13)
-            yaxis5=dict(title="거래량", autorange=True, fixedrange=False, title_standoff=10),
-            yaxis6=dict(title="MACD", autorange=True, fixedrange=False, title_standoff=10),
-            uirevision=_uirev,
-            hovermode="closest"
+            height=720,
+            legend_orientation="v",       # 🔹 세로형으로 변경
+            legend_x=1.02,                # 🔹 오른쪽 외곽 정렬
+            legend_y=1,                   # 🔹 위쪽 기준 정렬
+            margin=dict(l=60, r=120, t=60, b=40),  # 🔹 오른쪽 여백 확장
+            plot_bgcolor="white",
+            hovermode="x unified",
+            hoverlabel=dict(bgcolor="white", font_size=12),
+            xaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
+            yaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
         )
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
