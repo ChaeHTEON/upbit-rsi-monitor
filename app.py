@@ -3229,17 +3229,17 @@ def main():
                             "timestamp": ts_str
                         })
 
-            st.markdown("#### 🧾 알람 이력")
-            if len(st.session_state["alarm_log"]) == 0:
-                st.info("아직 발생한 알람이 없습니다.")
-            else:
-                for log in reversed(st.session_state["alarm_log"][-20:]):
-                    st.markdown(f"- {log}")
-    except Exception as e:
-        import sys, traceback
-        etype, evalue, tb = sys.exc_info()
-        st.error(f"오류 발생: {etype.__name__}: {e}")
-        st.code("".join(traceback.format_tb(tb)))
+    st.markdown("#### 🧾 알람 이력")
+    if len(st.session_state["alarm_log"]) == 0:
+        st.info("아직 발생한 알람이 없습니다.")
+    else:
+        for log in reversed(st.session_state["alarm_log"][-20:]):
+            st.markdown(f"- {log}")
+except Exception as e:
+    import sys, traceback
+    etype, evalue, tb = sys.exc_info()
+    st.error(f"오류 발생: {etype.__name__}: {e}")
+    st.code("".join(traceback.format_tb(tb)))
 
 if __name__ == "__main__":
     main()
