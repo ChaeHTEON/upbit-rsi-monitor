@@ -2442,21 +2442,30 @@ def main():
         import numpy as _np
         _uirev = f"opt-{int(st.session_state.get('opt_view'))}-{_np.random.randint(1e9)}"
         # ✅ RSI(13) 라벨 추가, MACD/CCI/거래량 라벨 정렬 통합, 메인차트 범례 간격 보정
+        # ✅ 범례 전용 레이아웃 분리 (UI 독립)
         fig.update_layout(
             title=f"{market_label.split(' — ')[0]} · {tf_label} · RSI(13) + BB 시뮬레이션",
             dragmode="pan",
             xaxis_rangeslider_visible=False,
-            height=760,  # 🔹 약간의 세로 여백 추가
-            legend_orientation="h",
-            legend_y=1.08,  # 🔹 범례를 제목 위쪽으로 살짝 이동
-            legend_tracegroupgap=8,  # 🔹 범례 항목 간격 추가
-            legend_bgcolor="rgba(255,255,255,0.6)",  # 🔹 반투명 배경으로 차트와 구분
-            margin=dict(l=60, r=60, t=90, b=40),  # 🔹 상단 여백 확장
+            height=760,
+            margin=dict(l=60, r=60, t=140, b=40),  # 🔹 상단 여백 크게 확보
             plot_bgcolor="white",
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=12),
             xaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
             yaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
+            legend=dict(
+                orientation="h",         # 가로형 유지
+                yanchor="top",
+                y=1.18,                  # 🔹 제목보다 더 위쪽으로 배치
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(250,250,250,0.95)",  # 🔹 독립 배경 (완전 흰색 박스 느낌)
+                bordercolor="lightgray",            # 🔹 경계선 추가
+                borderwidth=1,
+                font=dict(size=11),
+                tracegroupgap=10
+            ),
         )
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
