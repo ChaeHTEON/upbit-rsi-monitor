@@ -3155,11 +3155,21 @@ def main():
         # ⑤ 실시간 감시 (알람)
         # -----------------------------
         with st.expander("⑤ 실시간 감시 (알람)", expanded=True):
-            st.caption("📡 실시간 감시는 항상 동작하며, 선택한 종목과 기법 조건 충족 시 자동 알림이 발생합니다.")
+            st.caption("📡 실시간 감시는 자동 새로고침과 함께 동작하며, 선택한 종목과 기법 조건 충족 시 자동 알림이 발생합니다.")
 
             # ✅ 알람 기록 세션 초기화
             if "alarm_log" not in st.session_state:
                 st.session_state["alarm_log"] = []
+
+            # ✅ 새로고침 제어 변수 초기화
+            if "auto_refresh" not in st.session_state:
+                st.session_state["auto_refresh"] = False
+
+            # ✅ 토글 버튼
+            toggle_label = "⏸ 자동 새로고침 중단" if st.session_state["auto_refresh"] else "▶ 자동 새로고침 시작"
+            if st.button(toggle_label):
+                st.session_state["auto_refresh"] = not st.session_state["auto_refresh"]
+                st.rerun()
 
             # ✅ 종목 선택 (① 기본 설정과 동일)
             col1, col2 = st.columns([1, 1])
@@ -3182,7 +3192,7 @@ def main():
             st.write("- Vol_Ratio 매수 기준: **1.50 / 0.60**")
             st.success("🟢 실시간 감시가 항상 동작 중입니다. (감시 시작/중지 버튼 제거됨)")
 
-            import datetime, random, pytz
+            import datetime, random, pytz, threading, time
 
             # ✅ 사용자 설정 자동 저장 (세션에 저장하여 새 창에서도 유지)
             st.session_state["watch_syms"] = watch_syms
@@ -3194,6 +3204,13 @@ def main():
             # ✅ 알람 신호 저장용 세션 초기화 (차트와 동기화)
             if "alarm_signals" not in st.session_state:
                 st.session_state["alarm_signals"] = []
+
+            # ✅ 자동 새로고침 스레드 (30초 주기)
+            if st.session_state["auto_refresh"]:
+                def periodic_refresh():
+                    time.sleep(30)
+                    st.rerun()
+                threading.Thread(target=periodic_refresh, daemon=True).start()
 
             for sym in watch_syms:
                 for tf in watch_tfs:
