@@ -2488,6 +2488,15 @@ def main():
                 # ✅ 콜백 적용 → 1클릭 즉시 반영
                 st.button(label, key="btn_opt_view_top", on_click=_toggle_opt_view)
     
+            # ✅ 새로고침 버튼 (차트 바로 위, 줌 상태 유지)
+            cols = st.columns([1, 8])
+            with cols[0]:
+                if st.button("🔄", help="데이터 새로고침 (줌/이동 상태 유지)"):
+                    st.session_state["refresh"] = True
+                    st.experimental_rerun()
+            with cols[1]:
+                pass  # 오른쪽 영역은 비워둠 (차트 상단 여백 정렬용)
+
             st.plotly_chart(
                 fig,
                 use_container_width=True,
