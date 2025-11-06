@@ -3205,12 +3205,10 @@ def main():
             if "alarm_signals" not in st.session_state:
                 st.session_state["alarm_signals"] = []
 
-            # ✅ 자동 새로고침 스레드 (30초 주기)
+            # ✅ 자동 새로고침 (Streamlit 내장 방식으로 안정화)
             if st.session_state["auto_refresh"]:
-                def periodic_refresh():
-                    time.sleep(30)
-                    st.rerun()
-                threading.Thread(target=periodic_refresh, daemon=True).start()
+                from streamlit_autorefresh import st_autorefresh
+                st_autorefresh(interval=30 * 1000, limit=None, key="alarm_autorefresh")
 
             for sym in watch_syms:
                 for tf in watch_tfs:
