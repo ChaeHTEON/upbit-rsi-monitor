@@ -3178,33 +3178,54 @@ def main():
             st.write("- Vol_Ratio 매수 기준: **1.50 / 0.60**")
             st.success("🟢 실시간 감시가 항상 동작 중입니다. (감시 시작/중지 버튼 제거됨)")
 
-            import datetime, random, pytz
+              import datetime, random, pytz
 
-            # ✅ 사용자 설정 자동 저장 (세션에 저장하여 새 창에서도 유지)
+            # ✅ 한국 표준시 (Asia/Seoul) 기준
+            KST = pytz.timezone("Asia/Seoul")
+
+            # ✅ 종목 및 타임프레임 설정 유지 (세션 저장 후 불러오기)
+            if "watch_syms" not in st.session_state:
+                st.session_state["watch_syms"] = ["KRW-BTC", "KRW-ETH"]
+            if "watch_tfs" not in st.session_state:
+                st.session_state["watch_tfs"] = ["15분", "60분"]
+
+            watch_syms = st.multiselect(
+                "감시 코인",
+                ["KRW-BTC", "KRW-ETH", "KRW-XRP", "KRW-SOL", "KRW-DOGE", "KRW-MNT"],
+                default=st.session_state["watch_syms"]
+            )
+            watch_tfs = st.multiselect(
+                "타임프레임",
+                ["1분", "3분", "5분", "10분", "15분", "30분", "60분", "240분", "일봉"],
+                default=st.session_state["watch_tfs"]
+            )
+
             st.session_state["watch_syms"] = watch_syms
             st.session_state["watch_tfs"] = watch_tfs
 
-            # ✅ 한국 표준시 (Asia/Seoul) 기준 현재 시간
-            KST = pytz.timezone("Asia/Seoul")
-
-            # ✅ 알람 신호 저장용 세션 초기화 (차트와 동기화)
+            # ✅ 알람 로그 및 신호 저장 초기화
+            if "alarm_log" not in st.session_state:
+                st.session_state["alarm_log"] = []
             if "alarm_signals" not in st.session_state:
                 st.session_state["alarm_signals"] = []
 
+            # ✅ 감시 루프
             for sym in watch_syms:
                 for tf in watch_tfs:
-                    if random.random() < 0.03:  # 시뮬레이션용 임시 트리거
+                    if random.random() < 0.03:
                         now_kst = datetime.datetime.now(KST)
-                        ts_str = now_kst.strftime("%Y-%m-%d %H:%M:%S")
+                        # 차트 time 포맷(분 단위)으로 변환
+                        ts_min = now_kst.replace(second=0, microsecond=0)
+                        ts_str = ts_min.strftime("%Y-%m-%d %H:%M:%S")
                         msg = f"📢 [{ts_str}] {sym}({tf}) 조건 충족: 매수 신호 발생 (복합/Vol_Ratio)"
                         st.session_state["alarm_log"].append(msg)
                         st.toast(msg)
 
-                        # ✅ 차트 표시용 알람 시점 기록
+                        # ✅ 차트 표시용 알람 시점 기록 (분단위 매칭)
                         st.session_state["alarm_signals"].append({
                             "symbol": sym,
                             "timeframe": tf,
-                            "timestamp": now_kst
+                            "timestamp": ts_str
                         })
 
             st.markdown("#### 🧾 알람 이력")
