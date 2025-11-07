@@ -718,18 +718,18 @@ def main():
         except Exception:
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
-        # EMA 5선
-        out["EMA5"] = ta.trend.EMAIndicator(close=out["close"], window=5).ema_indicator()
-        # EMA 10선
-        out["EMA10"] = ta.trend.EMAIndicator(close=out["close"], window=10).ema_indicator()
-        # EMA 20선
-        out["EMA20"] = ta.trend.EMAIndicator(close=out["close"], window=20).ema_indicator()
-        # EMA 50선
-        out["EMA50"] = ta.trend.EMAIndicator(close=out["close"], window=50).ema_indicator()
-        # EMA 100선
-        out["EMA100"] = ta.trend.EMAIndicator(close=out["close"], window=100).ema_indicator()
-        # EMA 200선
-        out["EMA200"] = ta.trend.EMAIndicator(close=out["close"], window=200).ema_indicator()
+        # MA 5선 (업비트 동일: 단순이동평균)
+        out["EMA5"] = out["close"].rolling(window=5).mean()
+        # MA 10선
+        out["EMA10"] = out["close"].rolling(window=10).mean()
+        # MA 20선
+        out["EMA20"] = out["close"].rolling(window=20).mean()
+        # MA 50선
+        out["EMA50"] = out["close"].rolling(window=50).mean()
+        # MA 100선
+        out["EMA100"] = out["close"].rolling(window=100).mean()
+        # MA 200선
+        out["EMA200"] = out["close"].rolling(window=200).mean()
         # MACD (12,16,9)
         _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
         out["MACD"] = _macd.macd()
