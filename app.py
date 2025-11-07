@@ -1197,33 +1197,60 @@ def main():
             target = base_price * (1.0 + thr / 100.0)
             stop_price = base_price * (1.0 - float(stoploss_pct) / 100.0)
             hit_idx = None
+            # ✅ 손절·익절 동시 추적형 도달캔들 계산
+            tp_idx = None
+            sl_idx = None
+            tp_price = None
+            sl_price = None
+
             for j in range(anchor_idx + 1, end_idx + 1):
                 c_ = float(df.at[j, "close"])
                 h_ = float(df.at[j, "high"])
                 l_ = float(df.at[j, "low"])
-                # ✅ 손절가 먼저 도달 시 즉시 실패 처리
-                if l_ <= stop_price:
-                    hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
-                    end_close = stop_price
-                    final_ret = (end_close / base_price - 1) * 100
-                    result = "실패"
-                    lock_end = hit_idx
+
+                # 익절가 도달 시점 기록 (최초 1회만)
+                if tp_idx is None and h_ >= target:
+                    tp_idx = j
+                    tp_price = target
+
+                # 손절가 도달 시점 기록 (최초 1회만)
+                if sl_idx is None and l_ <= stop_price:
+                    sl_idx = j
+                    sl_price = stop_price
+
+                # 두 조건 모두 발생 시 루프 종료
+                if tp_idx is not None and sl_idx is not None:
                     break
-                # ✅ 익절가 도달 시 성공 처리 (고가 기준)
-                price_for_hit = h_
-                if price_for_hit >= target:
-                    hit_idx = j
-                    bars_after = hit_idx - anchor_idx
-                    reach_min = bars_after * minutes_per_bar
-                    end_time = df.at[hit_idx, "time"]
-                    end_close = target
-                    final_ret = thr
-                    result = "성공"
-                    lock_end = hit_idx
-                    break
+
+            # ✅ 실제 먼저 도달한 조건으로 판정
+            if sl_idx is not None and (tp_idx is None or sl_idx < tp_idx):
+                hit_idx = sl_idx
+                bars_after = hit_idx - anchor_idx
+                reach_min = bars_after * minutes_per_bar
+                end_time = df.at[hit_idx, "time"]
+                end_close = sl_price
+                final_ret = (end_close / base_price - 1) * 100
+                result = "실패"
+                lock_end = hit_idx
+            elif tp_idx is not None:
+                hit_idx = tp_idx
+                bars_after = hit_idx - anchor_idx
+                reach_min = bars_after * minutes_per_bar
+                end_time = df.at[hit_idx, "time"]
+                end_close = tp_price
+                final_ret = thr
+                result = "성공"
+                lock_end = hit_idx
+            else:
+                # ✅ 익절/손절 모두 미도달
+                hit_idx = None
+                bars_after = end_idx - anchor_idx
+                reach_min = bars_after * minutes_per_bar
+                end_time = df.at[end_idx, "time"]
+                end_close = c_
+                final_ret = (end_close / base_price - 1) * 100
+                result = "미도달"
+                lock_end = end_idx
     
             if hit_idx is not None:
                 pass
