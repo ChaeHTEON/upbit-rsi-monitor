@@ -255,12 +255,31 @@ def main():
                         "EMA100_Below",
                         "Vol_Ratio_Imbalance",
                         "이동평균·볼밴 교차 (1차)",
+                        "RSI 수치 상향돌파 (1차)",
+                        "CCI 수치 상향돌파 (1차)"
                     ],
                     index=0
                 )
             st.session_state["primary_strategy"] = primary_strategy
             if primary_strategy != "없음":
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
+
+            # 🆕 RSI·CCI 수치 상향돌파 설정 UI
+            if primary_strategy == "RSI 수치 상향돌파 (1차)":
+                st.markdown("#### ⚙️ RSI 수치 상향돌파 설정")
+                st.session_state["rsi_threshold"] = st.slider(
+                    "RSI 기준 수치 (N)",
+                    min_value=10, max_value=90, value=30, step=5,
+                    help="RSI가 설정된 기준 수치를 아래에서 위로 돌파할 때 다음 캔들 매수 신호 발생"
+                )
+
+            elif primary_strategy == "CCI 수치 상향돌파 (1차)":
+                st.markdown("#### ⚙️ CCI 수치 상향돌파 설정")
+                st.session_state["cci_threshold"] = st.slider(
+                    "CCI 기준 수치 (N)",
+                    min_value=-200, max_value=200, value=-100, step=20,
+                    help="CCI가 설정된 기준 수치를 아래에서 위로 돌파할 때 다음 캔들 매수 신호 발생"
+                )
 
             # 🆕 이동평균·볼밴 교차 (1차) 옵션 UI — 교차 방향 추가
             if "이동평균·볼밴 교차" in primary_strategy:
@@ -1012,6 +1031,33 @@ def main():
                 base_sig_idx = list(range(len(df)))
                 # ✅ 추가: n 재계산 (후속 루프의 상한 일치)
                 n = len(df)
+
+            # =========================================================
+            # 🆕 RSI·CCI 수치 상향돌파 (1차)
+            # =========================================================
+            elif strategy == "RSI 수치 상향돌파 (1차)":
+                thr = st.session_state.get("rsi_threshold", 30)
+                buy_idx_list = []
+                if "RSI13" in df.columns:
+                    for i in range(1, len(df) - 1):
+                        prev_val = df["RSI13"].iloc[i - 1]
+                        now_val  = df["RSI13"].iloc[i]
+                        if prev_val <= thr and now_val > thr:
+                            buy_idx_list.append(i + 1)
+                base_sig_idx = buy_idx_list
+                st.info(f"📊 RSI {thr} 상향돌파 신호 {len(base_sig_idx)}개 발생")
+
+            elif strategy == "CCI 수치 상향돌파 (1차)":
+                thr = st.session_state.get("cci_threshold", -100)
+                buy_idx_list = []
+                if "CCI" in df.columns:
+                    for i in range(1, len(df) - 1):
+                        prev_val = df["CCI"].iloc[i - 1]
+                        now_val  = df["CCI"].iloc[i]
+                        if prev_val <= thr and now_val > thr:
+                            buy_idx_list.append(i + 1)
+                base_sig_idx = buy_idx_list
+                st.info(f"📊 CCI {thr} 상향돌파 신호 {len(base_sig_idx)}개 발생")
 
             # =========================================================
             # 🆕 이동평균·볼밴 교차 (1차 매매기법) — 교차 방향 및 근접 진입 확장
