@@ -1620,8 +1620,12 @@ def main():
                         step=0.05,
                         help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
                     )
-                    # 👉 Composite 기준은 UI에만 반영, 실제 데이터는 전체 유지
+                    # ✅ df는 필터링하지 않고 강세 캔들 인덱스만 저장
+                    strong_idx = df.index[df["Composite_Score"] >= comp_thr].tolist()
                     st.session_state["comp_thr_ui"] = float(comp_thr)
+                    st.session_state["comp_strong_idx"] = strong_idx
+                else:
+                    st.session_state["comp_strong_idx"] = []
                 # 항상 원본 df로 시뮬레이션 실행
                 df_for_sim = df.copy()
     
@@ -1672,20 +1676,13 @@ def main():
                     if buy_idx_list:
                         sec_mask[buy_idx_list] = True
 
-                    # ✅ 수정: df_for_sim은 반드시 원본 df 인덱스로 필터링 + 인덱스 초기화
+                    # ✅ df_for_sim은 반드시 원본 인덱스 기준 복사
                     df_for_sim = df.loc[sec_mask].copy().reset_index(drop=True)
                 else:
                     sec_mask = np.zeros(len(df), dtype=bool)
                     df_for_sim = df.copy()
 
-            # ✅ Composite 강세(≥0.7) 필터는 해당 2차조건을 선택했을 때만 적용
-            try:
-                if sec_cond == "복합지표(Composite) 강세만 진입" and "Composite_Score" in df.columns:
-                    df_for_sim = df_for_sim[df_for_sim["Composite_Score"] >= 0.7].reset_index(drop=True).copy()
-            except Exception:
-                pass
-
-            # ✅ 메인 차트에 Composite 강세 구간 마커 표시
+            # ✅ Composite 강세(≥0.7) 필터링 제거: 강세구간은 index로만 관리
             try:
                 if "Composite_Score" in df.columns:
                     strong_mask = df["Composite_Score"] >= 0.7
