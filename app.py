@@ -1215,7 +1215,16 @@ def main():
             tp_price = None
             sl_price = None
 
-            for j in range(anchor_idx + 1, end_idx + 1):
+            # ✅ 신호별 판정 변수 리셋 (이전 신호의 값이 남지 않도록)
+            tp_idx = None
+            sl_idx = None
+            tp_price = None
+            sl_price = None
+
+            # ✅ lookahead 상한을 루프 시작 전에 고정해 실제 캔들 기준으로 정확히 제한
+            end_limit = min(end_idx, anchor_idx + lookahead)
+
+            for j in range(anchor_idx + 1, end_limit + 1):
                 c_ = float(df.at[j, "close"])
                 h_ = float(df.at[j, "high"])
                 l_ = float(df.at[j, "low"])
@@ -1234,11 +1243,7 @@ def main():
                 if tp_idx is not None and sl_idx is not None:
                     break
 
-                # ✅ lookahead 제한 도달 시 즉시 중단
-                if j - anchor_idx >= lookahead:
-                    break
-
-            # ✅ 실제 먼저 도달한 조건으로 판정 (손절 우선)
+            # ✅ 실제 먼저 도달한 조건으로 판정 (손절 우선, 동시 발생 시에도 손절)
             if sl_idx is not None and (tp_idx is None or sl_idx <= tp_idx):
                 hit_idx = sl_idx
                 bars_after = hit_idx - anchor_idx
@@ -1258,7 +1263,7 @@ def main():
                 result = "성공"
                 lock_end = hit_idx
             else:
-                # ✅ 익절/손절 모두 미도달 또는 lookahead 초과
+                # ✅ 익절/손절 모두 미도달 (lookahead 내에서만 평가 완료)
                 hit_idx = None
                 bars_after = min(lookahead, end_idx - anchor_idx)
                 reach_min = bars_after * minutes_per_bar
