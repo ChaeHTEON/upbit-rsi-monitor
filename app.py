@@ -1615,9 +1615,10 @@ def main():
                         step=0.05,
                         help="Composite_Score 기준값을 조정합니다. 낮출수록 조기 진입, 높일수록 보수적 진입."
                     )
-                    df_for_sim = df[df["Composite_Score"] >= comp_thr].reset_index(drop=True).copy()
-                else:
-                    df_for_sim = df.copy()
+                    # 👉 Composite 기준은 UI에만 반영, 실제 데이터는 전체 유지
+                    st.session_state["comp_thr_ui"] = float(comp_thr)
+                # 항상 원본 df로 시뮬레이션 실행
+                df_for_sim = df.copy()
     
             elif sec_cond == "복합지표(Composite) 골든 교차 시 진입":
                 if "Composite_Score" in df.columns:
