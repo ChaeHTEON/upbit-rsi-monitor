@@ -572,6 +572,11 @@ def main():
     
     st.session_state["bb_cond"] = bb_cond
     st.markdown("---")
+
+    # ✅ 상향돌파 신호 요약 메시지 (중복 방지)
+    if "signal_summary_text" in st.session_state:
+        st.info(st.session_state["signal_summary_text"])
+        st.session_state.pop("signal_summary_text", None)
     
     # -----------------------------
     # 데이터 수집/지표/시뮬레이션 함수
@@ -1042,10 +1047,8 @@ def main():
                     for i in range(1, len(df) - 1):
                         prev_val = df["RSI13"].iloc[i - 1]
                         now_val  = df["RSI13"].iloc[i]
-                        # ✅ 임계치 ‘하단→상단’ 돌파 순간만
                         if prev_val <= rsi_level < now_val:
                             raw_idx.append(i + 1)
-                    # ✅ 연속·근접 신호 중복 제거(바로 다음 봉 겹치면 1개로)
                     cleaned = []
                     for k in raw_idx:
                         if not cleaned or (k - cleaned[-1] > 1):
@@ -1053,7 +1056,8 @@ def main():
                     base_sig_idx = cleaned
                 else:
                     base_sig_idx = []
-                st.info(f"📊 RSI {int(rsi_level)} 상향돌파: 감지 {len(raw_idx)} → 중복제거 {len(base_sig_idx)}")
+                # ✅ 메시지를 세션에 저장 (rerun시 중복 출력 방지)
+                st.session_state["signal_summary_text"] = f"📊 RSI {int(rsi_level)} 상향돌파: 감지 {len(raw_idx)} → 중복제거 {len(base_sig_idx)}"
 
             elif strategy == "CCI 수치 상향돌파 (1차)":
                 cci_level = float(st.session_state.get("cci_threshold", -100))
@@ -1062,10 +1066,8 @@ def main():
                     for i in range(1, len(df) - 1):
                         prev_val = df["CCI"].iloc[i - 1]
                         now_val  = df["CCI"].iloc[i]
-                        # ✅ 임계치 ‘하단→상단’ 돌파 순간만
                         if prev_val <= cci_level < now_val:
                             raw_idx.append(i + 1)
-                    # ✅ 연속·근접 신호 중복 제거
                     cleaned = []
                     for k in raw_idx:
                         if not cleaned or (k - cleaned[-1] > 1):
@@ -1073,7 +1075,7 @@ def main():
                     base_sig_idx = cleaned
                 else:
                     base_sig_idx = []
-                st.info(f"📊 CCI {int(cci_level)} 상향돌파: 감지 {len(raw_idx)} → 중복제거 {len(base_sig_idx)}")
+                st.session_state["signal_summary_text"] = f"📊 CCI {int(cci_level)} 상향돌파: 감지 {len(raw_idx)} → 중복제거 {len(base_sig_idx)}"
 
             # =========================================================
             # 🆕 이동평균·볼밴 교차 (1차 매매기법) — 교차 방향 및 근접 진입 확장
