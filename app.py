@@ -262,7 +262,7 @@ def main():
             if primary_strategy != "없음":
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
-            # 🆕 이동평균·볼밴 교차 (1차) 옵션 UI
+            # 🆕 이동평균·볼밴 교차 (1차) 옵션 UI — 교차 방향 추가
             if "이동평균·볼밴 교차" in primary_strategy:
                 st.markdown("#### ⚙️ 이동평균·볼밴 교차 설정")
                 colA, colB = st.columns(2)
@@ -281,9 +281,19 @@ def main():
                         key="ma_cross_B"
                     )
 
+                # 📊 교차 방향 선택 추가
+                st.radio(
+                    "📊 교차 방향",
+                    ["상향 돌파", "하향 돌파", "양방향"],
+                    index=0,
+                    key="ma_cross_direction",
+                    help="A선이 B선을 위로(상향), 아래로(하향) 뚫을 때, 또는 양방향 모두 선택할 수 있습니다."
+                )
+
                 # 🔹 선택된 값 세션에 저장
                 st.session_state["ma_cross_A_value"] = st.session_state.get("ma_cross_A")
                 st.session_state["ma_cross_B_value"] = st.session_state.get("ma_cross_B")
+                st.session_state["ma_cross_direction_value"] = st.session_state.get("ma_cross_direction")
 
                 # ✅ 신규: 진입 방식 & 근접 임계값 UI
                 st.radio(
@@ -300,7 +310,7 @@ def main():
                     help="두 선 간 상대 차이가 (%) 이하일 때 선진입으로 간주 (기본 0.3%)"
                 )
 
-                st.caption("📊 선택한 두 선 중, 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들에서 매수 신호 발생")
+                st.caption("📊 선택한 두 선 중, 기준선(A)이 비교선(B)을 상향·하향 돌파 시 다음 캔들에서 매수 신호 발생")
 
         r1, r2, r3 = st.columns(3)
         with c1:
