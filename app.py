@@ -1035,7 +1035,7 @@ def main():
             # =========================================================
             # 🆕 RSI·CCI 수치 상향돌파 (1차)
             # =========================================================
-             elif strategy == "RSI 수치 상향돌파 (1차)":
+            elif strategy == "RSI 수치 상향돌파 (1차)":
                 rsi_level = float(st.session_state.get("rsi_threshold", 30))
                 raw_idx = []
                 if "RSI13" in df.columns:
