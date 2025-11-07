@@ -986,35 +986,19 @@ def main():
             # 🆕 이동평균·볼밴 교차 (1차 매매기법)
             # =========================================================
             elif strategy == "이동평균·볼밴 교차 (1차)":
-                st.markdown("#### ⚙️ 이동평균·볼밴 교차 설정")
-
-                colA, colB = st.columns(2)
-                with colA:
-                    cross_A = st.selectbox(
-                        "📈 기준선 (A)",
-                        ["BB_low", "BB_mid", "BB_up", "EMA5", "EMA10", "EMA20", "EMA50", "EMA100", "EMA200"],
-                        index=1,
-                        key="ma_cross_A"
-                    )
-                with colB:
-                    cross_B = st.selectbox(
-                        "📉 비교선 (B)",
-                        ["BB_low", "BB_mid", "BB_up", "EMA5", "EMA10", "EMA20", "EMA50", "EMA100", "EMA200"],
-                        index=7,
-                        key="ma_cross_B"
-                    )
+                ma_A = st.session_state.get("ma_cross_A", "BB_mid")
+                ma_B = st.session_state.get("ma_cross_B", "EMA100")
 
                 buy_idx_list = []
-                for i in range(1, len(df) - 1):
-                    if cross_A in df.columns and cross_B in df.columns:
-                        prevA, prevB = df[cross_A].iloc[i - 1], df[cross_B].iloc[i - 1]
-                        nowA, nowB = df[cross_A].iloc[i], df[cross_B].iloc[i]
-                        # ✅ A선이 B선을 상향 돌파할 때 다음 캔들에서 매수
+                if ma_A in df.columns and ma_B in df.columns:
+                    for i in range(1, len(df) - 1):
+                        prevA, prevB = df[ma_A].iloc[i - 1], df[ma_B].iloc[i - 1]
+                        nowA, nowB = df[ma_A].iloc[i], df[ma_B].iloc[i]
+                        # ✅ 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들 매수 신호
                         if prevA <= prevB and nowA > nowB:
                             buy_idx_list.append(i + 1)
 
                 base_sig_idx = buy_idx_list
-                st.info(f"📊 선택된 교차: {cross_A} → {cross_B} 상향돌파 (신호 {len(base_sig_idx)}개)")
 
 # --- 추가: EMA100 기준 위/아래 ---
             elif strategy == "EMA100_Above":
