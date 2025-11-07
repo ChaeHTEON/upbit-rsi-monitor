@@ -285,6 +285,21 @@ def main():
                 st.session_state["ma_cross_A_value"] = st.session_state.get("ma_cross_A")
                 st.session_state["ma_cross_B_value"] = st.session_state.get("ma_cross_B")
 
+                # ✅ 신규: 진입 방식 & 근접 임계값 UI
+                st.radio(
+                    "📈 진입 방식",
+                    ["완전교차 후 진입", "근접 시 선진입"],
+                    index=0,
+                    key="ma_cross_entry_mode",
+                    help="‘근접 시 선진입’을 선택하면 교차 직전(두 선이 충분히 가까워질 때) 미리 진입합니다."
+                )
+                st.number_input(
+                    "근접 임계값 (%)",
+                    min_value=0.05, max_value=2.0, value=0.3, step=0.05,
+                    key="ma_cross_pre_threshold",
+                    help="두 선 간 상대 차이가 (%) 이하일 때 선진입으로 간주 (기본 0.3%)"
+                )
+
                 st.caption("📊 선택한 두 선 중, 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들에서 매수 신호 발생")
 
         r1, r2, r3 = st.columns(3)
@@ -994,15 +1009,31 @@ def main():
             elif strategy == "이동평균·볼밴 교차 (1차)":
                 ma_A = st.session_state.get("ma_cross_A", "BB_mid")
                 ma_B = st.session_state.get("ma_cross_B", "EMA100")
+                # ✅ 신규 옵션 읽기 (기본값: 완전교차, 0.3%)
+                entry_mode = st.session_state.get("ma_cross_entry_mode", "완전교차 후 진입")
+                try:
+                    pre_thr = float(st.session_state.get("ma_cross_pre_threshold", 0.3))
+                except Exception:
+                    pre_thr = 0.3
 
                 buy_idx_list = []
                 if ma_A in df.columns and ma_B in df.columns:
                     for i in range(1, len(df) - 1):
                         prevA, prevB = df[ma_A].iloc[i - 1], df[ma_B].iloc[i - 1]
                         nowA, nowB = df[ma_A].iloc[i], df[ma_B].iloc[i]
-                        # ✅ 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들 매수 신호
-                        if prevA <= prevB and nowA > nowB:
-                            buy_idx_list.append(i + 1)
+
+                        if entry_mode == "완전교차 후 진입":
+                            # ✅ 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들 매수 신호
+                            if prevA <= prevB and nowA > nowB:
+                                buy_idx_list.append(i + 1)
+                        else:
+                            # ✅ 근접 시 선진입: 두 선의 상대 차이가 pre_thr% 이하 & A 상승, B 하락
+                            base_den = abs(nowB) if abs(nowB) > 1e-9 else 1.0
+                            diff_ratio = abs(nowA - nowB) / base_den * 100.0
+                            slopeA = nowA - prevA
+                            slopeB = nowB - prevB
+                            if (diff_ratio <= pre_thr) and (slopeA > 0) and (slopeB < 0):
+                                buy_idx_list.append(i + 1)
 
                 base_sig_idx = buy_idx_list
 
