@@ -280,6 +280,11 @@ def main():
                         index=7,
                         key="ma_cross_B"
                     )
+
+                # 🔹 선택된 값 세션에 저장
+                st.session_state["ma_cross_A_value"] = st.session_state.get("ma_cross_A")
+                st.session_state["ma_cross_B_value"] = st.session_state.get("ma_cross_B")
+
                 st.caption("📊 선택한 두 선 중, 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들에서 매수 신호 발생")
 
         r1, r2, r3 = st.columns(3)
