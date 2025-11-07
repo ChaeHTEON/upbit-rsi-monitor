@@ -1686,40 +1686,6 @@ def main():
                     sec_mask = np.zeros(len(df), dtype=bool)
                     df_for_sim = df.copy()
 
-            # =========================================================
-            # 🆕 이동평균·볼밴 교차 (1차 매매기법)
-            # =========================================================
-            elif sec_cond == "이동평균·볼밴 교차 (1차)":
-                colA, colB = st.columns(2)
-                with colA:
-                    cross_A = st.selectbox(
-                        "📈 기준선 (A)",
-                        ["BB_lower", "BB_mid", "BB_upper", "EMA5", "EMA10", "EMA20", "EMA50", "EMA100", "EMA200"],
-                        index=1
-                    )
-                with colB:
-                    cross_B = st.selectbox(
-                        "📉 비교선 (B)",
-                        ["BB_lower", "BB_mid", "BB_upper", "EMA5", "EMA10", "EMA20", "EMA50", "EMA100", "EMA200"],
-                        index=7
-                    )
-
-                buy_idx_list = []
-                for i in range(1, len(df) - 1):
-                    if cross_A in df.columns and cross_B in df.columns:
-                        prevA, prevB = df[cross_A].iloc[i - 1], df[cross_B].iloc[i - 1]
-                        nowA, nowB = df[cross_A].iloc[i], df[cross_B].iloc[i]
-                        # 상향 돌파 후 다음 캔들에서 매수
-                        if prevA <= prevB and nowA > nowB:
-                            buy_idx_list.append(i + 1)
-
-                sec_mask = np.zeros(len(df), dtype=bool)
-                if buy_idx_list:
-                    sec_mask[buy_idx_list] = True
-
-                # ✅ 원본 인덱스 기반 시뮬레이션용 DataFrame 생성
-                df_for_sim = df.loc[sec_mask].copy().reset_index(drop=True)
-
             # ✅ Composite 강세(≥0.7) 필터링 제거: 강세구간은 index로만 관리
             try:
                 if "Composite_Score" in df.columns:
