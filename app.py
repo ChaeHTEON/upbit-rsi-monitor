@@ -263,7 +263,7 @@ def main():
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
             # 🆕 이동평균·볼밴 교차 (1차) 옵션 UI
-            if primary_strategy == "이동평균·볼밴 교차 (1차)":
+            if "이동평균·볼밴 교차" in primary_strategy:
                 st.markdown("#### ⚙️ 이동평균·볼밴 교차 설정")
                 colA, colB = st.columns(2)
                 with colA:
