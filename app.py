@@ -1684,7 +1684,6 @@ def main():
 
             # ✅ Composite 강세(≥0.7) 필터링 제거: 강세구간은 index로만 관리
             try:
-            try:
                 if "Composite_Score" in df.columns:
                     strong_mask = df["Composite_Score"] >= 0.7
                     xs_comp = df.loc[strong_mask, "time"]
