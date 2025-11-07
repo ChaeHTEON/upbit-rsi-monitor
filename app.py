@@ -1206,6 +1206,15 @@ def main():
             # ✅ 손절·익절 동시 추적 + 손절 우선 판정 + 부동소수 오차 보정
             eps = base_price * 1e-9  # 미세 오차 허용 범위
 
+            # ✅ 손절·익절 동시 추적 + 손절 우선 판정 + 부동소수 오차 보정 + lookahead 정확 반영
+            eps = max(base_price * 1e-5, 1.0)  # 실제 틱단위 수준으로 보정
+
+            hit_idx = None
+            tp_idx = None
+            sl_idx = None
+            tp_price = None
+            sl_price = None
+
             for j in range(anchor_idx + 1, end_idx + 1):
                 c_ = float(df.at[j, "close"])
                 h_ = float(df.at[j, "high"])
@@ -1223,6 +1232,10 @@ def main():
 
                 # 두 조건 모두 발생 시 루프 종료
                 if tp_idx is not None and sl_idx is not None:
+                    break
+
+                # ✅ lookahead 제한 도달 시 즉시 중단
+                if j - anchor_idx >= lookahead:
                     break
 
             # ✅ 실제 먼저 도달한 조건으로 판정 (손절 우선)
@@ -1245,21 +1258,10 @@ def main():
                 result = "성공"
                 lock_end = hit_idx
             else:
-                # ✅ 익절/손절 모두 미도달
+                # ✅ 익절/손절 모두 미도달 또는 lookahead 초과
                 hit_idx = None
-                bars_after = end_idx - anchor_idx
+                bars_after = min(lookahead, end_idx - anchor_idx)
                 reach_min = bars_after * minutes_per_bar
-                end_time = df.at[end_idx, "time"]
-                end_close = c_
-                final_ret = (end_close / base_price - 1) * 100
-                result = "미도달"
-                lock_end = end_idx
-
-            # ✅ 미도달 시 보정 루틴 유지
-            if hit_idx is not None:
-                pass
-            else:
-                bars_after = lookahead
                 end_idx = anchor_idx + bars_after
                 if end_idx >= n:
                     end_idx = n - 1
@@ -1270,6 +1272,7 @@ def main():
                 result = "실패" if final_ret <= 0 else "중립"
                 lock_end = end_idx
 
+            # ✅ 도달 시점 확정 후 추가 루틴 진입 방지
             reach_min = bars_after * minutes_per_bar
     
             bb_value = None
