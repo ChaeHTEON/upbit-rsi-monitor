@@ -1203,18 +1203,21 @@ def main():
             tp_price = None
             sl_price = None
 
+            # ✅ 손절·익절 동시 추적 + 손절 우선 판정 + 부동소수 오차 보정
+            eps = base_price * 1e-9  # 미세 오차 허용 범위
+
             for j in range(anchor_idx + 1, end_idx + 1):
                 c_ = float(df.at[j, "close"])
                 h_ = float(df.at[j, "high"])
                 l_ = float(df.at[j, "low"])
 
-                # 익절가 도달 시점 기록 (최초 1회만)
-                if tp_idx is None and h_ >= target:
+                # 익절 도달 시점 기록 (최초 1회만)
+                if tp_idx is None and h_ >= target - eps:
                     tp_idx = j
                     tp_price = target
 
-                # 손절가 도달 시점 기록 (최초 1회만)
-                if sl_idx is None and l_ <= stop_price:
+                # 손절 도달 시점 기록 (최초 1회만)
+                if sl_idx is None and l_ <= stop_price + eps:
                     sl_idx = j
                     sl_price = stop_price
 
@@ -1222,8 +1225,8 @@ def main():
                 if tp_idx is not None and sl_idx is not None:
                     break
 
-            # ✅ 실제 먼저 도달한 조건으로 판정
-            if sl_idx is not None and (tp_idx is None or sl_idx < tp_idx):
+            # ✅ 실제 먼저 도달한 조건으로 판정 (손절 우선)
+            if sl_idx is not None and (tp_idx is None or sl_idx <= tp_idx):
                 hit_idx = sl_idx
                 bars_after = hit_idx - anchor_idx
                 reach_min = bars_after * minutes_per_bar
@@ -1251,7 +1254,8 @@ def main():
                 final_ret = (end_close / base_price - 1) * 100
                 result = "미도달"
                 lock_end = end_idx
-    
+
+            # ✅ 미도달 시 보정 루틴 유지
             if hit_idx is not None:
                 pass
             else:
@@ -1265,7 +1269,7 @@ def main():
                 final_ret = (end_close / base_price - 1) * 100
                 result = "실패" if final_ret <= 0 else "중립"
                 lock_end = end_idx
-    
+
             reach_min = bars_after * minutes_per_bar
     
             bb_value = None
