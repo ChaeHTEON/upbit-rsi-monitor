@@ -262,6 +262,26 @@ def main():
             if primary_strategy != "없음":
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
+            # 🆕 이동평균·볼밴 교차 (1차) 옵션 UI
+            if primary_strategy == "이동평균·볼밴 교차 (1차)":
+                st.markdown("#### ⚙️ 이동평균·볼밴 교차 설정")
+                colA, colB = st.columns(2)
+                with colA:
+                    st.selectbox(
+                        "📈 기준선 (A)",
+                        ["BB_low", "BB_mid", "BB_up", "EMA5", "EMA10", "EMA20", "EMA50", "EMA100", "EMA200"],
+                        index=1,
+                        key="ma_cross_A"
+                    )
+                with colB:
+                    st.selectbox(
+                        "📉 비교선 (B)",
+                        ["BB_low", "BB_mid", "BB_up", "EMA5", "EMA10", "EMA20", "EMA50", "EMA100", "EMA200"],
+                        index=7,
+                        key="ma_cross_B"
+                    )
+                st.caption("📊 선택한 두 선 중, 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들에서 매수 신호 발생")
+
         r1, r2, r3 = st.columns(3)
         with c1:
             rsi_mode = st.selectbox("RSI 조건", ["없음", "현재(과매도/과매수 중 하나)", "과매도 기준", "과매수 기준"], key="rsi_condition_main")
