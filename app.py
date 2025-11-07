@@ -1042,10 +1042,22 @@ def main():
                     for i in range(1, len(df) - 1):
                         prev_val = df["RSI13"].iloc[i - 1]
                         now_val  = df["RSI13"].iloc[i]
-                        if prev_val <= thr and now_val > thr:
+                        # ✅ 임계치 돌파 순간만 신호
+                        if prev_val <= thr < now_val:
                             buy_idx_list.append(i + 1)
-                base_sig_idx = buy_idx_list
-                st.info(f"📊 RSI {thr} 상향돌파 신호 {len(base_sig_idx)}개 발생")
+
+                    # ✅ 중복 방지: 연속 또는 근접 신호 제거
+                    cleaned_idx = []
+                    for idx in buy_idx_list:
+                        if not cleaned_idx or idx - cleaned_idx[-1] > 1:
+                            cleaned_idx.append(idx)
+                    base_sig_idx = cleaned_idx
+
+                else:
+                    base_sig_idx = []
+
+                # ✅ 실제 발생한 신호 수만 표시
+                st.info(f"📊 RSI {thr} 상향돌파 신호 {len(base_sig_idx)}개 감지됨 (중복 제거 후)")
 
             elif strategy == "CCI 수치 상향돌파 (1차)":
                 thr = st.session_state.get("cci_threshold", -100)
