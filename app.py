@@ -253,8 +253,8 @@ def main():
                         "CCI_GoldenCross_NearMinus100",
                         "EMA100_Above",
                         "EMA100_Below",
-                        "Vol_Ratio_Imbalance"
-                        "이동평균·볼밴 교차 (1차)"
+                        "Vol_Ratio_Imbalance",
+                        "이동평균·볼밴 교차 (1차)",
                     ],
                     index=0
                 )
@@ -718,6 +718,12 @@ def main():
         except Exception:
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
+        # EMA 5선
+        out["EMA5"] = ta.trend.EMAIndicator(close=out["close"], window=5).ema_indicator()
+        # EMA 10선
+        out["EMA10"] = ta.trend.EMAIndicator(close=out["close"], window=10).ema_indicator()
+        # EMA 20선
+        out["EMA20"] = ta.trend.EMAIndicator(close=out["close"], window=20).ema_indicator()
         # EMA 50선
         out["EMA50"] = ta.trend.EMAIndicator(close=out["close"], window=50).ema_indicator()
         # EMA 100선
