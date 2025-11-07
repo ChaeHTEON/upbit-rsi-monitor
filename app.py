@@ -2303,8 +2303,7 @@ def main():
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA50"], mode="lines",
-                line=dict(width=1.6, dash="solid"),  # 굵기 살짝 증가
-                opacity=0.9,
+                line=dict(color="black", width=1.4, dash="solid"),  # 보통 실선
                 name="EMA(50)"
             ), row=1, col=1)
         except Exception:
@@ -2313,8 +2312,7 @@ def main():
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
-                line=dict(width=1.6, dash="dot"),   # 점선으로 시각 구분
-                opacity=0.9,
+                line=dict(color="black", width=1.8, dash="dot"),  # 굵은 점선
                 name="EMA(100)"
             ), row=1, col=1)
         except Exception:
@@ -2323,8 +2321,7 @@ def main():
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
-                line=dict(width=1.8, dash="dash"),  # 가장 굵고 긴 점선
-                opacity=0.9,
+                line=dict(color="black", width=2.2, dash="solid"),  # 굵은 실선
                 name="EMA(200)"
             ), row=1, col=1)
         except Exception:
