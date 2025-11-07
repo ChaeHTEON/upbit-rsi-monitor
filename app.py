@@ -1004,17 +1004,14 @@ def main():
                 n = len(df)
 
             # =========================================================
-            # 🆕 이동평균·볼밴 교차 (1차 매매기법)
+            # 🆕 이동평균·볼밴 교차 (1차 매매기법) — 교차 방향 및 근접 진입 확장
             # =========================================================
             elif strategy == "이동평균·볼밴 교차 (1차)":
                 ma_A = st.session_state.get("ma_cross_A", "BB_mid")
                 ma_B = st.session_state.get("ma_cross_B", "EMA100")
-                # ✅ 신규 옵션 읽기 (기본값: 완전교차, 0.3%)
-                entry_mode = st.session_state.get("ma_cross_entry_mode", "완전교차 후 진입")
-                try:
-                    pre_thr = float(st.session_state.get("ma_cross_pre_threshold", 0.3))
-                except Exception:
-                    pre_thr = 0.3
+                entry_mode = st.session_state.get("ma_entry_mode", "완전교차 후 진입")
+                direction = st.session_state.get("ma_cross_direction", "상향 돌파")
+                pre_thr = float(st.session_state.get("ma_pre_threshold", 0.6))
 
                 buy_idx_list = []
                 if ma_A in df.columns and ma_B in df.columns:
@@ -1023,17 +1020,25 @@ def main():
                         nowA, nowB = df[ma_A].iloc[i], df[ma_B].iloc[i]
 
                         if entry_mode == "완전교차 후 진입":
-                            # ✅ 기준선(A)이 비교선(B)을 상향 돌파 시 다음 캔들 매수 신호
-                            if prevA <= prevB and nowA > nowB:
-                                buy_idx_list.append(i + 1)
-                        else:
-                            # ✅ 근접 시 선진입: 두 선의 상대 차이가 pre_thr% 이하 & A 상승, B 하락
+                            if direction in ["상향 돌파", "양방향"]:
+                                if prevA <= prevB and nowA > nowB:
+                                    buy_idx_list.append(i + 1)
+                            if direction in ["하향 돌파", "양방향"]:
+                                if prevA >= prevB and nowA < nowB:
+                                    buy_idx_list.append(i + 1)
+
+                        elif entry_mode == "근접 시 선진입":
                             base_den = abs(nowB) if abs(nowB) > 1e-9 else 1.0
                             diff_ratio = abs(nowA - nowB) / base_den * 100.0
                             slopeA = nowA - prevA
                             slopeB = nowB - prevB
-                            if (diff_ratio <= pre_thr) and (slopeA > 0) and (slopeB < 0):
-                                buy_idx_list.append(i + 1)
+
+                            if direction in ["상향 돌파", "양방향"]:
+                                if (diff_ratio <= pre_thr) and (slopeA > 0) and (slopeB < 0):
+                                    buy_idx_list.append(i + 1)
+                            if direction in ["하향 돌파", "양방향"]:
+                                if (diff_ratio <= pre_thr) and (slopeA < 0) and (slopeB > 0):
+                                    buy_idx_list.append(i + 1)
 
                 base_sig_idx = buy_idx_list
 
