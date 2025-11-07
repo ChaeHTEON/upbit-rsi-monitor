@@ -692,8 +692,12 @@ def main():
         except Exception:
             n = 9
         out["CCI_sig"] = out["CCI"].rolling(n, min_periods=1).mean()
+        # EMA 50선
+        out["EMA50"] = ta.trend.EMAIndicator(close=out["close"], window=50).ema_indicator()
         # EMA 100선
         out["EMA100"] = ta.trend.EMAIndicator(close=out["close"], window=100).ema_indicator()
+        # EMA 200선
+        out["EMA200"] = ta.trend.EMAIndicator(close=out["close"], window=200).ema_indicator()
         # MACD (12,16,9)
         _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
         out["MACD"] = _macd.macd()
@@ -2295,11 +2299,27 @@ def main():
             customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
         ), row=1, col=1)
 
-        # ----- EMA(100) 라인 (row1) -----
+        # ----- EMA(50) / EMA(100) / EMA(200) 라인 (row1) -----
+        try:
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["EMA50"], mode="lines",
+                line=dict(width=1.4), name="EMA(50)"
+            ), row=1, col=1)
+        except Exception:
+            pass
+
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
                 line=dict(width=1.4), name="EMA(100)"
+            ), row=1, col=1)
+        except Exception:
+            pass
+
+        try:
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
+                line=dict(width=1.4), name="EMA(200)"
             ), row=1, col=1)
         except Exception:
             pass
