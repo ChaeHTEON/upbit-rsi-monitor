@@ -2513,8 +2513,8 @@ def main():
             legend_x=1.02,
             legend_y=1,
             legend_font=dict(size=9),            # 🔹 범례 폰트 크기 축소
-            legend_itemclick="toggleothers",     # 🔹 클릭 시 나머지 항목 유지
-            legend_itemdoubleclick="toggle",     # 🔹 더블클릭 시 토글
+            legend_itemclick="toggle",           # 🔹 클릭 시 해당 항목만 비활성/활성
+            legend_itemdoubleclick="toggleothers", # 🔹 더블클릭 시 선택 항목만 표시
             legend_title_text="",                # 🔹 불필요한 타이틀 제거
             legend_tracegroupgap=4,              # 🔹 항목 간격 최소화
             legend_bgcolor="rgba(255,255,255,0.7)",
