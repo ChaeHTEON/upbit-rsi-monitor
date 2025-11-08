@@ -2846,7 +2846,7 @@ def main():
                         bb_cond=bb_cond, dup_mode=("중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"),
                         sec_cond=sec_cond, bottom_mode=bottom_mode,
                         manual_supply_levels=manual_supply_levels,
-                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal=cci_signal,
+                        cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
                     )
     
                     # ✅ 조합 스캔용 전략 멀티선택 (신규 RSI·CCI 상향돌파 포함)
