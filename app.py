@@ -2609,7 +2609,7 @@ def main():
             print("⚠️ VWMA(100) 추가 오류:", e)
 
         # ================================
-        # 🆕 RSI 스케일 기반 CCI/MACD 통합 시각화 (중복 제거 + RSI 기준 보정)
+        # 🆕 RSI·CCI·MACD 중복 제거 + RSI 스케일 기준 일원화 + EMA200 보정 + 범례 통합
         # ================================
         try:
             if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
@@ -2617,43 +2617,70 @@ def main():
                 cci_vals  = df_plot["CCI"].astype(float)
                 macd_vals = df_plot["MACD"].astype(float)
 
-                # RSI 스케일 (0~100)
+                # 1️⃣ RSI는 0~100 고정
                 rsi_scaled = rsi_vals.clip(0, 100)
 
-                # RSI 기준 스케일에 맞춰 비율 보정
-                cci_ratio = (cci_vals - cci_vals.min()) / (cci_vals.max() - cci_vals.min())
-                macd_ratio = (macd_vals - macd_vals.min()) / (macd_vals.max() - macd_vals.min())
+                # 2️⃣ CCI/MACD → RSI 진폭(0~100)에 맞춰 정규화 (방향만 반영)
+                def _normalize(series):
+                    s = series.dropna()
+                    if s.empty:
+                        return pd.Series([50] * len(series))
+                    mn, mx = s.min(), s.max()
+                    if mx - mn == 0:
+                        return pd.Series([50] * len(series))
+                    return ((series - mn) / (mx - mn) * 100).clip(0, 100)
 
-                cci_scaled = 30 + (cci_ratio * 40)   # RSI 30~70 범위에 맞춤
-                macd_scaled = 30 + (macd_ratio * 40)
+                cci_scaled  = _normalize(cci_vals)
+                macd_scaled = _normalize(macd_vals)
 
-                # RSI(13)
+                # 3️⃣ RSI + CCI + MACD 오버레이
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=rsi_scaled,
                     mode="lines",
-                    line=dict(color="#2A9D8F", width=2.0, dash="dot"),
+                    line=dict(color="#2A9D8F", width=2.2, dash="solid"),
                     name="RSI(13)"
                 ), row=1, col=1, secondary_y=True)
 
-                # CCI (RSI기준 보정)
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=cci_scaled,
                     mode="lines",
-                    line=dict(color="#2196F3", width=1.8, dash="dot"),
-                    name="CCI(20, RSI-Scale)"
+                    line=dict(color="#2196F3", width=1.5, dash="dot"),
+                    name="CCI(20→RSI Scale)"
                 ), row=1, col=1, secondary_y=True)
 
-                # MACD (RSI기준 비율 보정)
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=macd_scaled,
                     mode="lines",
-                    line=dict(color="#E74C3C", width=1.8, dash="dot"),
-                    name="MACD(RSI-Scale)"
+                    line=dict(color="#E74C3C", width=1.5, dash="dot"),
+                    name="MACD(→RSI Scale)"
                 ), row=1, col=1, secondary_y=True)
 
+                # 4️⃣ secondary y 축 고정
                 fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
+
+                # 5️⃣ EMA200 패딩 재계산 + y축 보정
+                if "EMA200" in df_plot.columns:
+                    y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                    y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                    pad = (y_max - y_min) * 0.10
+                    fig.update_yaxes(
+                        range=[y_min - pad, y_max + pad],
+                        autorange=False, fixedrange=False,
+                        row=1, col=1
+                    )
+
+                # 6️⃣ 범례 정리: 동일 항목 중복 제거 + 색상 통일
+                fig.update_layout(
+                    legend_tracegroupgap=4,
+                    legend_itemclick="toggle",
+                    legend_itemdoubleclick="toggleothers",
+                    legend_font=dict(size=9),
+                    legend_bgcolor="rgba(255,255,255,0.7)",
+                    legend_bordercolor="lightgray",
+                    legend_borderwidth=0.5
+                )
         except Exception as e:
-            print("⚠️ RSI 기준 시각화 오류:", e)
+            print("⚠️ RSI/CCI/MACD 스케일 통합 오류:", e)
 
         # ================================
         # 🆕 메인차트(secondary_y) — RSI 기준 스케일로 흐름 일원화
