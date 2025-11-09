@@ -1985,9 +1985,9 @@ def main():
             row=2, col=1
         )
 
-        # CCI 기준선 (±100 실선 강조)
-        fig.add_hline(y=100, line=dict(color="red", width=2.0, dash="solid"), row=2, col=1)
-        fig.add_hline(y=-100, line=dict(color="blue", width=2.0, dash="solid"), row=2, col=1)
+        # CCI 기준선 (±100 얇은 실선)
+        fig.add_hline(y=100, line=dict(color="red", width=0.8, dash="solid"), row=2, col=1)
+        fig.add_hline(y=-100, line=dict(color="blue", width=0.8, dash="solid"), row=2, col=1)
         # CCI 중간선 (0선 강조)
         fig.add_hline(y=0, line=dict(color="rgba(80,80,80,0.8)", width=1.5, dash="dot"), row=2, col=1)
 
@@ -2049,9 +2049,9 @@ def main():
         except Exception:
             pass
 
-        # RSI 기준선 (30/70 강조선)
-        fig.add_hline(y=30, line=dict(color="red", dash="solid", width=1.5), row=3, col=1)
-        fig.add_hline(y=70, line=dict(color="green", dash="solid", width=1.5), row=3, col=1)
+        # RSI 기준선 (30/70 얇은 실선)
+        fig.add_hline(y=30, line=dict(color="red", dash="solid", width=0.8), row=3, col=1)
+        fig.add_hline(y=70, line=dict(color="green", dash="solid", width=0.8), row=3, col=1)
         fig.add_hline(y=50, line=dict(color="gray", dash="dot", width=1.0), row=3, col=1)
 
         # (3) RSI(13) — 범례 강제 표시 + 시인성 강화
@@ -2477,12 +2477,12 @@ def main():
         except Exception:
             pass
 
-        # ✅ EMA50/100/200 색상·선형·두께 통일 (파랑계열)
+        # ✅ EMA50/100/200 색상·선형·두께 통일 (파랑계열) + EMA200 connectgaps로 끊김 방지
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA50"], mode="lines",
                 line=dict(color="#1F618D", width=2.0, dash="solid"),
-                name="EMA50"
+                name="EMA50", connectgaps=True
             ), row=1, col=1)
         except Exception:
             pass
@@ -2491,7 +2491,7 @@ def main():
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
                 line=dict(color="#154360", width=2.0, dash="solid"),
-                name="EMA100"
+                name="EMA100", connectgaps=True
             ), row=1, col=1)
         except Exception:
             pass
@@ -2499,11 +2499,85 @@ def main():
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
-                line=dict(color="#0B1A3A", width=2.0, dash="solid"),
-                name="EMA200"
+                line=dict(color="#0B1A3A", width=2.2, dash="solid"),
+                name="EMA200", connectgaps=True
             ), row=1, col=1)
         except Exception:
             pass
+
+        # ================================
+        # 🆕 메인차트(secondary_y) — RSI 기준 스케일로 흐름 일원화
+        #   - RSI 그대로
+        #   - CCI/MACD 는 RSI 진폭(0~100)을 기준으로 정규화하여
+        #     ‘방향성 굴곡’만 또렷하게 보이도록 오버레이
+        # ================================
+        try:
+            if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
+                rsi_vals  = df_plot["RSI13"].astype(float)
+                cci_vals  = df_plot["CCI"].astype(float)
+                macd_vals = df_plot["MACD"].astype(float)
+
+                # RSI는 원 스케일(0~100)
+                rsi_scaled = rsi_vals.clip(0, 100)
+
+                # CCI / MACD → RSI 진폭을 기준으로 상대 정규화
+                # (각 지표의 최대절대값으로 나누어 방향성·굴곡만 살리고,
+                #  RSI 진폭과 같은 범위(0~100)로 맞춤)
+                cci_den  = float(np.nanmax(np.abs(cci_vals)))  or 1.0
+                macd_den = float(np.nanmax(np.abs(macd_vals))) or 1.0
+                cci_scaled  = (cci_vals  / cci_den)  * 50 + 50   # -1~1 → 0~100
+                macd_scaled = (macd_vals / macd_den) * 50 + 50   # -1~1 → 0~100
+
+                # 부드럽게(너무 톱니처럼 보이면) 약간의 EMA 스무딩
+                cci_scaled  = pd.Series(cci_scaled).ewm(span=5,  adjust=False).mean()
+                macd_scaled = pd.Series(macd_scaled).ewm(span=7,  adjust=False).mean()
+                rsi_bg      = pd.Series(rsi_scaled).ewm(span=3,  adjust=False).mean()
+
+                # 반투명 배경(흐름 강조)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=rsi_bg, mode="lines",
+                    line=dict(color="rgba(42,157,143,0.25)", width=6),
+                    name="", showlegend=False
+                ), row=1, col=1, secondary_y=True)
+
+                # RSI(13)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=rsi_scaled, mode="lines",
+                    line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+                    name="RSI(13)"
+                ), row=1, col=1, secondary_y=True)
+
+                # CCI (RSI-scale)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=cci_scaled, mode="lines",
+                    line=dict(color="#2196F3", width=2.0, dash="dot"),
+                    name="CCI(20, RSI-scale)"
+                ), row=1, col=1, secondary_y=True)
+
+                # MACD (RSI-scale)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=macd_scaled, mode="lines",
+                    line=dict(color="#E74C3C", width=2.0, dash="dot"),
+                    name="MACD(RSI-scale)"
+                ), row=1, col=1, secondary_y=True)
+
+                # secondary y 축은 0~100로 고정 (RSI 스케일)
+                fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
+        except Exception as e:
+            print("⚠️ RSI-기준 흐름 오버레이 오류:", e)
+
+        # ================================
+        # 🆕 EMA200 짤림 방지: y축 패딩 고정
+        #   (캔들/EMA 전체 범위를 기반으로 10% 패딩)
+        # ================================
+        try:
+            ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200"] if c in df_plot.columns]
+            y_min = float(min(df_plot["low"].min(),  *(df_plot[c].min() for c in ema_cols)))
+            y_max = float(max(df_plot["high"].max(), *(df_plot[c].max() for c in ema_cols)))
+            pad   = (y_max - y_min) * 0.10
+            fig.update_yaxes(range=[y_min - pad, y_max + pad], row=1, col=1)
+        except Exception as e:
+            print("⚠️ EMA y-범위 보정 오류:", e)
 
         # ===============================
         # ✅ 시각 강화: MA5/MA20 강조 음영 및 BB 영역 반투명 채움
