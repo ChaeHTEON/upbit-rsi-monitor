@@ -2555,7 +2555,7 @@ def main():
             print("⚠️ MA/EMA/VWMA 표시 오류:", e)
 
         # ================================
-        # 🆕 거래량 가중 이동평균선 VWMA(100)
+        # 🆕 거래량 가중 이동평균선 VWMA(100) — 중복 제거 및 교차 표시 포함
         # ================================
         try:
             if all(col in df_plot.columns for col in ["close", "volume"]):
@@ -2567,28 +2567,7 @@ def main():
                 )
                 df_plot[f"VWMA{period}"] = vwma100
 
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=vwma100,
-                    mode="lines",
-                    name=f"VWMA({period})",
-                    line=dict(color="orange", width=2.4, dash="solid"),
-                ), row=1, col=1)
-        except Exception as e:
-            print("⚠️ VWMA(100) 추가 오류:", e)
-
-        # ================================
-        # 🆕 거래량 가중 이동평균선 VWMA(100)
-        # ================================
-        try:
-            if all(col in df_plot.columns for col in ["close", "volume"]):
-                period = 100
-                price_vol = df_plot["close"] * df_plot["volume"]
-                vwma100 = (
-                    price_vol.rolling(window=period, min_periods=1).sum()
-                    / df_plot["volume"].rolling(window=period, min_periods=1).sum()
-                )
-                df_plot[f"VWMA{period}"] = vwma100
-
+                # VWMA(100) 기본선
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=vwma100,
                     mode="lines",
@@ -2596,9 +2575,7 @@ def main():
                     line=dict(color="orange", width=2.4, dash="solid"),
                 ), row=1, col=1)
 
-                # ================================
-                # 🆕 VWMA(100) ↔ EMA200 교차 신호 (골든/데드)
-                # ================================
+                # VWMA ↔ EMA200 교차 신호
                 try:
                     if "EMA200" in df_plot.columns:
                         ema200_vals = df_plot["EMA200"].astype(float)
@@ -2630,6 +2607,53 @@ def main():
                     print("⚠️ VWMA-EMA200 교차 표시 오류:", e)
         except Exception as e:
             print("⚠️ VWMA(100) 추가 오류:", e)
+
+        # ================================
+        # 🆕 RSI 스케일 기반 CCI/MACD 통합 시각화 (중복 제거 + RSI 기준 보정)
+        # ================================
+        try:
+            if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
+                rsi_vals  = df_plot["RSI13"].astype(float)
+                cci_vals  = df_plot["CCI"].astype(float)
+                macd_vals = df_plot["MACD"].astype(float)
+
+                # RSI 스케일 (0~100)
+                rsi_scaled = rsi_vals.clip(0, 100)
+
+                # RSI 기준 스케일에 맞춰 비율 보정
+                cci_ratio = (cci_vals - cci_vals.min()) / (cci_vals.max() - cci_vals.min())
+                macd_ratio = (macd_vals - macd_vals.min()) / (macd_vals.max() - macd_vals.min())
+
+                cci_scaled = 30 + (cci_ratio * 40)   # RSI 30~70 범위에 맞춤
+                macd_scaled = 30 + (macd_ratio * 40)
+
+                # RSI(13)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=rsi_scaled,
+                    mode="lines",
+                    line=dict(color="#2A9D8F", width=2.0, dash="dot"),
+                    name="RSI(13)"
+                ), row=1, col=1, secondary_y=True)
+
+                # CCI (RSI기준 보정)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=cci_scaled,
+                    mode="lines",
+                    line=dict(color="#2196F3", width=1.8, dash="dot"),
+                    name="CCI(20, RSI-Scale)"
+                ), row=1, col=1, secondary_y=True)
+
+                # MACD (RSI기준 비율 보정)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=macd_scaled,
+                    mode="lines",
+                    line=dict(color="#E74C3C", width=1.8, dash="dot"),
+                    name="MACD(RSI-Scale)"
+                ), row=1, col=1, secondary_y=True)
+
+                fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
+        except Exception as e:
+            print("⚠️ RSI 기준 시각화 오류:", e)
 
         # ================================
         # 🆕 메인차트(secondary_y) — RSI 기준 스케일로 흐름 일원화
