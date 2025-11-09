@@ -2644,17 +2644,39 @@ def main():
             print("⚠️ RSI-기준 흐름 오버레이 오류:", e)
 
         # ================================
-        # 🆕 EMA200 짤림 방지: y축 패딩 고정
-        #   (캔들/EMA 전체 범위를 기반으로 10% 패딩)
+        # 🆕 EMA200 짤림 완전 방지 — 모든 MA·BB·VWMA 포함
         # ================================
         try:
-            ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200"] if c in df_plot.columns]
-            y_min = float(min(df_plot["low"].min(),  *(df_plot[c].min() for c in ema_cols)))
-            y_max = float(max(df_plot["high"].max(), *(df_plot[c].max() for c in ema_cols)))
-            pad   = (y_max - y_min) * 0.10
-            fig.update_yaxes(range=[y_min - pad, y_max + pad], row=1, col=1)
+            ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200","VWMA100"] if c in df_plot.columns]
+            bb_cols  = [c for c in ["BB_up","BB_low","BB_mid"] if c in df_plot.columns]
+
+            # 전체 포함 최소/최대 계산
+            y_min = float(
+                min(
+                    df_plot["low"].min(),
+                    *(df_plot[c].min() for c in ema_cols),
+                    *(df_plot[c].min() for c in bb_cols)
+                )
+            )
+            y_max = float(
+                max(
+                    df_plot["high"].max(),
+                    *(df_plot[c].max() for c in ema_cols),
+                    *(df_plot[c].max() for c in bb_cols)
+                )
+            )
+
+            # 패딩 10%
+            pad = (y_max - y_min) * 0.10
+            fig.update_yaxes(
+                range=[y_min - pad, y_max + pad],
+                autorange=False,
+                fixedrange=False,
+                automargin=True,
+                row=1, col=1
+            )
         except Exception as e:
-            print("⚠️ EMA y-범위 보정 오류:", e)
+            print("⚠️ EMA200 y축 패딩 오류:", e)
 
         # ===============================
         # ✅ 시각 강화: MA5/MA20 강조 음영 및 BB 영역 반투명 채움
