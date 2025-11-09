@@ -2631,16 +2631,51 @@ def main():
             pass
     
         # ===== RSI 라인 (row1, y2) =====
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
-            line=dict(color="rgba(42,157,143,0.30)", width=6),
-            name="", showlegend=False
-        ), row=1, col=1, secondary_y=True)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
-            line=dict(color="#2A9D8F", width=2.4, dash="dot"),
-            name="RSI(13)"
-        ), row=1, col=1, secondary_y=True)
+        # ===== RSI(13) 굴곡 강화 (스케일 보정으로 가시성 향상) =====
+        try:
+            if "RSI13" in df_plot.columns:
+                rsi_vals = df_plot["RSI13"].astype(float)
+                if not rsi_vals.empty:
+                    # ✅ CCI처럼 굴곡이 명확히 보이도록 0~1 정규화 + 실선 유지
+                    rsi_min, rsi_max = rsi_vals.min(), rsi_vals.max()
+                    rsi_scaled = (rsi_vals - rsi_min) / (rsi_max - rsi_min) * 100  # 스케일 확대
+
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"],
+                        y=rsi_scaled,
+                        mode="lines",
+                        line=dict(color="rgba(42,157,143,0.30)", width=6),
+                        name="", showlegend=False
+                    ), row=1, col=1, secondary_y=True)
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"],
+                        y=rsi_scaled,
+                        mode="lines",
+                        line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+                        name="RSI(13)"
+                    ), row=1, col=1, secondary_y=True)
+        except Exception as e:
+            print("⚠️ RSI(13) 굴곡 보정 오류:", e)
+
+        # ===== EMA200 짤림 완전 방지 (패딩 10% + 강제 range 적용) =====
+        try:
+            if "EMA200" in df_plot.columns:
+                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                pad = (y_max - y_min) * 0.10
+                y_min_adj = y_min - pad
+                y_max_adj = y_max + pad
+
+                fig.update_yaxes(
+                    range=[y_min_adj, y_max_adj],
+                    autorange=False,
+                    fixedrange=False,
+                    automargin=True,
+                    row=1, col=1
+                )
+                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
+        except Exception as e:
+            print("⚠️ EMA200 짤림 보정 오류:", e)
 
         # ===== CCI & MACD 라인 (메인차트 보조 시각화) =====
         try:
