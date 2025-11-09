@@ -2477,33 +2477,81 @@ def main():
         except Exception:
             pass
 
-        # ✅ EMA50/100/200 색상·선형·두께 통일 (파랑계열) + EMA200 connectgaps로 끊김 방지
+        # ================================
+        # 🆕 MA/VWMA/BB 표시 통합 + EMA200 짤림 완전 방지
+        # ================================
         try:
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA50"], mode="lines",
-                line=dict(color="#1F618D", width=2.0, dash="solid"),
-                name="EMA50", connectgaps=True
-            ), row=1, col=1)
-        except Exception:
-            pass
+            # 기본 표시 조건 (전략 미선택 시 최소 표시)
+            show_ma = True
+            show_vwma = True
+            show_bb = True
+            show_ema200 = True
 
-        try:
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
-                line=dict(color="#154360", width=2.0, dash="solid"),
-                name="EMA100", connectgaps=True
-            ), row=1, col=1)
-        except Exception:
-            pass
+            # MA/VWMA/Bollinger 기본 표시
+            if show_ma:
+                for ma_col, color, width, dash in [
+                    ("EMA5",  "#C0392B", 1.2, "solid"),
+                    ("EMA20", "#2980B9", 1.4, "solid"),
+                    ("EMA50", "#34495E", 1.6, "solid"),
+                    ("EMA100","#2C3E50", 1.8, "dot"),
+                ]:
+                    if ma_col in df_plot.columns:
+                        fig.add_trace(go.Scatter(
+                            x=df_plot["time"], y=df_plot[ma_col],
+                            mode="lines",
+                            line=dict(color=color, width=width, dash=dash),
+                            name=ma_col
+                        ), row=1, col=1)
 
-        try:
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
-                line=dict(color="#0B1A3A", width=2.0, dash="solid"),
-                name="EMA200"
-            ), row=1, col=1)
-        except Exception:
-            pass
+            if show_vwma and "VWMA100" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["VWMA100"], mode="lines",
+                    line=dict(color="#F39C12", width=2.0, dash="solid"),
+                    name="VWMA(100)"
+                ), row=1, col=1)
+
+            if show_bb:
+                for bb_col, color, dash in [
+                    ("BB_up",  "#FFB703", "solid"),
+                    ("BB_mid", "#8D99AE", "dot"),
+                    ("BB_low", "#219EBC", "solid"),
+                ]:
+                    if bb_col in df_plot.columns:
+                        fig.add_trace(go.Scatter(
+                            x=df_plot["time"], y=df_plot[bb_col],
+                            mode="lines",
+                            line=dict(color=color, width=1.3, dash=dash),
+                            name=f"{bb_col.upper().replace('_',' ')}"
+                        ), row=1, col=1)
+
+            # EMA200선: NaN 포함 보간 → 짤림 완전 방지
+            if show_ema200 and "EMA200" in df_plot.columns:
+                df_plot["EMA200_filled"] = df_plot["EMA200"].interpolate(limit_direction="both")
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["EMA200_filled"],
+                    mode="lines",
+                    line=dict(color="black", width=2.2, dash="solid"),
+                    name="EMA(200)"
+                ), row=1, col=1)
+
+            # EMA200 짤림 방지용 y축 패딩 재계산
+            ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200_filled","VWMA100"] if c in df_plot.columns]
+            bb_cols  = [c for c in ["BB_up","BB_low","BB_mid"] if c in df_plot.columns]
+
+            y_min = float(min(df_plot["low"].min(), *(df_plot[c].min() for c in ema_cols), *(df_plot[c].min() for c in bb_cols)))
+            y_max = float(max(df_plot["high"].max(), *(df_plot[c].max() for c in ema_cols), *(df_plot[c].max() for c in bb_cols)))
+            pad = (y_max - y_min) * 0.10
+
+            fig.update_yaxes(
+                range=[y_min - pad, y_max + pad],
+                autorange=False,
+                fixedrange=False,
+                automargin=True,
+                row=1, col=1
+            )
+
+        except Exception as e:
+            print("⚠️ MA/EMA/VWMA 표시 오류:", e)
 
         # ================================
         # 🆕 거래량 가중 이동평균선 VWMA(100)
