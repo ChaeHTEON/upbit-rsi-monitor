@@ -2433,38 +2433,56 @@ def main():
             pnl_num = (y_series.astype(float) / buy_price - 1) * 100
             pnl_str = pnl_num.apply(lambda v: f"{'+' if v>=0 else ''}{v:.2f}%")
             return np.c_[pnl_num.values, pnl_str.values]
-    
+
         bb_up_cd  = _pnl_arr2(df_plot["BB_up"])
         bb_low_cd = _pnl_arr2(df_plot["BB_low"])
         bb_mid_cd = _pnl_arr2(df_plot["BB_mid"])
-    
+
         def _ht_line(name):
             if buy_price <= 0:
                 return name + ": %{y:.2f}<extra></extra>"
             return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
-    
+
+        # ✅ 볼린저밴드 가독성 통일 (회색계열 + 점선/실선 통일)
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["BB_up"], mode="lines",
-            line=dict(color="#FFB703", width=1.4), name="BB 상단",
+            line=dict(color="#B0B0B0", width=1.6, dash="dot"), name="BB 상단",
             customdata=bb_up_cd, hovertemplate=_ht_line("BB 상단")
         ), row=1, col=1)
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["BB_low"], mode="lines",
-            line=dict(color="#219EBC", width=1.4), name="BB 하단",
+            line=dict(color="#B0B0B0", width=1.6, dash="dot"), name="BB 하단",
             customdata=bb_low_cd, hovertemplate=_ht_line("BB 하단")
         ), row=1, col=1)
         fig.add_trace(go.Scatter(
             x=df_plot["time"], y=df_plot["BB_mid"], mode="lines",
-            line=dict(color="#8D99AE", width=1.4, dash="dot"), name="BB 중앙",
+            line=dict(color="#808080", width=1.6), name="BB 중앙",
             customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
         ), row=1, col=1)
 
-        # ----- EMA(50) / EMA(100) / EMA(200) 라인 (row1) -----
+        # ✅ MA5/MA20 추가 (EMA 컬럼 존재 시만 표시)
+        try:
+            if "EMA5" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["EMA5"], mode="lines",
+                    line=dict(color="#5DADE2", width=2.0, dash="solid"),
+                    name="MA5"
+                ), row=1, col=1)
+            if "EMA20" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["EMA20"], mode="lines",
+                    line=dict(color="#2874A6", width=2.0, dash="solid"),
+                    name="MA20"
+                ), row=1, col=1)
+        except Exception:
+            pass
+
+        # ✅ EMA50/100/200 색상·선형·두께 통일 (파랑계열)
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA50"], mode="lines",
-                line=dict(color="black", width=1.4, dash="solid"),  # 보통 실선
-                name="EMA(50)"
+                line=dict(color="#1F618D", width=2.0, dash="solid"),
+                name="EMA50"
             ), row=1, col=1)
         except Exception:
             pass
@@ -2472,8 +2490,8 @@ def main():
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
-                line=dict(color="black", width=1.8, dash="dot"),  # 굵은 점선
-                name="EMA(100)"
+                line=dict(color="#154360", width=2.0, dash="solid"),
+                name="EMA100"
             ), row=1, col=1)
         except Exception:
             pass
@@ -2481,9 +2499,41 @@ def main():
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
-                line=dict(color="black", width=2.2, dash="solid"),  # 굵은 실선
-                name="EMA(200)"
+                line=dict(color="#0B1A3A", width=2.0, dash="solid"),
+                name="EMA200"
             ), row=1, col=1)
+        except Exception:
+            pass
+
+        # ===============================
+        # ✅ 시각 강화: MA5/MA20 강조 음영 및 BB 영역 반투명 채움
+        # ===============================
+        try:
+            # MA5~20 사이 음영 (단기 구간 강조)
+            if all(k in df_plot.columns for k in ["EMA5", "EMA20"]):
+                fig.add_trace(go.Scatter(
+                    x=pd.concat([df_plot["time"], df_plot["time"][::-1]]),
+                    y=pd.concat([df_plot["EMA5"], df_plot["EMA20"][::-1]]),
+                    fill="toself",
+                    fillcolor="rgba(52, 152, 219, 0.12)",  # 파랑계열 투명 음영
+                    line=dict(color="rgba(0,0,0,0)"),
+                    hoverinfo="skip",
+                    name="MA5~MA20 구간",
+                    showlegend=False
+                ), row=1, col=1)
+
+            # BB 상하단 사이 영역 (가격 변동 범위 강조)
+            if all(k in df_plot.columns for k in ["BB_up", "BB_low"]):
+                fig.add_trace(go.Scatter(
+                    x=pd.concat([df_plot["time"], df_plot["time"][::-1]]),
+                    y=pd.concat([df_plot["BB_up"], df_plot["BB_low"][::-1]]),
+                    fill="toself",
+                    fillcolor="rgba(160,160,160,0.08)",  # 회색 투명 영역
+                    line=dict(color="rgba(0,0,0,0)"),
+                    hoverinfo="skip",
+                    name="BB 영역",
+                    showlegend=False
+                ), row=1, col=1)
         except Exception:
             pass
 
