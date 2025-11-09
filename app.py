@@ -1586,7 +1586,7 @@ def main():
                 if on_progress: on_progress((i+1)/total)
                 continue
     
-            df_chunk = add_indicators(df_chunk, bb_window, bb_dev, cci_window, cci_signal)
+            df_chunk = add_indicators(df_chunk, bb_window, bb_dev, cci_window, cci_signal_n)
     
             res_chunk = simulate(
                 df_chunk,
@@ -1611,7 +1611,7 @@ def main():
                 cci_mode=simulate_kwargs.get("cci_mode", "없음"),
                 cci_over=simulate_kwargs.get("cci_over", 100.0),
                 cci_under=simulate_kwargs.get("cci_under", -100.0),
-                cci_signal_n=simulate_kwargs.get("cci_signal", 9),
+                cci_signal_n=simulate_kwargs.get("cci_signal_n", 9),
             )
     
             part_path = os.path.join(
