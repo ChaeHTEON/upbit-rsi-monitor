@@ -2497,6 +2497,7 @@ def main():
             pass
 
         try:
+        try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
                 line=dict(color="#0B1A3A", width=2.0, dash="solid"),
@@ -2524,6 +2525,61 @@ def main():
                     name=f"VWMA({period})",
                     line=dict(color="orange", width=2.4, dash="solid"),
                 ), row=1, col=1)
+        except Exception as e:
+            print("⚠️ VWMA(100) 추가 오류:", e)
+
+        # ================================
+        # 🆕 거래량 가중 이동평균선 VWMA(100)
+        # ================================
+        try:
+            if all(col in df_plot.columns for col in ["close", "volume"]):
+                period = 100
+                price_vol = df_plot["close"] * df_plot["volume"]
+                vwma100 = (
+                    price_vol.rolling(window=period, min_periods=1).sum()
+                    / df_plot["volume"].rolling(window=period, min_periods=1).sum()
+                )
+                df_plot[f"VWMA{period}"] = vwma100
+
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=vwma100,
+                    mode="lines",
+                    name=f"VWMA({period})",
+                    line=dict(color="orange", width=2.4, dash="solid"),
+                ), row=1, col=1)
+
+                # ================================
+                # 🆕 VWMA(100) ↔ EMA200 교차 신호 (골든/데드)
+                # ================================
+                try:
+                    if "EMA200" in df_plot.columns:
+                        ema200_vals = df_plot["EMA200"].astype(float)
+                        vwma_vals   = vwma100.astype(float)
+                        close_vals  = df_plot["close"].astype(float)
+                        cross_up_idx  = (vwma_vals.shift(1) < ema200_vals.shift(1)) & (vwma_vals > ema200_vals)
+                        cross_dn_idx  = (vwma_vals.shift(1) > ema200_vals.shift(1)) & (vwma_vals < ema200_vals)
+
+                        # 골든크로스
+                        if cross_up_idx.any():
+                            fig.add_trace(go.Scatter(
+                                x=df_plot.loc[cross_up_idx, "time"],
+                                y=close_vals.loc[cross_up_idx],
+                                mode="markers",
+                                marker=dict(symbol="star", size=12, color="gold", line=dict(width=1.2, color="black")),
+                                name="VWMA↑EMA200 (골든)"
+                            ), row=1, col=1)
+
+                        # 데드크로스
+                        if cross_dn_idx.any():
+                            fig.add_trace(go.Scatter(
+                                x=df_plot.loc[cross_dn_idx, "time"],
+                                y=close_vals.loc[cross_dn_idx],
+                                mode="markers",
+                                marker=dict(symbol="star", size=12, color="royalblue", line=dict(width=1.2, color="black")),
+                                name="VWMA↓EMA200 (데드)"
+                            ), row=1, col=1)
+                except Exception as e:
+                    print("⚠️ VWMA-EMA200 교차 표시 오류:", e)
         except Exception as e:
             print("⚠️ VWMA(100) 추가 오류:", e)
 
