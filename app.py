@@ -2497,7 +2497,6 @@ def main():
             pass
 
         try:
-        try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
                 line=dict(color="#0B1A3A", width=2.0, dash="solid"),
