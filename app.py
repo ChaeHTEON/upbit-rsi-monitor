@@ -2509,18 +2509,40 @@ def main():
         # ✅ 시각 강화: MA5/MA20 강조 음영 및 BB 영역 반투명 채움
         # ===============================
         try:
-            # MA5~20 사이 음영 (단기 구간 강조)
+            # MA5~20 사이 음영 (단기 구간 강조) — 양/음 구간별 색상 구분
             if all(k in df_plot.columns for k in ["EMA5", "EMA20"]):
-                fig.add_trace(go.Scatter(
-                    x=pd.concat([df_plot["time"], df_plot["time"][::-1]]),
-                    y=pd.concat([df_plot["EMA5"], df_plot["EMA20"][::-1]]),
-                    fill="toself",
-                    fillcolor="rgba(52, 152, 219, 0.12)",  # 파랑계열 투명 음영
-                    line=dict(color="rgba(0,0,0,0)"),
-                    hoverinfo="skip",
-                    name="MA5~MA20 구간",
-                    showlegend=False
-                ), row=1, col=1)
+                try:
+                    # 조건 분리: 상승(EMA5>EMA20) / 하락(EMA5<EMA20)
+                    mask_up = df_plot["EMA5"] > df_plot["EMA20"]
+                    mask_dn = df_plot["EMA5"] <= df_plot["EMA20"]
+
+                    # 상승 구간 (붉은 음영)
+                    if mask_up.any():
+                        fig.add_trace(go.Scatter(
+                            x=pd.concat([df_plot.loc[mask_up, "time"], df_plot.loc[mask_up, "time"][::-1]]),
+                            y=pd.concat([df_plot.loc[mask_up, "EMA5"], df_plot.loc[mask_up, "EMA20"][::-1]]),
+                            fill="toself",
+                            fillcolor="rgba(231, 76, 60, 0.14)",  # 붉은 투명 음영
+                            line=dict(color="rgba(0,0,0,0)"),
+                            hoverinfo="skip",
+                            name="MA5>MA20",
+                            showlegend=False
+                        ), row=1, col=1)
+
+                    # 하락 구간 (기존 파랑 음영)
+                    if mask_dn.any():
+                        fig.add_trace(go.Scatter(
+                            x=pd.concat([df_plot.loc[mask_dn, "time"], df_plot.loc[mask_dn, "time"][::-1]]),
+                            y=pd.concat([df_plot.loc[mask_dn, "EMA5"], df_plot.loc[mask_dn, "EMA20"][::-1]]),
+                            fill="toself",
+                            fillcolor="rgba(52, 152, 219, 0.12)",  # 기존 파랑 투명 음영
+                            line=dict(color="rgba(0,0,0,0)"),
+                            hoverinfo="skip",
+                            name="MA5<MA20",
+                            showlegend=False
+                        ), row=1, col=1)
+                except Exception as e:
+                    print("⚠️ MA5/20 음영 표시 오류:", e)
 
             # BB 상하단 사이 영역 (가격 변동 범위 강조)
             if all(k in df_plot.columns for k in ["BB_up", "BB_low"]):
@@ -2619,6 +2641,44 @@ def main():
             line=dict(color="#2A9D8F", width=2.4, dash="dot"),
             name="RSI(13)"
         ), row=1, col=1, secondary_y=True)
+
+        # ===== CCI & MACD 라인 (메인차트 보조 시각화) =====
+        try:
+            # ✅ CCI(20) 반투명 표시 — RSI와 동일한 스타일 계열
+            if "CCI" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"],
+                    y=df_plot["CCI"],
+                    mode="lines",
+                    line=dict(color="rgba(33,150,243,0.25)", width=6),  # 연파랑 음영
+                    name="", showlegend=False
+                ), row=1, col=1, secondary_y=True)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"],
+                    y=df_plot["CCI"],
+                    mode="lines",
+                    line=dict(color="#2196F3", width=2.2, dash="dot"),
+                    name="CCI(20)"
+                ), row=1, col=1, secondary_y=True)
+
+            # ✅ MACD 반투명 표시 — 붉은 계열로 구분
+            if "MACD" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"],
+                    y=df_plot["MACD"],
+                    mode="lines",
+                    line=dict(color="rgba(231,76,60,0.25)", width=6),  # 연붉은 배경
+                    name="", showlegend=False
+                ), row=1, col=1, secondary_y=True)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"],
+                    y=df_plot["MACD"],
+                    mode="lines",
+                    line=dict(color="#E74C3C", width=2.2, dash="dot"),
+                    name="MACD"
+                ), row=1, col=1, secondary_y=True)
+        except Exception as e:
+            print("⚠️ CCI/MACD 보조 표시 오류:", e)
     
 # ===== CCI 하단 차트 (row2) =====
         fig.add_trace(go.Scatter(
@@ -2727,8 +2787,28 @@ def main():
                 fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
     
                 # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
-                fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
-                fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
+                fig.update_yaxes(
+                    autorange=True,
+                    fixedrange=False,
+                    automargin=True,
+                    row=1, col=1
+                )  # ✅ EMA200 포함 여유 확보 (가격 축)
+                fig.update_yaxes(
+                    autorange=True,
+                    fixedrange=False,
+                    automargin=True,
+                    row=2, col=1
+                )  # CCI 축 (RSI y2=0~100 유지)
+
+                # ✅ EMA200 짤림 방지용 여유 버퍼 확대
+                try:
+                    if "EMA200" in df_plot.columns:
+                        y_min = float(df_plot["low"].min())
+                        y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                        pad = (y_max - y_min) * 0.05  # 5% 여유
+                        fig.update_yaxes(range=[y_min - pad, y_max + pad], row=1, col=1)
+                except Exception as e:
+                    print("⚠️ EMA200 스케일 보정 오류:", e)
             except Exception:
                 pass
     
