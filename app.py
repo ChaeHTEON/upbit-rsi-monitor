@@ -2661,22 +2661,50 @@ def main():
                     name="CCI(20)"
                 ), row=1, col=1, secondary_y=True)
 
-            # ✅ MACD 반투명 표시 — 붉은 계열로 구분
-            if "MACD" in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"],
-                    y=df_plot["MACD"],
-                    mode="lines",
-                    line=dict(color="rgba(231,76,60,0.25)", width=6),  # 연붉은 배경
-                    name="", showlegend=False
-                ), row=1, col=1, secondary_y=True)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"],
-                    y=df_plot["MACD"],
-                    mode="lines",
-                    line=dict(color="#E74C3C", width=2.2, dash="dot"),
-                    name="MACD"
-                ), row=1, col=1, secondary_y=True)
+            # ✅ MACD·RSI 굴곡 강화 (값 정규화로 메인차트 가시성 향상)
+            try:
+                def _normalize(series):
+                    s = series.dropna()
+                    if s.empty:
+                        return series
+                    mn, mx = float(s.min()), float(s.max())
+                    if mx - mn == 0:
+                        return series * 0
+                    return (series - mn) / (mx - mn)  # 0~1 범위로 스케일링
+
+                # RSI(13) 정규화 및 추가 표시
+                if "RSI13" in df_plot.columns:
+                    rsi_norm = _normalize(df_plot["RSI13"])
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=rsi_norm,
+                        mode="lines",
+                        line=dict(color="rgba(46,204,113,0.25)", width=6),
+                        name="", showlegend=False
+                    ), row=1, col=1, secondary_y=True)
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=rsi_norm,
+                        mode="lines",
+                        line=dict(color="#27AE60", width=2.0, dash="dot"),
+                        name="RSI(13, norm)"
+                    ), row=1, col=1, secondary_y=True)
+
+                # MACD 정규화 및 추가 표시
+                if "MACD" in df_plot.columns:
+                    macd_norm = _normalize(df_plot["MACD"])
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=macd_norm,
+                        mode="lines",
+                        line=dict(color="rgba(231,76,60,0.25)", width=6),
+                        name="", showlegend=False
+                    ), row=1, col=1, secondary_y=True)
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=macd_norm,
+                        mode="lines",
+                        line=dict(color="#E74C3C", width=2.2, dash="dot"),
+                        name="MACD(norm)"
+                    ), row=1, col=1, secondary_y=True)
+            except Exception as e:
+                print("⚠️ RSI/MACD 정규화 표시 오류:", e)
         except Exception as e:
             print("⚠️ CCI/MACD 보조 표시 오류:", e)
     
@@ -2800,13 +2828,24 @@ def main():
                     row=2, col=1
                 )  # CCI 축 (RSI y2=0~100 유지)
 
-                # ✅ EMA200 짤림 방지용 여유 버퍼 확대
+                # ✅ EMA200 짤림 방지용 여유 버퍼 확대 및 적용 순서 보정
                 try:
                     if "EMA200" in df_plot.columns:
-                        y_min = float(df_plot["low"].min())
+                        y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
                         y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                        pad = (y_max - y_min) * 0.05  # 5% 여유
-                        fig.update_yaxes(range=[y_min - pad, y_max + pad], row=1, col=1)
+                        pad = (y_max - y_min) * 0.10  # 🔹 패딩 10%로 확대
+                        y_min_adj = y_min - pad
+                        y_max_adj = y_max + pad
+
+                        # Plotly autoscale보다 먼저 강제 범위 지정
+                        fig.update_yaxes(
+                            range=[y_min_adj, y_max_adj],
+                            autorange=False,
+                            fixedrange=False,
+                            automargin=True,
+                            row=1, col=1
+                        )
+                        print(f"✅ EMA200 y-range 보정 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
                 except Exception as e:
                     print("⚠️ EMA200 스케일 보정 오류:", e)
             except Exception:
