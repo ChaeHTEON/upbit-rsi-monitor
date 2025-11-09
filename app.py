@@ -2499,11 +2499,33 @@ def main():
         try:
             fig.add_trace(go.Scatter(
                 x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
-                line=dict(color="#0B1A3A", width=2.2, dash="solid"),
-                name="EMA200", connectgaps=True
+                line=dict(color="#0B1A3A", width=2.0, dash="solid"),
+                name="EMA200"
             ), row=1, col=1)
         except Exception:
             pass
+
+        # ================================
+        # 🆕 거래량 가중 이동평균선 VWMA(100)
+        # ================================
+        try:
+            if all(col in df_plot.columns for col in ["close", "volume"]):
+                period = 100
+                price_vol = df_plot["close"] * df_plot["volume"]
+                vwma100 = (
+                    price_vol.rolling(window=period, min_periods=1).sum()
+                    / df_plot["volume"].rolling(window=period, min_periods=1).sum()
+                )
+                df_plot[f"VWMA{period}"] = vwma100
+
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=vwma100,
+                    mode="lines",
+                    name=f"VWMA({period})",
+                    line=dict(color="orange", width=2.4, dash="solid"),
+                ), row=1, col=1)
+        except Exception as e:
+            print("⚠️ VWMA(100) 추가 오류:", e)
 
         # ================================
         # 🆕 메인차트(secondary_y) — RSI 기준 스케일로 흐름 일원화
