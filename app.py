@@ -2489,18 +2489,19 @@ def main():
             show_ema200 = True
 
             # MA/VWMA/Bollinger 기본 표시
+            # EMA 라인만 유지, EMA100 실선 통일
             if show_ma:
-                for ma_col, color, width, dash in [
-                    ("EMA5",  "#C0392B", 1.2, "solid"),
-                    ("EMA20", "#2980B9", 1.4, "solid"),
-                    ("EMA50", "#34495E", 1.6, "solid"),
-                    ("EMA100","#2C3E50", 1.8, "dot"),
+                for ma_col, color, width in [
+                    ("EMA5",  "#5DADE2", 1.8),
+                    ("EMA20", "#2874A6", 2.0),
+                    ("EMA50", "#34495E", 2.0),
+                    ("EMA100","#1B2631", 2.0),
                 ]:
                     if ma_col in df_plot.columns:
                         fig.add_trace(go.Scatter(
                             x=df_plot["time"], y=df_plot[ma_col],
                             mode="lines",
-                            line=dict(color=color, width=width, dash=dash),
+                            line=dict(color=color, width=width, dash="solid"),
                             name=ma_col
                         ), row=1, col=1)
 
@@ -2950,107 +2951,55 @@ def main():
         except Exception as e:
             print("⚠️ EMA200 짤림 보정 오류:", e)
 
-        # ===== CCI & MACD 라인 (메인차트 보조 시각화) =====
+        # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
         try:
-            # ✅ CCI(20) 반투명 표시 — RSI와 동일한 스타일 계열
-            if "CCI" in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"],
-                    y=df_plot["CCI"],
-                    mode="lines",
-                    line=dict(color="rgba(33,150,243,0.25)", width=6),  # 연파랑 음영
-                    name="", showlegend=False
-                ), row=1, col=1, secondary_y=True)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"],
-                    y=df_plot["CCI"],
-                    mode="lines",
-                    line=dict(color="#2196F3", width=2.2, dash="dot"),
-                    name="CCI(20)"
-                ), row=1, col=1, secondary_y=True)
+            if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
 
-            # ✅ MACD·RSI 굴곡 강화 (값 정규화로 메인차트 가시성 향상)
-            try:
                 def _normalize(series):
                     s = series.dropna()
                     if s.empty:
-                        return series
-                    mn, mx = float(s.min()), float(s.max())
+                        return pd.Series([50] * len(series))
+                    mn, mx = s.min(), s.max()
                     if mx - mn == 0:
-                        return series * 0
-                    return (series - mn) / (mx - mn)  # 0~1 범위로 스케일링
+                        return pd.Series([50] * len(series))
+                    return ((series - mn) / (mx - mn) * 100).clip(0, 100)
 
-                # RSI(13) 정규화 및 추가 표시
-                if "RSI13" in df_plot.columns:
-                    rsi_norm = _normalize(df_plot["RSI13"])
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=rsi_norm,
-                        mode="lines",
-                        line=dict(color="rgba(46,204,113,0.25)", width=6),
-                        name="", showlegend=False
-                    ), row=1, col=1, secondary_y=True)
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=rsi_norm,
-                        mode="lines",
-                        line=dict(color="#27AE60", width=2.0, dash="dot"),
-                        name="RSI(13, norm)"
-                    ), row=1, col=1, secondary_y=True)
+                # RSI는 원 스케일 유지
+                rsi_scaled = df_plot["RSI13"].clip(0, 100)
+                cci_scaled = _normalize(df_plot["CCI"])
+                macd_scaled = _normalize(df_plot["MACD"])
 
-                # MACD 정규화 및 추가 표시
-                if "MACD" in df_plot.columns:
-                    macd_norm = _normalize(df_plot["MACD"])
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=macd_norm,
-                        mode="lines",
-                        line=dict(color="rgba(231,76,60,0.25)", width=6),
-                        name="", showlegend=False
-                    ), row=1, col=1, secondary_y=True)
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=macd_norm,
-                        mode="lines",
-                        line=dict(color="#E74C3C", width=2.2, dash="dot"),
-                        name="MACD(norm)"
-                    ), row=1, col=1, secondary_y=True)
-            except Exception as e:
-                print("⚠️ RSI/MACD 정규화 표시 오류:", e)
-        except Exception as e:
-            print("⚠️ CCI/MACD 보조 표시 오류:", e)
-    
-# ===== CCI 하단 차트 (row2) =====
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["CCI"], mode="lines",
-            line=dict(width=1.6),
-            name="CCI"
-        ), row=2, col=1)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["CCI_sig"], mode="lines",
-            line=dict(width=1.2, dash="dot"),
-            name=f"CCI 신호({int(cci_signal)})"
-        ), row=2, col=1)
-        # CCI 기준선
-        for yv, colr in [(100, "#E63946"), (-100, "#457B9D"), (0, "#888")]:
-            fig.add_shape(
-                type="line",
-                xref="paper", x0=0, x1=1,
-                yref="y3", y0=yv, y1=yv,
-                line=dict(color=colr, width=1, dash="dot")
-            )
-    
-        # ----- CCI 골든크로스 ★ (row2) -----
-        try:
-            cci_ = df_plot["CCI"]
-            cci_s = df_plot["CCI_sig"]
-            cross_up = (cci_.shift(1) <= cci_s.shift(1)) & (cci_ > cci_s)
-            xs = df_plot.loc[cross_up, "time"]
-            ys = df_plot.loc[cross_up, "CCI"]
-            if len(xs) > 0:
+                # RSI(13)
                 fig.add_trace(go.Scatter(
-                    x=xs, y=ys, mode="markers",
-                    name="CCI 골든★",
-                    marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
-                ), row=2, col=1)
-        except Exception:
-            pass
+                    x=df_plot["time"], y=rsi_scaled,
+                    mode="lines",
+                    line=dict(color="#2A9D8F", width=2.2, dash="solid"),
+                    name="RSI(13)"
+                ), row=1, col=1, secondary_y=True)
+
+                # CCI(20)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=cci_scaled,
+                    mode="lines",
+                    line=dict(color="#2196F3", width=1.6, dash="dot"),
+                    name="CCI(20, RSI-Scale)"
+                ), row=1, col=1, secondary_y=True)
+
+                # MACD
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=macd_scaled,
+                    mode="lines",
+                    line=dict(color="#E74C3C", width=1.6, dash="dot"),
+                    name="MACD(RSI-Scale)"
+                ), row=1, col=1, secondary_y=True)
+
+                fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
+        except Exception as e:
+            print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
+    
+# ===== CCI 하단 차트 (row2) 제거 =====
+# ✅ 보조지표 CCI는 메인차트의 RSI-스케일 영역에 통합됨.
+# ✅ row=2 섹션 완전 삭제.
     
         # ===== 업비트 스타일 십자선/툴팁 모드 & AutoScale =====
         fig.update_layout(
@@ -3060,8 +3009,6 @@ def main():
         )
         fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=1, col=1)
         fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=1, col=1)
-        fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=2, col=1)
-        fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=2, col=1)
     
         if buy_price and buy_price > 0 and len(df_plot) > 0:
             pnl_num = (df_plot["close"] / float(buy_price) - 1) * 100
