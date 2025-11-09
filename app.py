@@ -2490,20 +2490,43 @@ def main():
 
             # MA/VWMA/Bollinger 기본 표시
             # EMA 라인만 유지, EMA100 실선 통일
+            # ===== 이동평균선 정리 (MA5/20 제거 + EMA 정렬 + VWMA 순서 조정) =====
             if show_ma:
-                for ma_col, color, width in [
-                    ("EMA5",  "#5DADE2", 1.8),
-                    ("EMA20", "#2874A6", 2.0),
-                    ("EMA50", "#34495E", 2.0),
-                    ("EMA100","#1B2631", 2.0),
-                ]:
+                ma_order = [
+                    ("EMA5",   "#5DADE2", 1.6),
+                    ("EMA20",  "#2874A6", 1.8),
+                    ("EMA50",  "#34495E", 2.0),
+                    ("EMA100", "#1B2631", 2.0),
+                    ("EMA200", "#000000", 2.2),
+                    ("VWMA(100)", "#F4D03F", 2.0)
+                ]
+                for ma_col, color, width in ma_order:
                     if ma_col in df_plot.columns:
                         fig.add_trace(go.Scatter(
                             x=df_plot["time"], y=df_plot[ma_col],
                             mode="lines",
                             line=dict(color=color, width=width, dash="solid"),
-                            name=ma_col
+                            name=ma_col,
+                            legendgroup="이동평균",
+                            legendgrouptitle_text="📈 이동평균선"
                         ), row=1, col=1)
+
+            # ===== 범례 정렬 및 그룹화 (가격 → 이동평균 → 거래량 → 보조지표) =====
+            fig.update_layout(
+                legend=dict(
+                    traceorder="normal",
+                    groupclick="toggleitem",
+                    bgcolor="rgba(255,255,255,0.7)",
+                    bordercolor="lightgray",
+                    borderwidth=0.5,
+                    font=dict(size=9),
+                    title_font=dict(size=10),
+                    yanchor="top",
+                    y=1.0,
+                    xanchor="left",
+                    x=1.02
+                )
+            )
 
             if show_vwma and "VWMA100" in df_plot.columns:
                 fig.add_trace(go.Scatter(
