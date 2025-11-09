@@ -777,8 +777,8 @@ def main():
         out["EMA50"] = out["close"].rolling(window=50).mean()
         # MA 100선
         out["EMA100"] = out["close"].rolling(window=100).mean()
-        # MA 200선
-        out["EMA200"] = out["close"].rolling(window=200).mean()
+        # MA 200선 (초기 NaN 방지 + 부드러운 시동)
+        out["EMA200"] = out["close"].rolling(window=200, min_periods=1).mean()
         # MACD (12,16,9)
         _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
         out["MACD"] = _macd.macd()
@@ -1664,7 +1664,8 @@ def main():
             end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
         else:
             end_dt = datetime.combine(end_date, datetime.max.time())
-        warmup_bars = max(13, bb_window, int(cci_window)) * 5
+        # EMA200 안정시동용 워밍업 확장 (초기 계산 정확도 향상)
+        warmup_bars = max(200, bb_window, int(cci_window)) * 10
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
         if df_raw is None or df_raw.empty:
