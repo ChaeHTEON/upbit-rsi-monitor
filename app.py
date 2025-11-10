@@ -2463,15 +2463,15 @@ def main():
 
             # MA/VWMA/Bollinger 기본 표시
             # EMA 라인만 유지, EMA100 실선 통일
-            # ===== 이동평균선 정리 (MA5/20 제거 + EMA 정렬 + VWMA 순서 조정) =====
+            # ===== 이동평균선 정리 (EMA200DMS 제거 + 그룹 클릭시 전체토글만) =====
             if show_ma:
                 ma_order = [
-                    ("EMA5",        "#5DADE2", 1.6, "EMA5"),
-                    ("EMA20",       "#2874A6", 1.8, "EMA20"),
-                    ("EMA50",       "#34495E", 2.0, "EMA50"),
-                    ("EMA100",      "#1B2631", 2.0, "EMA100"),       # 실선 통일
-                    ("EMA200",      "#000000", 2.2, "EMA200DMS"),    # 표시는 EMA200DMS 이름으로
-                    ("VWMA100",     "#F4D03F", 2.0, "VWMA(100)")     # 컬럼명 정합
+                    ("EMA5",   "#5DADE2", 1.6, "EMA5"),
+                    ("EMA20",  "#2874A6", 1.8, "EMA20"),
+                    ("EMA50",  "#34495E", 2.0, "EMA50"),
+                    ("EMA100", "#1B2631", 2.0, "EMA100"),
+                    ("EMA200", "#000000", 2.2, "EMA200"),
+                    ("VWMA100", "#F4D03F", 2.0, "VWMA(100)")
                 ]
                 for col, color, width, label in ma_order:
                     if col in df_plot.columns:
@@ -2480,9 +2480,86 @@ def main():
                             mode="lines",
                             line=dict(color=color, width=width, dash="solid"),
                             name=label,
-                            legendgroup="이동평균",
+                            legendgroup="이동평균선",
                             legendgrouptitle_text="📈 이동평균선"
                         ), row=1, col=1)
+
+                # ✅ 이동평균선 그룹 대표 항목 클릭 시 그룹 전체 토글 작동
+                fig.update_layout(
+                    legend=dict(
+                        groupclick="toggleitem",
+                        title_font=dict(size=10),
+                        font=dict(size=9),
+                        bgcolor="rgba(255,255,255,0.7)",
+                        bordercolor="lightgray",
+                        borderwidth=0.5,
+                        tracegroupgap=5
+                    )
+                )
+
+            # ===== CCI 골든크로스 표시 복원 =====
+            try:
+                if "CCI" in df_plot.columns:
+                    cci = df_plot["CCI"].astype(float)
+                    cci_prev = cci.shift(1)
+                    cross_up = (cci_prev <= -100) & (cci > -100)
+                    cross_dn = (cci_prev >= 100) & (cci < 100)
+                    if cross_up.any():
+                        fig.add_trace(go.Scatter(
+                            x=df_plot.loc[cross_up, "time"],
+                            y=df_plot.loc[cross_up, "close"],
+                            mode="markers",
+                            marker=dict(symbol="triangle-up", size=10, color="teal",
+                                        line=dict(width=1, color="black")),
+                            name="CCI 골든↑"
+                        ), row=1, col=1)
+                    if cross_dn.any():
+                        fig.add_trace(go.Scatter(
+                            x=df_plot.loc[cross_dn, "time"],
+                            y=df_plot.loc[cross_dn, "close"],
+                            mode="markers",
+                            marker=dict(symbol="triangle-down", size=10, color="blue",
+                                        line=dict(width=1, color="black")),
+                            name="CCI 데드↓"
+                        ), row=1, col=1)
+            except Exception as e:
+                print("⚠️ CCI 골든크로스 표시 오류:", e)
+
+            # ===== RSI·CCI·MACD 통합 정리 (중복 제거 + 실제 RSI값 적용) =====
+            try:
+                if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
+
+                    def _normalize(series):
+                        s = series.dropna()
+                        if s.empty:
+                            return pd.Series([50] * len(series))
+                        mn, mx = s.min(), s.max()
+                        if mx - mn == 0:
+                            return pd.Series([50] * len(series))
+                        return ((series - mn) / (mx - mn) * 100).clip(0, 100)
+
+                    # ✅ RSI 실제값으로 표시 (보정된 스케일 제거)
+                    rsi_scaled = df_plot["RSI13"].clip(0, 100)
+                    cci_scaled = _normalize(df_plot["CCI"])
+                    macd_scaled = _normalize(df_plot["MACD"])
+
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=rsi_scaled,
+                        mode="lines",
+                        line=dict(color="#2A9D8F", width=2.2, dash="solid"),
+                        name="RSI(13)"
+                    ), row=1, col=1, secondary_y=True)
+
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=macd_scaled,
+                        mode="lines",
+                        line=dict(color="#E74C3C", width=1.8, dash="dot"),
+                        name="MACD(→RSI Scale)"
+                    ), row=1, col=1, secondary_y=True)
+
+                    fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
+            except Exception as e:
+                print("⚠️ RSI·MACD 통합 표시 오류:", e))
                 for ma_col, color, width in ma_order:
                     if ma_col in df_plot.columns:
                         fig.add_trace(go.Scatter(
