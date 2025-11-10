@@ -777,8 +777,8 @@ def main():
         out["EMA50"] = out["close"].rolling(window=50).mean()
         # MA 100선
         out["EMA100"] = out["close"].rolling(window=100).mean()
-        # MA 200선 (초기 NaN 방지 + 부드러운 시동)
-        out["EMA200"] = out["close"].rolling(window=200, min_periods=1).mean()
+        # MA 200선
+        out["EMA200"] = out["close"].rolling(window=200).mean()
         # MACD (12,16,9)
         _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
         out["MACD"] = _macd.macd()
@@ -1664,8 +1664,7 @@ def main():
             end_dt = datetime.now(KST).astimezone(KST).replace(tzinfo=None)
         else:
             end_dt = datetime.combine(end_date, datetime.max.time())
-        # EMA200 안정시동용 워밍업 확장 (초기 계산 정확도 향상)
-        warmup_bars = max(200, bb_window, int(cci_window)) * 10
+        warmup_bars = max(13, bb_window, int(cci_window)) * 5
     
         df_raw = fetch_upbit_paged(market_code, interval_key, start_dt, end_dt, minutes_per_bar, warmup_bars)
         if df_raw is None or df_raw.empty:
@@ -1975,6 +1974,22 @@ def main():
 
         fig.update_layout(height=2000)
 
+        # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
+        fig.add_trace(
+            go.Scatter(
+                x=df["time"], y=df["CCI"],
+                name="CCI(14)", mode="lines",
+                line=dict(color="teal", width=2.0),
+                showlegend=True
+            ),
+            row=2, col=1
+        )
+
+        # CCI 기준선 (±100 실선 강조)
+        fig.add_hline(y=100, line=dict(color="red", width=2.0, dash="solid"), row=2, col=1)
+        fig.add_hline(y=-100, line=dict(color="blue", width=2.0, dash="solid"), row=2, col=1)
+        # CCI 중간선 (0선 강조)
+        fig.add_hline(y=0, line=dict(color="rgba(80,80,80,0.8)", width=1.5, dash="dot"), row=2, col=1)
 
         # (3) RSI(13) — 신호선 추가 (RSI(9)) + 기준선 강조
         fig.add_trace(
@@ -2034,9 +2049,9 @@ def main():
         except Exception:
             pass
 
-        # RSI 기준선 (30/70 얇은 실선)
-        fig.add_hline(y=30, line=dict(color="red", dash="solid", width=0.8), row=3, col=1)
-        fig.add_hline(y=70, line=dict(color="green", dash="solid", width=0.8), row=3, col=1)
+        # RSI 기준선 (30/70 강조선)
+        fig.add_hline(y=30, line=dict(color="red", dash="solid", width=1.5), row=3, col=1)
+        fig.add_hline(y=70, line=dict(color="green", dash="solid", width=1.5), row=3, col=1)
         fig.add_hline(y=50, line=dict(color="gray", dash="dot", width=1.0), row=3, col=1)
 
         # (3) RSI(13) — 범례 강제 표시 + 시인성 강화
@@ -2418,441 +2433,57 @@ def main():
             pnl_num = (y_series.astype(float) / buy_price - 1) * 100
             pnl_str = pnl_num.apply(lambda v: f"{'+' if v>=0 else ''}{v:.2f}%")
             return np.c_[pnl_num.values, pnl_str.values]
-
+    
         bb_up_cd  = _pnl_arr2(df_plot["BB_up"])
         bb_low_cd = _pnl_arr2(df_plot["BB_low"])
         bb_mid_cd = _pnl_arr2(df_plot["BB_mid"])
-
+    
         def _ht_line(name):
             if buy_price <= 0:
                 return name + ": %{y:.2f}<extra></extra>"
             return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
+    
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"], y=df_plot["BB_up"], mode="lines",
+            line=dict(color="#FFB703", width=1.4), name="BB 상단",
+            customdata=bb_up_cd, hovertemplate=_ht_line("BB 상단")
+        ), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"], y=df_plot["BB_low"], mode="lines",
+            line=dict(color="#219EBC", width=1.4), name="BB 하단",
+            customdata=bb_low_cd, hovertemplate=_ht_line("BB 하단")
+        ), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"], y=df_plot["BB_mid"], mode="lines",
+            line=dict(color="#8D99AE", width=1.4, dash="dot"), name="BB 중앙",
+            customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
+        ), row=1, col=1)
 
-
-        # ✅ EMA/VWMA 표시 (MA5·MA20 제거)
+        # ----- EMA(50) / EMA(100) / EMA(200) 라인 (row1) -----
         try:
-            ema_cols = [
-                ("EMA5", "#5DADE2", 1.6),
-                ("EMA20", "#2874A6", 1.8),
-                ("EMA50", "#34495E", 2.0),
-                ("EMA100", "#1B2631", 2.0),
-                ("EMA200", "#000000", 2.2),
-                ("VWMA100", "#F4D03F", 2.0)
-            ]
-            for col, color, width in ema_cols:
-                if col in df_plot.columns:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=df_plot[col],
-                        mode="lines",
-                        line=dict(color=color, width=width, dash="solid"),
-                        name=col,
-                        legendgroup="이동평균선"
-                    ), row=1, col=1)
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["EMA50"], mode="lines",
+                line=dict(color="black", width=1.4, dash="solid"),  # 보통 실선
+                name="EMA(50)"
+            ), row=1, col=1)
         except Exception:
             pass
 
-        # ================================
-        # 🆕 MA/VWMA/BB 표시 통합 + EMA200 짤림 완전 방지
-        # ================================
         try:
-            # 기본 표시 조건 (전략 미선택 시 최소 표시)
-            show_ma = True
-            show_vwma = True
-            show_bb = True
-            show_ema200 = True
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
+                line=dict(color="black", width=1.8, dash="dot"),  # 굵은 점선
+                name="EMA(100)"
+            ), row=1, col=1)
+        except Exception:
+            pass
 
-            # MA/VWMA/Bollinger 기본 표시
-            # EMA 라인만 유지, EMA100 실선 통일
-            # ===== 이동평균선 정리 (EMA200DMS 제거 + 그룹 클릭시 전체토글만) =====
-            if show_ma:
-                ma_order = [
-                    ("EMA5",   "#5DADE2", 1.6, "EMA5"),
-                    ("EMA20",  "#2874A6", 1.8, "EMA20"),
-                    ("EMA50",  "#34495E", 2.0, "EMA50"),
-                    ("EMA100", "#1B2631", 2.0, "EMA100"),
-                    ("EMA200", "#000000", 2.2, "EMA200"),
-                    ("VWMA100", "#F4D03F", 2.0, "VWMA(100)")
-                ]
-                for col, color, width, label in ma_order:
-                    if col in df_plot.columns:
-                        fig.add_trace(go.Scatter(
-                            x=df_plot["time"], y=df_plot[col],
-                            mode="lines",
-                            line=dict(color=color, width=width, dash="solid"),
-                            name=label,
-                            legendgroup="이동평균선",
-                            legendgrouptitle_text="📈 이동평균선"
-                        ), row=1, col=1)
-
-                # ✅ 이동평균선 그룹 대표 항목 클릭 시 그룹 전체 토글 작동
-                fig.update_layout(
-                    legend=dict(
-                        groupclick="toggleitem",
-                        title_font=dict(size=10),
-                        font=dict(size=9),
-                        bgcolor="rgba(255,255,255,0.7)",
-                        bordercolor="lightgray",
-                        borderwidth=0.5,
-                        tracegroupgap=5
-                    )
-                )
-
-            # ===== CCI 골든크로스 표시 복원 =====
-            try:
-                if "CCI" in df_plot.columns:
-                    cci = df_plot["CCI"].astype(float)
-                    cci_prev = cci.shift(1)
-                    cross_up = (cci_prev <= -100) & (cci > -100)
-                    cross_dn = (cci_prev >= 100) & (cci < 100)
-                    if cross_up.any():
-                        fig.add_trace(go.Scatter(
-                            x=df_plot.loc[cross_up, "time"],
-                            y=df_plot.loc[cross_up, "close"],
-                            mode="markers",
-                            marker=dict(symbol="triangle-up", size=10, color="teal",
-                                        line=dict(width=1, color="black")),
-                            name="CCI 골든↑"
-                        ), row=1, col=1)
-                    if cross_dn.any():
-                        fig.add_trace(go.Scatter(
-                            x=df_plot.loc[cross_dn, "time"],
-                            y=df_plot.loc[cross_dn, "close"],
-                            mode="markers",
-                            marker=dict(symbol="triangle-down", size=10, color="blue",
-                                        line=dict(width=1, color="black")),
-                            name="CCI 데드↓"
-                        ), row=1, col=1)
-            except Exception as e:
-                print("⚠️ CCI 골든크로스 표시 오류:", e)
-
-            # ===== RSI·CCI·MACD 통합 정리 (중복 제거 + 실제 RSI값 적용) =====
-            try:
-                if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
-
-                    def _normalize(series):
-                        s = series.dropna()
-                        if s.empty:
-                            return pd.Series([50] * len(series))
-                        mn, mx = s.min(), s.max()
-                        if mx - mn == 0:
-                            return pd.Series([50] * len(series))
-                        return ((series - mn) / (mx - mn) * 100).clip(0, 100)
-
-                    # ✅ RSI 실제값으로 표시 (보정된 스케일 제거)
-                    rsi_scaled = df_plot["RSI13"].clip(0, 100)
-                    cci_scaled = _normalize(df_plot["CCI"])
-                    macd_scaled = _normalize(df_plot["MACD"])
-
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=rsi_scaled,
-                        mode="lines",
-                        line=dict(color="#2A9D8F", width=2.2, dash="solid"),
-                        name="RSI(13)"
-                    ), row=1, col=1, secondary_y=True)
-
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=macd_scaled,
-                        mode="lines",
-                        line=dict(color="#E74C3C", width=1.8, dash="dot"),
-                        name="MACD(→RSI Scale)"
-                    ), row=1, col=1, secondary_y=True)
-
-                    fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
-            except Exception as e:
-                print("⚠️ RSI·MACD 통합 표시 오류:", e)
-                for ma_col, color, width in ma_order:
-                    if ma_col in df_plot.columns:
-                        fig.add_trace(go.Scatter(
-                            x=df_plot["time"], y=df_plot[ma_col],
-                            mode="lines",
-                            line=dict(color=color, width=width, dash="solid"),
-                            name=ma_col,
-                            legendgroup="이동평균",
-                            legendgrouptitle_text="📈 이동평균선"
-                        ), row=1, col=1)
-
-            # ===== 범례 정렬 및 그룹화 (가격 → 이동평균 → 거래량 → 보조지표) =====
-            fig.update_layout(
-                legend=dict(
-                    traceorder="grouped",
-                    groupclick="toggleitem",
-                    bgcolor="rgba(255,255,255,0.7)",
-                    bordercolor="lightgray",
-                    borderwidth=0.5,
-                    font=dict(size=9),
-                    title_font=dict(size=10),
-                    yanchor="top",
-                    y=1.0,
-                    xanchor="left",
-                    x=1.02
-                ),
-                legend_tracegroupgap=6,
-            )
-
-            # ✅ 범례 순서 및 그룹핑
-            def _legend_sort_key(trace):
-                n = trace.name.lower()
-                if any(k in n for k in ["ema", "vwma", "가격"]): return 1
-                if any(k in n for k in ["rsi", "cci", "macd"]): return 2
-                if any(k in n for k in ["골든", "데드"]): return 3
-                if any(k in n for k in ["signal", "composite"]): return 4
-                return 5
-
-            fig.data = tuple(sorted(fig.data, key=_legend_sort_key))
-
-            if show_vwma and "VWMA100" in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["VWMA100"], mode="lines",
-                    line=dict(color="#F39C12", width=2.0, dash="solid"),
-                    name="VWMA(100)"
-                ), row=1, col=1)
-
-            if show_bb:
-                for bb_col, color, dash in [
-                    ("BB_up",  "#FFB703", "solid"),
-                    ("BB_mid", "#8D99AE", "dot"),
-                    ("BB_low", "#219EBC", "solid"),
-                ]:
-                    if bb_col in df_plot.columns:
-                        fig.add_trace(go.Scatter(
-                            x=df_plot["time"], y=df_plot[bb_col],
-                            mode="lines",
-                            line=dict(color=color, width=1.3, dash=dash),
-                            name=f"{bb_col.upper().replace('_',' ')}"
-                        ), row=1, col=1)
-
-            # EMA200선: NaN 포함 보간 → 짤림 완전 방지
-            if show_ema200 and "EMA200" in df_plot.columns:
-                df_plot["EMA200_filled"] = df_plot["EMA200"].interpolate(limit_direction="both")
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["EMA200_filled"],
-                    mode="lines",
-                    line=dict(color="black", width=2.2, dash="solid"),
-                    name="EMA(200)"
-                ), row=1, col=1)
-
-            # EMA200 짤림 방지용 y축 패딩 재계산
-            ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200_filled","VWMA100"] if c in df_plot.columns]
-            bb_cols  = [c for c in ["BB_up","BB_low","BB_mid"] if c in df_plot.columns]
-
-            y_min = float(min(df_plot["low"].min(), *(df_plot[c].min() for c in ema_cols), *(df_plot[c].min() for c in bb_cols)))
-            y_max = float(max(df_plot["high"].max(), *(df_plot[c].max() for c in ema_cols), *(df_plot[c].max() for c in bb_cols)))
-            pad = (y_max - y_min) * 0.10
-
-            fig.update_yaxes(
-                range=[y_min - pad, y_max + pad],
-                autorange=False,
-                fixedrange=False,
-                automargin=True,
-                row=1, col=1
-            )
-
-        except Exception as e:
-            print("⚠️ MA/EMA/VWMA 표시 오류:", e)
-
-        # ================================
-        # 🆕 거래량 가중 이동평균선 VWMA(100) — 중복 제거 및 교차 표시 포함
-        # ================================
         try:
-            if all(col in df_plot.columns for col in ["close", "volume"]):
-                period = 100
-                price_vol = df_plot["close"] * df_plot["volume"]
-                vwma100 = (
-                    price_vol.rolling(window=period, min_periods=1).sum()
-                    / df_plot["volume"].rolling(window=period, min_periods=1).sum()
-                )
-                df_plot[f"VWMA{period}"] = vwma100
-
-                # VWMA(100) 기본선
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=vwma100,
-                    mode="lines",
-                    name=f"VWMA({period})",
-                    line=dict(color="orange", width=2.4, dash="solid"),
-                ), row=1, col=1)
-
-                # VWMA ↔ EMA200 교차 신호
-                try:
-                    if "EMA200" in df_plot.columns:
-                        ema200_vals = df_plot["EMA200"].astype(float)
-                        vwma_vals   = vwma100.astype(float)
-                        close_vals  = df_plot["close"].astype(float)
-                        cross_up_idx  = (vwma_vals.shift(1) < ema200_vals.shift(1)) & (vwma_vals > ema200_vals)
-                        cross_dn_idx  = (vwma_vals.shift(1) > ema200_vals.shift(1)) & (vwma_vals < ema200_vals)
-
-                        # 골든크로스
-                        if cross_up_idx.any():
-                            fig.add_trace(go.Scatter(
-                                x=df_plot.loc[cross_up_idx, "time"],
-                                y=close_vals.loc[cross_up_idx],
-                                mode="markers",
-                                marker=dict(symbol="star", size=12, color="gold", line=dict(width=1.2, color="black")),
-                                name="VWMA↑EMA200 (골든)"
-                            ), row=1, col=1)
-
-                        # 데드크로스
-                        if cross_dn_idx.any():
-                            fig.add_trace(go.Scatter(
-                                x=df_plot.loc[cross_dn_idx, "time"],
-                                y=close_vals.loc[cross_dn_idx],
-                                mode="markers",
-                                marker=dict(symbol="star", size=12, color="royalblue", line=dict(width=1.2, color="black")),
-                                name="VWMA↓EMA200 (데드)"
-                            ), row=1, col=1)
-                except Exception as e:
-                    print("⚠️ VWMA-EMA200 교차 표시 오류:", e)
-        except Exception as e:
-            print("⚠️ VWMA(100) 추가 오류:", e)
-
-
-        # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
-        try:
-            if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
-
-                def _normalize(series):
-                    s = series.dropna()
-                    if s.empty:
-                        return pd.Series([50] * len(series))
-                    mn, mx = s.min(), s.max()
-                    if mx - mn == 0:
-                        return pd.Series([50] * len(series))
-                    return ((series - mn) / (mx - mn) * 100).clip(0, 100)
-
-                # RSI는 원 스케일 유지
-                rsi_scaled = df_plot["RSI13"].clip(0, 100)
-                cci_scaled = _normalize(df_plot["CCI"])
-                macd_scaled = _normalize(df_plot["MACD"])
-
-                # RSI(13) — 중복 실선 제거 (대표 1개만 표시)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=rsi_scaled,
-                    mode="lines",
-                    line=dict(color="#2A9D8F", width=2.2, dash="solid"),
-                    name="RSI(13)"
-                ), row=1, col=1, secondary_y=True)
-
-                # CCI(20 RSI 스케일) — 중복 제거
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=cci_scaled,
-                    mode="lines",
-                    line=dict(color="#2196F3", width=1.8, dash="dot"),
-                    name="CCI(20→RSI Scale)"
-                ), row=1, col=1, secondary_y=True)
-
-                # MACD(RSI 스케일) — 중복 제거
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=macd_scaled,
-                    mode="lines",
-                    line=dict(color="#E74C3C", width=1.8, dash="dot"),
-                    name="MACD(→RSI Scale)"
-                ), row=1, col=1, secondary_y=True)
-
-                # RSI 스케일 고정
-                fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
-
-                # 🆕 CCI 보조지표 (row2) 복원
-                if "CCI" in df_plot.columns:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"],
-                        y=df_plot["CCI"],
-                        mode="lines",
-                        line=dict(color="teal", width=2.0),
-                        name="CCI(20)",
-                        showlegend=True
-                    ), row=2, col=1)
-        except Exception as e:
-            print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
-
-
-        # ================================
-        # 🆕 EMA200 짤림 완전 방지 — 모든 MA·BB·VWMA 포함
-        # ================================
-        try:
-            ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200","VWMA100"] if c in df_plot.columns]
-            bb_cols  = [c for c in ["BB_up","BB_low","BB_mid"] if c in df_plot.columns]
-
-            # 전체 포함 최소/최대 계산
-            y_min = float(
-                min(
-                    df_plot["low"].min(),
-                    *(df_plot[c].min() for c in ema_cols),
-                    *(df_plot[c].min() for c in bb_cols)
-                )
-            )
-            y_max = float(
-                max(
-                    df_plot["high"].max(),
-                    *(df_plot[c].max() for c in ema_cols),
-                    *(df_plot[c].max() for c in bb_cols)
-                )
-            )
-
-            # 패딩 10%
-            pad = (y_max - y_min) * 0.10
-            fig.update_yaxes(
-                range=[y_min - pad, y_max + pad],
-                autorange=False,
-                fixedrange=False,
-                automargin=True,
-                row=1, col=1
-            )
-        except Exception as e:
-            print("⚠️ EMA200 y축 패딩 오류:", e)
-
-        # ===============================
-        # ✅ 시각 강화: MA5/MA20 강조 음영 및 BB 영역 반투명 채움
-        # ===============================
-        try:
-            # MA5~20 사이 음영 (단기 구간 강조) — 양/음 구간별 색상 구분
-            if all(k in df_plot.columns for k in ["EMA5", "EMA20"]):
-                try:
-                    # 조건 분리: 상승(EMA5>EMA20) / 하락(EMA5<EMA20)
-                    mask_up = df_plot["EMA5"] > df_plot["EMA20"]
-                    mask_dn = df_plot["EMA5"] <= df_plot["EMA20"]
-
-                    # 상승 구간 (붉은 음영)
-                    if mask_up.any():
-                        fig.add_trace(go.Scatter(
-                            x=pd.concat([df_plot.loc[mask_up, "time"], df_plot.loc[mask_up, "time"][::-1]]),
-                            y=pd.concat([df_plot.loc[mask_up, "EMA5"], df_plot.loc[mask_up, "EMA20"][::-1]]),
-                            fill="toself",
-                            fillcolor="rgba(231, 76, 60, 0.14)",  # 붉은 투명 음영
-                            line=dict(color="rgba(0,0,0,0)"),
-                            hoverinfo="skip",
-                            name="MA5>MA20",
-                            showlegend=False
-                        ), row=1, col=1)
-
-                    # 하락 구간 (기존 파랑 음영)
-                    if mask_dn.any():
-                        fig.add_trace(go.Scatter(
-                            x=pd.concat([df_plot.loc[mask_dn, "time"], df_plot.loc[mask_dn, "time"][::-1]]),
-                            y=pd.concat([df_plot.loc[mask_dn, "EMA5"], df_plot.loc[mask_dn, "EMA20"][::-1]]),
-                            fill="toself",
-                            fillcolor="rgba(52, 152, 219, 0.12)",  # 기존 파랑 투명 음영
-                            line=dict(color="rgba(0,0,0,0)"),
-                            hoverinfo="skip",
-                            name="MA5<MA20",
-                            showlegend=False
-                        ), row=1, col=1)
-                except Exception as e:
-                    print("⚠️ MA5/20 음영 표시 오류:", e)
-
-            # BB 상하단 사이 영역 (가격 변동 범위 강조)
-            if all(k in df_plot.columns for k in ["BB_up", "BB_low"]):
-                fig.add_trace(go.Scatter(
-                    x=pd.concat([df_plot["time"], df_plot["time"][::-1]]),
-                    y=pd.concat([df_plot["BB_up"], df_plot["BB_low"][::-1]]),
-                    fill="toself",
-                    fillcolor="rgba(160,160,160,0.08)",  # 회색 투명 영역
-                    line=dict(color="rgba(0,0,0,0)"),
-                    hoverinfo="skip",
-                    name="BB 영역",
-                    showlegend=False
-                ), row=1, col=1)
-
-            # 🧹 MA5·MA20 제거 — EMA 기반 이동평균만 표시
-            df_plot = df_plot.drop(columns=[c for c in ["MA5", "MA20"] if c in df_plot.columns], errors="ignore")
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
+                line=dict(color="black", width=2.2, dash="solid"),  # 굵은 실선
+                name="EMA(200)"
+            ), row=1, col=1)
         except Exception:
             pass
 
@@ -2928,164 +2559,52 @@ def main():
             pass
     
         # ===== RSI 라인 (row1, y2) =====
-        # ===== RSI(13) 굴곡 강화 (스케일 보정으로 가시성 향상) =====
-        try:
-            if "RSI13" in df_plot.columns:
-                rsi_vals = df_plot["RSI13"].astype(float)
-                if not rsi_vals.empty:
-                    # ✅ CCI처럼 굴곡이 명확히 보이도록 0~1 정규화 + 실선 유지
-                    rsi_min, rsi_max = rsi_vals.min(), rsi_vals.max()
-                    rsi_scaled = (rsi_vals - rsi_min) / (rsi_max - rsi_min) * 100  # 스케일 확대
-
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"],
-                        y=rsi_scaled,
-                        mode="lines",
-                        line=dict(color="rgba(42,157,143,0.30)", width=6),
-                        name="", showlegend=False
-                    ), row=1, col=1, secondary_y=True)
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"],
-                        y=rsi_scaled,
-                        mode="lines",
-                        line=dict(color="#2A9D8F", width=2.4, dash="dot"),
-                        name="RSI(13)"
-                    ), row=1, col=1, secondary_y=True)
-        except Exception as e:
-            print("⚠️ RSI(13) 굴곡 보정 오류:", e)
-
-        # ===== EMA200 짤림 완전 방지 (패딩 10% + 강제 range 적용) =====
-        try:
-            if "EMA200" in df_plot.columns:
-                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                pad = (y_max - y_min) * 0.10
-                y_min_adj = y_min - pad
-                y_max_adj = y_max + pad
-
-                fig.update_yaxes(
-                    range=[y_min_adj, y_max_adj],
-                    autorange=False,
-                    fixedrange=False,
-                    automargin=True,
-                    row=1, col=1
-                )
-                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-        except Exception as e:
-            print("⚠️ EMA200 짤림 보정 오류:", e)
-
-        # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
-        try:
-            if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
-
-                def _normalize(series):
-                    s = series.dropna()
-                    if s.empty:
-                        return pd.Series([50] * len(series))
-                    mn, mx = s.min(), s.max()
-                    if mx - mn == 0:
-                        return pd.Series([50] * len(series))
-                    return ((series - mn) / (mx - mn) * 100).clip(0, 100)
-
-                # RSI는 원 스케일 유지
-                rsi_scaled = df_plot["RSI13"].clip(0, 100)
-                cci_scaled = _normalize(df_plot["CCI"])
-                macd_scaled = _normalize(df_plot["MACD"])
-
-                # RSI(13)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=rsi_scaled,
-                    mode="lines",
-                    line=dict(color="#2A9D8F", width=2.2, dash="solid"),
-                    name="RSI(13)"
-                ), row=1, col=1, secondary_y=True)
-
-                # CCI(20)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=cci_scaled,
-                    mode="lines",
-                    line=dict(color="#2196F3", width=1.6, dash="dot"),
-                    name="CCI(20, RSI-Scale)"
-                ), row=1, col=1, secondary_y=True)
-
-                # MACD (중복 제거됨)
-                if "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
-                    macd_vals = _normalize(df_plot["MACD"])
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=macd_vals,
-                        mode="lines",
-                        line=dict(color="#E74C3C", width=1.6, dash="dot"),
-                        name="MACD(→RSI Scale)"
-                    ), row=1, col=1, secondary_y=True)
-
-                fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
-
-                # ✅ 범례 자동 병합 및 중복 항목 제거
-                fig.update_layout(
-                    legend_tracegroupgap=3,
-                    legend_itemclick="toggle",
-                    legend_itemdoubleclick="toggleothers",
-                    legend_font=dict(size=9),
-                    legend_bgcolor="rgba(255,255,255,0.7)",
-                    legend_bordercolor="lightgray",
-                    legend_borderwidth=0.5
-                )
-
-                # ✅ RSI(13) 실선 중복 자동 제거
-                seen_names = set()
-                fig.data = tuple(
-                    trace for trace in fig.data
-                    if not (trace.name in seen_names or seen_names.add(trace.name))
-                )
-        except Exception as e:
-            print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
+            line=dict(color="rgba(42,157,143,0.30)", width=6),
+            name="", showlegend=False
+        ), row=1, col=1, secondary_y=True)
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
+            line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+            name="RSI(13)"
+        ), row=1, col=1, secondary_y=True)
     
-        # ===== CCI 하단 보조지표 복원 (평균선 + 골든/데드 표시) =====
+# ===== CCI 하단 차트 (row2) =====
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"], y=df_plot["CCI"], mode="lines",
+            line=dict(width=1.6),
+            name="CCI"
+        ), row=2, col=1)
+        fig.add_trace(go.Scatter(
+            x=df_plot["time"], y=df_plot["CCI_sig"], mode="lines",
+            line=dict(width=1.2, dash="dot"),
+            name=f"CCI 신호({int(cci_signal)})"
+        ), row=2, col=1)
+        # CCI 기준선
+        for yv, colr in [(100, "#E63946"), (-100, "#457B9D"), (0, "#888")]:
+            fig.add_shape(
+                type="line",
+                xref="paper", x0=0, x1=1,
+                yref="y3", y0=yv, y1=yv,
+                line=dict(color=colr, width=1, dash="dot")
+            )
+    
+        # ----- CCI 골든크로스 ★ (row2) -----
         try:
-            if "CCI" in df_plot.columns:
+            cci_ = df_plot["CCI"]
+            cci_s = df_plot["CCI_sig"]
+            cross_up = (cci_.shift(1) <= cci_s.shift(1)) & (cci_ > cci_s)
+            xs = df_plot.loc[cross_up, "time"]
+            ys = df_plot.loc[cross_up, "CCI"]
+            if len(xs) > 0:
                 fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["CCI"],
-                    mode="lines",
-                    line=dict(color="teal", width=2.0),
-                    name="CCI(20)",
-                    showlegend=True,
-                    legendgroup="CCI"
+                    x=xs, y=ys, mode="markers",
+                    name="CCI 골든★",
+                    marker=dict(size=9, symbol="star", line=dict(width=1, color="black"))
                 ), row=2, col=1)
-
-            if "CCI_Signal" in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["CCI_Signal"],
-                    mode="lines",
-                    line=dict(color="#FFB703", width=1.8, dash="dot"),
-                    name="CCI 신호(평균선)",
-                    legendgroup="CCI"
-                ), row=2, col=1)
-
-            if "CCI_Golden" in df_plot.columns:
-                gold_idx = df_plot.index[df_plot["CCI_Golden"] == 1]
-                if len(gold_idx) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot.loc[gold_idx, "time"],
-                        y=df_plot.loc[gold_idx, "CCI"].astype(float),
-                        mode="markers",
-                        marker=dict(symbol="star", color="#FFD166", size=10),
-                        name="CCI 골든★",
-                        legendgroup="CCI"
-                    ), row=2, col=1)
-
-            if "CCI_Dead" in df_plot.columns:
-                dead_idx = df_plot.index[df_plot["CCI_Dead"] == 1]
-                if len(dead_idx) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot.loc[dead_idx, "time"],
-                        y=df_plot.loc[dead_idx, "CCI"].astype(float),
-                        mode="markers",
-                        marker=dict(symbol="x", color="#EF476F", size=9),
-                        name="CCI 데드★",
-                        legendgroup="CCI"
-                    ), row=2, col=1)
-        except Exception as e:
-            print("⚠️ CCI 복원 오류:", e)
+        except Exception:
+            pass
     
         # ===== 업비트 스타일 십자선/툴팁 모드 & AutoScale =====
         fig.update_layout(
@@ -3095,6 +2614,8 @@ def main():
         )
         fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=1, col=1)
         fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=1, col=1)
+        fig.update_xaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=2, col=1)
+        fig.update_yaxes(showspikes=True, spikecolor="gray", spikethickness=1, spikemode="across", row=2, col=1)
     
         if buy_price and buy_price > 0 and len(df_plot) > 0:
             pnl_num = (df_plot["close"] / float(buy_price) - 1) * 100
@@ -3156,39 +2677,8 @@ def main():
                 fig.update_xaxes(range=[x_start, x_end], row=2, col=1)
     
                 # Y축: 보이는 70봉에 대해 Plotly 기본 AutoScale만 적용 (수동 range 제거)
-                fig.update_yaxes(
-                    autorange=True,
-                    fixedrange=False,
-                    automargin=True,
-                    row=1, col=1
-                )  # ✅ EMA200 포함 여유 확보 (가격 축)
-                fig.update_yaxes(
-                    autorange=True,
-                    fixedrange=False,
-                    automargin=True,
-                    row=2, col=1
-                )  # CCI 축 (RSI y2=0~100 유지)
-
-                # ✅ EMA200 짤림 방지용 여유 버퍼 확대 및 적용 순서 보정
-                try:
-                    if "EMA200" in df_plot.columns:
-                        y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                        y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                        pad = (y_max - y_min) * 0.10  # 🔹 패딩 10%로 확대
-                        y_min_adj = y_min - pad
-                        y_max_adj = y_max + pad
-
-                        # Plotly autoscale보다 먼저 강제 범위 지정
-                        fig.update_yaxes(
-                            range=[y_min_adj, y_max_adj],
-                            autorange=False,
-                            fixedrange=False,
-                            automargin=True,
-                            row=1, col=1
-                        )
-                        print(f"✅ EMA200 y-range 보정 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-                except Exception as e:
-                    print("⚠️ EMA200 스케일 보정 오류:", e)
+                fig.update_yaxes(autorange=True, row=1, col=1)  # 가격 축
+                fig.update_yaxes(autorange=True, row=2, col=1)  # CCI 축 (RSI y2=0~100 유지)
             except Exception:
                 pass
     
