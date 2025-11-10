@@ -1975,22 +1975,6 @@ def main():
 
         fig.update_layout(height=2000)
 
-        # ✅ 수정: CCI 가독성 강화 (기준선 실선화 + 0선 강조)
-        fig.add_trace(
-            go.Scatter(
-                x=df["time"], y=df["CCI"],
-                name="CCI(14)", mode="lines",
-                line=dict(color="teal", width=2.0),
-                showlegend=True
-            ),
-            row=2, col=1
-        )
-
-        # CCI 기준선 (±100 얇은 실선)
-        fig.add_hline(y=100, line=dict(color="red", width=0.8, dash="solid"), row=2, col=1)
-        fig.add_hline(y=-100, line=dict(color="blue", width=0.8, dash="solid"), row=2, col=1)
-        # CCI 중간선 (0선 강조)
-        fig.add_hline(y=0, line=dict(color="rgba(80,80,80,0.8)", width=1.5, dash="dot"), row=2, col=1)
 
         # (3) RSI(13) — 신호선 추가 (RSI(9)) + 기준선 강조
         fig.add_trace(
@@ -2444,22 +2428,6 @@ def main():
                 return name + ": %{y:.2f}<extra></extra>"
             return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
 
-        # ✅ 볼린저밴드 가독성 통일 (회색계열 + 점선/실선 통일)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["BB_up"], mode="lines",
-            line=dict(color="#B0B0B0", width=1.6, dash="dot"), name="BB 상단",
-            customdata=bb_up_cd, hovertemplate=_ht_line("BB 상단")
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["BB_low"], mode="lines",
-            line=dict(color="#B0B0B0", width=1.6, dash="dot"), name="BB 하단",
-            customdata=bb_low_cd, hovertemplate=_ht_line("BB 하단")
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["BB_mid"], mode="lines",
-            line=dict(color="#808080", width=1.6), name="BB 중앙",
-            customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
-        ), row=1, col=1)
 
         # ✅ MA5/MA20 추가 (EMA 컬럼 존재 시만 표시)
         try:
@@ -2493,13 +2461,23 @@ def main():
             # ===== 이동평균선 정리 (MA5/20 제거 + EMA 정렬 + VWMA 순서 조정) =====
             if show_ma:
                 ma_order = [
-                    ("EMA5",   "#5DADE2", 1.6),
-                    ("EMA20",  "#2874A6", 1.8),
-                    ("EMA50",  "#34495E", 2.0),
-                    ("EMA100", "#1B2631", 2.0),
-                    ("EMA200", "#000000", 2.2),
-                    ("VWMA(100)", "#F4D03F", 2.0)
+                    ("EMA5",        "#5DADE2", 1.6, "EMA5"),
+                    ("EMA20",       "#2874A6", 1.8, "EMA20"),
+                    ("EMA50",       "#34495E", 2.0, "EMA50"),
+                    ("EMA100",      "#1B2631", 2.0, "EMA100"),       # 실선 통일
+                    ("EMA200",      "#000000", 2.2, "EMA200DMS"),    # 표시는 EMA200DMS 이름으로
+                    ("VWMA100",     "#F4D03F", 2.0, "VWMA(100)")     # 컬럼명 정합
                 ]
+                for col, color, width, label in ma_order:
+                    if col in df_plot.columns:
+                        fig.add_trace(go.Scatter(
+                            x=df_plot["time"], y=df_plot[col],
+                            mode="lines",
+                            line=dict(color=color, width=width, dash="solid"),
+                            name=label,
+                            legendgroup="이동평균",
+                            legendgrouptitle_text="📈 이동평균선"
+                        ), row=1, col=1)
                 for ma_col, color, width in ma_order:
                     if ma_col in df_plot.columns:
                         fig.add_trace(go.Scatter(
@@ -2525,7 +2503,8 @@ def main():
                     y=1.0,
                     xanchor="left",
                     x=1.02
-                )
+                ),
+                legend_tracegroupgap=6
             )
 
             if show_vwma and "VWMA100" in df_plot.columns:
@@ -2706,66 +2685,52 @@ def main():
         except Exception as e:
             print("⚠️ RSI/CCI/MACD 스케일 통합 오류:", e)
 
-        # ================================
-        # 🆕 메인차트(secondary_y) — RSI 기준 스케일로 흐름 일원화
-        #   - RSI 그대로
-        #   - CCI/MACD 는 RSI 진폭(0~100)을 기준으로 정규화하여
-        #     ‘방향성 굴곡’만 또렷하게 보이도록 오버레이
-        # ================================
+        # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
         try:
             if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
-                rsi_vals  = df_plot["RSI13"].astype(float)
-                cci_vals  = df_plot["CCI"].astype(float)
-                macd_vals = df_plot["MACD"].astype(float)
 
-                # RSI는 원 스케일(0~100)
-                rsi_scaled = rsi_vals.clip(0, 100)
+                def _normalize(series):
+                    s = series.dropna()
+                    if s.empty:
+                        return pd.Series([50] * len(series))
+                    mn, mx = s.min(), s.max()
+                    if mx - mn == 0:
+                        return pd.Series([50] * len(series))
+                    return ((series - mn) / (mx - mn) * 100).clip(0, 100)
 
-                # CCI / MACD → RSI 진폭을 기준으로 상대 정규화
-                # (각 지표의 최대절대값으로 나누어 방향성·굴곡만 살리고,
-                #  RSI 진폭과 같은 범위(0~100)로 맞춤)
-                cci_den  = float(np.nanmax(np.abs(cci_vals)))  or 1.0
-                macd_den = float(np.nanmax(np.abs(macd_vals))) or 1.0
-                cci_scaled  = (cci_vals  / cci_den)  * 50 + 50   # -1~1 → 0~100
-                macd_scaled = (macd_vals / macd_den) * 50 + 50   # -1~1 → 0~100
-
-                # 부드럽게(너무 톱니처럼 보이면) 약간의 EMA 스무딩
-                cci_scaled  = pd.Series(cci_scaled).ewm(span=5,  adjust=False).mean()
-                macd_scaled = pd.Series(macd_scaled).ewm(span=7,  adjust=False).mean()
-                rsi_bg      = pd.Series(rsi_scaled).ewm(span=3,  adjust=False).mean()
-
-                # 반투명 배경(흐름 강조)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=rsi_bg, mode="lines",
-                    line=dict(color="rgba(42,157,143,0.25)", width=6),
-                    name="", showlegend=False
-                ), row=1, col=1, secondary_y=True)
+                # RSI는 원 스케일 유지
+                rsi_scaled = df_plot["RSI13"].clip(0, 100)
+                cci_scaled = _normalize(df_plot["CCI"])
+                macd_scaled = _normalize(df_plot["MACD"])
 
                 # RSI(13)
                 fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=rsi_scaled, mode="lines",
-                    line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+                    x=df_plot["time"], y=rsi_scaled,
+                    mode="lines",
+                    line=dict(color="#2A9D8F", width=2.2, dash="solid"),
                     name="RSI(13)"
                 ), row=1, col=1, secondary_y=True)
 
-                # CCI (RSI-scale)
+                # CCI(20)
                 fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=cci_scaled, mode="lines",
-                    line=dict(color="#2196F3", width=2.0, dash="dot"),
-                    name="CCI(20, RSI-scale)"
+                    x=df_plot["time"], y=cci_scaled,
+                    mode="lines",
+                    line=dict(color="#2196F3", width=1.6, dash="dot"),
+                    name="CCI(20, RSI-Scale)"
                 ), row=1, col=1, secondary_y=True)
 
-                # MACD (RSI-scale)
+                # MACD
                 fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=macd_scaled, mode="lines",
-                    line=dict(color="#E74C3C", width=2.0, dash="dot"),
-                    name="MACD(RSI-scale)"
+                    x=df_plot["time"], y=macd_scaled,
+                    mode="lines",
+                    line=dict(color="#E74C3C", width=1.6, dash="dot"),
+                    name="MACD(RSI-Scale)"
                 ), row=1, col=1, secondary_y=True)
 
-                # secondary y 축은 0~100로 고정 (RSI 스케일)
                 fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
         except Exception as e:
-            print("⚠️ RSI-기준 흐름 오버레이 오류:", e)
+            print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
+
 
         # ================================
         # 🆕 EMA200 짤림 완전 방지 — 모든 MA·BB·VWMA 포함
