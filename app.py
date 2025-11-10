@@ -2443,106 +2443,48 @@ def main():
                 return name + ": %{y:.2f}<extra></extra>"
             return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
     
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["BB_up"], mode="lines",
-            line=dict(color="#FFB703", width=1.4), name="BB 상단",
-            customdata=bb_up_cd, hovertemplate=_ht_line("BB 상단")
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["BB_low"], mode="lines",
-            line=dict(color="#219EBC", width=1.4), name="BB 하단",
-            customdata=bb_low_cd, hovertemplate=_ht_line("BB 하단")
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["BB_mid"], mode="lines",
-            line=dict(color="#8D99AE", width=1.4, dash="dot"), name="BB 중앙",
-            customdata=bb_mid_cd, hovertemplate=_ht_line("BB 중앙")
-        ), row=1, col=1)
+        # ===== 볼린저밴드 그룹 (BB 상/중/하단) =====
+        for bb_col, bb_name in [("BB_up", "BB 상단"), ("BB_mid", "BB 중앙"), ("BB_low", "BB 하단")]:
+            if bb_col in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"],
+                    y=df_plot[bb_col],
+                    mode="lines",
+                    name=bb_name,
+                    line=dict(
+                        color="#FFB703" if bb_col == "BB_up" else "#8D99AE" if bb_col == "BB_mid" else "#219EBC",
+                        width=1.4,
+                        dash="dot" if bb_col == "BB_mid" else "solid"
+                    ),
+                    customdata=_pnl_arr2(df_plot[bb_col]),
+                    hovertemplate=_ht_line(bb_name),
+                    legendgroup="볼린저밴드",
+                    legendgrouptitle_text="볼린저밴드 관련",
+                    showlegend=True
+                ), row=1, col=1)
 
-        # ----- EMA(50) / EMA(100) / EMA(200) 라인 (row1) -----
-        try:
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA50"], mode="lines",
-                line=dict(color="black", width=1.4, dash="solid"),  # 보통 실선
-                name="EMA(50)"
-            ), row=1, col=1)
-        except Exception:
-            pass
+        # ===== 이동평균선 그룹 (EMA5/20/50/100/200/VWMA100) =====
+        for ema_col, color, dash in [
+            ("EMA5",  "#ff0000", "solid"),
+            ("EMA20", "#ffa500", "solid"),
+            ("EMA50", "black", "solid"),
+            ("EMA100","black", "dot"),
+            ("EMA200","black", "solid"),
+            ("VWMA100","#0080ff","dot")
+        ]:
+            if ema_col in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"],
+                    y=df_plot[ema_col],
+                    mode="lines",
+                    name=ema_col.replace("VWMA100","거래량가중이동평균선(100)"),
+                    line=dict(color=color, width=1.5, dash=dash),
+                    legendgroup="이동평균선",
+                    legendgrouptitle_text="이동평균선 관련",
+                    showlegend=True
+                ), row=1, col=1)
 
-        try:
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA100"], mode="lines",
-                line=dict(color="black", width=1.8, dash="dot"),  # 굵은 점선
-                name="EMA(100)"
-            ), row=1, col=1)
-        except Exception:
-            pass
-
-        try:
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA200"], mode="lines",
-                line=dict(color="black", width=2.2, dash="solid"),  # 굵은 실선
-                name="EMA(200)"
-            ), row=1, col=1)
-        except Exception:
-            pass
-
-        # ===== 신호마커/점선/⭐ 표시 (신호 결과 기반) =====
-        if not plot_res.empty:
-            for _label, _color in [("성공", "red"), ("실패", "blue"), ("중립", "#FF9800")]:
-                sub = plot_res[plot_res["결과"] == _label]
-                if sub.empty:
-                    continue
-                xs, ys = [], []
-                for _, r in sub.iterrows():
-                    t = pd.to_datetime(r["신호시간"])
-                    if t not in df_plot["time"].values:
-                        continue
-                    xs.append(t)
-                    ys.append(float(df_plot.loc[df_plot["time"] == t, "close"].iloc[0]))
-                if len(xs) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=xs, y=ys, mode="markers",
-                        name=f"신호({_label})",
-                        marker=dict(size=9, color=_color, symbol="circle", line=dict(width=1, color="black"))
-                    ), row=1, col=1)
-    
-            legend_emitted = {"성공": False, "실패": False, "중립": False}
-            for _, row_ in plot_res.iterrows():
-                t0 = pd.to_datetime(row_["신호시간"])
-                t1 = pd.to_datetime(row_["종료시간"])
-                if (t0 not in df_plot["time"].values) or (t1 not in df_plot["time"].values):
-                    continue
-    
-                y0 = float(df_plot.loc[df_plot["time"] == t0, "close"].iloc[0])
-                y1 = float(df_plot.loc[df_plot["time"] == t1, "close"].iloc[0])
-    
-                if row_["결과"] == "성공":
-                    fig.add_trace(go.Scatter(
-                        x=[t1], y=[y1],
-                        mode="markers", name="도달⭐",
-                        marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
-                        showlegend=not legend_emitted["성공"]
-                    ), row=1, col=1)
-                    legend_emitted["성공"] = True
-                elif row_["결과"] == "실패":
-                    fig.add_trace(go.Scatter(
-                        x=[t1], y=[y1],
-                        mode="markers", name="실패❌",
-                        marker=dict(size=12, color="blue", symbol="x", line=dict(width=1, color="black")),
-                        showlegend=not legend_emitted["실패"]
-                    ), row=1, col=1)
-                    legend_emitted["실패"] = True
-                elif row_["결과"] == "중립":
-                    fig.add_trace(go.Scatter(
-                        x=[t1], y=[y1],
-                        mode="markers", name="중립❌",
-                        marker=dict(size=12, color="orange", symbol="x", line=dict(width=1, color="black")),
-                        showlegend=not legend_emitted["중립"]
-                    ), row=1, col=1)
-                    legend_emitted["중립"] = True
-
-        # ----- MACD(12,16,9) 골든크로스 ★ (row1, 가격 위) -----
+        # ===== MACD 골든 교차 마커 (보조지표 표식 그룹) =====
         try:
             macd = df_plot["MACD"]
             macds = df_plot["MACD_signal"]
@@ -2551,44 +2493,55 @@ def main():
             ys = df_plot.loc[cross_idx, "close"]
             if len(xs) > 0:
                 fig.add_trace(go.Scatter(
-                    x=xs, y=ys, mode="markers",
+                    x=xs,
+                    y=ys,
+                    mode="markers",
                     name="MACD 골든★",
-                    marker=dict(size=11, symbol="star", line=dict(width=1, color="black"))
+                    marker=dict(size=11, symbol="star", line=dict(width=1, color="black")),
+                    legendgroup="보조지표 표식",
+                    legendgrouptitle_text="보조지표 표식 관련",
+                    showlegend=True
                 ), row=1, col=1)
         except Exception:
             pass
+
+        # ===== RSI(13) 선 (보조지표 선 그룹) =====
+        if "RSI13" in df_plot.columns:
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
+                line=dict(color="rgba(42,157,143,0.30)", width=6),
+                name="", showlegend=False,
+                legendgroup="보조지표 선",
+                legendgrouptitle_text="보조지표 선 관련"
+            ), row=1, col=1, secondary_y=True)
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
+                line=dict(color="#2A9D8F", width=2.4, dash="dot"),
+                name="RSI(13)",
+                legendgroup="보조지표 선",
+                legendgrouptitle_text="보조지표 선 관련",
+                showlegend=True
+            ), row=1, col=1, secondary_y=True)
     
-        # ===== RSI 라인 (row1, y2) =====
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
-            line=dict(color="rgba(42,157,143,0.30)", width=6),
-            name="", showlegend=False
-        ), row=1, col=1, secondary_y=True)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["RSI13"], mode="lines",
-            line=dict(color="#2A9D8F", width=2.4, dash="dot"),
-            name="RSI(13)"
-        ), row=1, col=1, secondary_y=True)
-    
-# ===== CCI 하단 차트 (row2) =====
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["CCI"], mode="lines",
-            line=dict(width=1.6),
-            name="CCI"
-        ), row=2, col=1)
-        fig.add_trace(go.Scatter(
-            x=df_plot["time"], y=df_plot["CCI_sig"], mode="lines",
-            line=dict(width=1.2, dash="dot"),
-            name=f"CCI 신호({int(cci_signal)})"
-        ), row=2, col=1)
-        # CCI 기준선
-        for yv, colr in [(100, "#E63946"), (-100, "#457B9D"), (0, "#888")]:
-            fig.add_shape(
-                type="line",
-                xref="paper", x0=0, x1=1,
-                yref="y3", y0=yv, y1=yv,
-                line=dict(color=colr, width=1, dash="dot")
-            )
+    # ===== CCI 하단 차트 (row2) =====
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["CCI"], mode="lines",
+                line=dict(width=1.6),
+                name="CCI"
+            ), row=2, col=1)
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["CCI_sig"], mode="lines",
+                line=dict(width=1.2, dash="dot"),
+                name=f"CCI 신호({int(cci_signal)})"
+            ), row=2, col=1)
+            # CCI 기준선
+            for yv, colr in [(100, "#E63946"), (-100, "#457B9D"), (0, "#888")]:
+                fig.add_shape(
+                    type="line",
+                    xref="paper", x0=0, x1=1,
+                    yref="y3", y0=yv, y1=yv,
+                    line=dict(color=colr, width=1, dash="dot")
+                )
     
         # ----- CCI 골든크로스 ★ (row2) -----
         try:
