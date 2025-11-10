@@ -2703,7 +2703,7 @@ def main():
                 cci_scaled = _normalize(df_plot["CCI"])
                 macd_scaled = _normalize(df_plot["MACD"])
 
-                # RSI(13)
+                # RSI(13) — 중복 실선 제거 (대표 1개만 표시)
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=rsi_scaled,
                     mode="lines",
@@ -2711,23 +2711,35 @@ def main():
                     name="RSI(13)"
                 ), row=1, col=1, secondary_y=True)
 
-                # CCI(20)
+                # CCI(20 RSI 스케일) — 중복 제거
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=cci_scaled,
                     mode="lines",
-                    line=dict(color="#2196F3", width=1.6, dash="dot"),
-                    name="CCI(20, RSI-Scale)"
+                    line=dict(color="#2196F3", width=1.8, dash="dot"),
+                    name="CCI(20→RSI Scale)"
                 ), row=1, col=1, secondary_y=True)
 
-                # MACD
+                # MACD(RSI 스케일) — 중복 제거
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=macd_scaled,
                     mode="lines",
-                    line=dict(color="#E74C3C", width=1.6, dash="dot"),
-                    name="MACD(RSI-Scale)"
+                    line=dict(color="#E74C3C", width=1.8, dash="dot"),
+                    name="MACD(→RSI Scale)"
                 ), row=1, col=1, secondary_y=True)
 
+                # RSI 스케일 고정
                 fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
+
+                # 🆕 CCI 보조지표 (row2) 복원
+                if "CCI" in df_plot.columns:
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"],
+                        y=df_plot["CCI"],
+                        mode="lines",
+                        line=dict(color="teal", width=2.0),
+                        name="CCI(20)",
+                        showlegend=True
+                    ), row=2, col=1)
         except Exception as e:
             print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
 
