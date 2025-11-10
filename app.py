@@ -2429,20 +2429,25 @@ def main():
             return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
 
 
-        # ✅ MA5/MA20 추가 (EMA 컬럼 존재 시만 표시)
+        # ✅ EMA/VWMA 표시 (MA5·MA20 제거)
         try:
-            if "EMA5" in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["EMA5"], mode="lines",
-                    line=dict(color="#5DADE2", width=2.0, dash="solid"),
-                    name="MA5"
-                ), row=1, col=1)
-            if "EMA20" in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["EMA20"], mode="lines",
-                    line=dict(color="#2874A6", width=2.0, dash="solid"),
-                    name="MA20"
-                ), row=1, col=1)
+            ema_cols = [
+                ("EMA5", "#5DADE2", 1.6),
+                ("EMA20", "#2874A6", 1.8),
+                ("EMA50", "#34495E", 2.0),
+                ("EMA100", "#1B2631", 2.0),
+                ("EMA200", "#000000", 2.2),
+                ("VWMA100", "#F4D03F", 2.0)
+            ]
+            for col, color, width in ema_cols:
+                if col in df_plot.columns:
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=df_plot[col],
+                        mode="lines",
+                        line=dict(color=color, width=width, dash="solid"),
+                        name=col,
+                        legendgroup="이동평균선"
+                    ), row=1, col=1)
         except Exception:
             pass
 
@@ -2492,7 +2497,7 @@ def main():
             # ===== 범례 정렬 및 그룹화 (가격 → 이동평균 → 거래량 → 보조지표) =====
             fig.update_layout(
                 legend=dict(
-                    traceorder="normal",
+                    traceorder="grouped",
                     groupclick="toggleitem",
                     bgcolor="rgba(255,255,255,0.7)",
                     bordercolor="lightgray",
@@ -2504,8 +2509,19 @@ def main():
                     xanchor="left",
                     x=1.02
                 ),
-                legend_tracegroupgap=6
+                legend_tracegroupgap=6,
             )
+
+            # ✅ 범례 순서 및 그룹핑
+            def _legend_sort_key(trace):
+                n = trace.name.lower()
+                if any(k in n for k in ["ema", "vwma", "가격"]): return 1
+                if any(k in n for k in ["rsi", "cci", "macd"]): return 2
+                if any(k in n for k in ["골든", "데드"]): return 3
+                if any(k in n for k in ["signal", "composite"]): return 4
+                return 5
+
+            fig.data = tuple(sorted(fig.data, key=_legend_sort_key))
 
             if show_vwma and "VWMA100" in df_plot.columns:
                 fig.add_trace(go.Scatter(
@@ -2915,13 +2931,15 @@ def main():
                     name="CCI(20, RSI-Scale)"
                 ), row=1, col=1, secondary_y=True)
 
-                # MACD
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=macd_scaled,
-                    mode="lines",
-                    line=dict(color="#E74C3C", width=1.6, dash="dot"),
-                    name="MACD(RSI-Scale)"
-                ), row=1, col=1, secondary_y=True)
+                # MACD (중복 제거됨)
+                if "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
+                    macd_vals = _normalize(df_plot["MACD"])
+                    fig.add_trace(go.Scatter(
+                        x=df_plot["time"], y=macd_vals,
+                        mode="lines",
+                        line=dict(color="#E74C3C", width=1.6, dash="dot"),
+                        name="MACD(→RSI Scale)"
+                    ), row=1, col=1, secondary_y=True)
 
                 fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
 
@@ -2945,9 +2963,52 @@ def main():
         except Exception as e:
             print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
     
-# ===== CCI 하단 차트 (row2) 제거 =====
-# ✅ 보조지표 CCI는 메인차트의 RSI-스케일 영역에 통합됨.
-# ✅ row=2 섹션 완전 삭제.
+        # ===== CCI 하단 보조지표 복원 (평균선 + 골든/데드 표시) =====
+        try:
+            if "CCI" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["CCI"],
+                    mode="lines",
+                    line=dict(color="teal", width=2.0),
+                    name="CCI(20)",
+                    showlegend=True,
+                    legendgroup="CCI"
+                ), row=2, col=1)
+
+            if "CCI_Signal" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["CCI_Signal"],
+                    mode="lines",
+                    line=dict(color="#FFB703", width=1.8, dash="dot"),
+                    name="CCI 신호(평균선)",
+                    legendgroup="CCI"
+                ), row=2, col=1)
+
+            if "CCI_Golden" in df_plot.columns:
+                gold_idx = df_plot.index[df_plot["CCI_Golden"] == 1]
+                if len(gold_idx) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=df_plot.loc[gold_idx, "time"],
+                        y=df_plot.loc[gold_idx, "CCI"].astype(float),
+                        mode="markers",
+                        marker=dict(symbol="star", color="#FFD166", size=10),
+                        name="CCI 골든★",
+                        legendgroup="CCI"
+                    ), row=2, col=1)
+
+            if "CCI_Dead" in df_plot.columns:
+                dead_idx = df_plot.index[df_plot["CCI_Dead"] == 1]
+                if len(dead_idx) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=df_plot.loc[dead_idx, "time"],
+                        y=df_plot.loc[dead_idx, "CCI"].astype(float),
+                        mode="markers",
+                        marker=dict(symbol="x", color="#EF476F", size=9),
+                        name="CCI 데드★",
+                        legendgroup="CCI"
+                    ), row=2, col=1)
+        except Exception as e:
+            print("⚠️ CCI 복원 오류:", e)
     
         # ===== 업비트 스타일 십자선/툴팁 모드 & AutoScale =====
         fig.update_layout(
