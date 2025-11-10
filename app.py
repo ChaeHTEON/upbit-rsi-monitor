@@ -2559,7 +2559,7 @@ def main():
 
                     fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
             except Exception as e:
-                print("⚠️ RSI·MACD 통합 표시 오류:", e))
+                print("⚠️ RSI·MACD 통합 표시 오류:", e)
                 for ma_col, color, width in ma_order:
                     if ma_col in df_plot.columns:
                         fig.add_trace(go.Scatter(
