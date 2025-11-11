@@ -3172,24 +3172,25 @@ except Exception:
                 )  # CCI 축 (RSI y2=0~100 유지)
 
                 # ✅ EMA200 중복 표시 정리 — BBLOW 하단 중복선 제거
-                try:
-                    if "EMA200" in df_plot.columns:
-                        y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                        y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                        pad = (y_max - y_min) * 0.10
-                        y_min_adj = y_min - pad
-                        y_max_adj = y_max + pad
-        
-                        # 🔸 패딩만 적용하고, 중복된 EMA200 시각화는 추가하지 않음
-                        fig.update_yaxes(
-                            range=[y_min_adj, y_max_adj],
-                            autorange=False,
-                            fixedrange=False,
-                            automargin=True,
-                            row=1, col=1
-                        )
-                except Exception as e:
-                    print("⚠️ EMA200 짤림 보정 오류:", e)
+        # ✅ EMA200 중복 표시 정리 — BBLOW 하단 중복선 제거
+        try:
+            if "EMA200" in df_plot.columns:
+                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                pad = (y_max - y_min) * 0.10
+                y_min_adj = y_min - pad
+                y_max_adj = y_max + pad
+
+                # 🔸 패딩만 적용하고, 중복된 EMA200 시각화는 추가하지 않음
+                fig.update_yaxes(
+                    range=[y_min_adj, y_max_adj],
+                    autorange=False,
+                    fixedrange=False,
+                    automargin=True,
+                    row=1, col=1
+                )
+        except Exception as e:
+            print("⚠️ EMA200 짤림 보정 오류:", e)
             except Exception:
                 pass
     
