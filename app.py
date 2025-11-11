@@ -3012,6 +3012,13 @@ def main():
                     name="RSI(13)"
                 ), row=1, col=1, secondary_y=True)
 
+                # CCI(20)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=cci_scaled,
+                    mode="lines",
+                    line=dict(color="#2196F3", width=1.6, dash="dot"),
+                    name="CCI(20, RSI-Scale)"
+                ), row=1, col=1, secondary_y=True)
 
                 # MACD (중복 제거됨)
                 if "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
@@ -3047,7 +3054,6 @@ def main():
     
         # ===== CCI 하단 보조지표 복원 (평균선 + 골든/데드 표시) =====
         try:
-            # ✅ CCI 보조지표 복원 (CCI + Signal + Golden/Dead Markers)
             if "CCI" in df_plot.columns:
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=df_plot["CCI"],
@@ -3059,39 +3065,6 @@ def main():
                     legendgrouptitle_text="CCI",
                     legendrank=110
                 ), row=2, col=1)
-
-            if "CCI_Signal" in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["CCI_Signal"],
-                    mode="lines",
-                    line=dict(color="#FFB703", width=1.8, dash="dot"),
-                    name="CCI 신호(평균선)",
-                    legendgroup="CCI"
-                ), row=2, col=1)
-
-            if "CCI_Golden" in df_plot.columns:
-                gold_idx = df_plot.index[df_plot["CCI_Golden"] == 1]
-                if len(gold_idx) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot.loc[gold_idx, "time"],
-                        y=df_plot.loc[gold_idx, "CCI"].astype(float),
-                        mode="markers",
-                        marker=dict(symbol="star", color="#FFD166", size=10),
-                        name="CCI 골든★",
-                        legendgroup="CCI"
-                    ), row=2, col=1)
-
-            if "CCI_Dead" in df_plot.columns:
-                dead_idx = df_plot.index[df_plot["CCI_Dead"] == 1]
-                if len(dead_idx) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot.loc[dead_idx, "time"],
-                        y=df_plot.loc[dead_idx, "CCI"].astype(float),
-                        mode="markers",
-                        marker=dict(symbol="x", color="#EF476F", size=9),
-                        name="CCI 데드★",
-                        legendgroup="CCI"
-                    ), row=2, col=1)
 
             if "CCI_Signal" in df_plot.columns:
                 fig.add_trace(go.Scatter(
