@@ -3181,7 +3181,6 @@ except Exception:
                 y_min_adj = y_min - pad
                 y_max_adj = y_max + pad
 
-                # 🔸 패딩만 적용하고, 중복된 EMA200 시각화는 추가하지 않음
                 fig.update_yaxes(
                     range=[y_min_adj, y_max_adj],
                     autorange=False,
@@ -3189,6 +3188,7 @@ except Exception:
                     automargin=True,
                     row=1, col=1
                 )
+                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
         except Exception as e:
             print("⚠️ EMA200 짤림 보정 오류:", e)
             except Exception:
