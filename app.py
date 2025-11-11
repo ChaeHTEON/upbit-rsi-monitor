@@ -2363,8 +2363,8 @@ def main():
                     ), row=1, col=1)
 
         # (메인 차트의 Composite 강세★ 표식 제거 — 보조패널에서만 활용)
-        except Exception as e:
-            print("⚠️ Composite 강세 마커 오류:", e)
+        # ⚠️ 상위 try 블록이 제거되어 SyntaxError 발생 → except 제거로 정합성 복원
+        # (추가 로직 없음, try 단락 정상 종료)
 
         # ☠️☠️☠️ 데드크로스(3단계) 해골 표시 추가
         try:
