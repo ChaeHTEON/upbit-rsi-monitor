@@ -2369,47 +2369,37 @@ def main():
         except Exception as e:
             print("⚠️ Composite 강세 마커 오류:", e)
 
-        # ☠️☠️☠️ 데드크로스(3단계) 해골 표시 추가
-        try:
-            if "EMA100" in df_plot.columns and "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
-                # 1단계(노랑): MACD 데드크로스
-                macd_ = df_plot["MACD"]; macds_ = df_plot["MACD_signal"]
-                cross_down_macd = (macd_.shift(1) >= macds_.shift(1)) & (macd_ < macds_)
-                xs_macd = df_plot.loc[cross_down_macd, "time"]
-                ys_macd = df_plot.loc[cross_down_macd, "close"]
-                if len(xs_macd) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=xs_macd, y=ys_macd, mode="markers",
-                        name="☠️ MACD 데드",
-                        marker=dict(size=10, color="yellow", symbol="x-thin", line=dict(width=1, color="black"))
-                    ), row=1, col=1)
+# ☠️☠️☠️ 데드크로스(2단계까지 유지) — EMA100 하회 마커 제거
+try:
+    if "EMA100" in df_plot.columns and "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
+        # 1단계(노랑): MACD 데드크로스
+        macd_  = df_plot["MACD"]; macds_ = df_plot["MACD_signal"]
+        cross_down_macd = (macd_.shift(1) >= macds_.shift(1)) & (macd_ < macds_)
+        xs_macd = df_plot.loc[cross_down_macd, "time"]
+        ys_macd = df_plot.loc[cross_down_macd, "close"]
+        if len(xs_macd) > 0:
+            fig.add_trace(go.Scatter(
+                x=xs_macd, y=ys_macd, mode="markers",
+                name="☠️ MACD 데드",
+                marker=dict(size=10, symbol="x-thin", line=dict(width=1, color="black"), color="yellow")
+            ), row=1, col=1)
 
-                # 2단계(빨강): RSI(9)<RSI(13) 하향 교차
-                if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
-                    r9 = df_plot["RSI9"]; r13 = df_plot["RSI13"]
-                    cross_down_rsi = (r9.shift(1) >= r13.shift(1)) & (r9 < r13)
-                    xs_rsi = df_plot.loc[cross_down_rsi, "time"]
-                    ys_rsi = df_plot.loc[cross_down_rsi, "close"]
-                    if len(xs_rsi) > 0:
-                        fig.add_trace(go.Scatter(
-                            x=xs_rsi, y=ys_rsi, mode="markers",
-                            name="☠️ RSI 데드",
-                            marker=dict(size=10, color="red", symbol="x-thin", line=dict(width=1, color="black"))
-                        ), row=1, col=1)
+        # 2단계(빨강): RSI(9)<RSI(13) 하향 교차
+        if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
+            r9 = df_plot["RSI9"]; r13 = df_plot["RSI13"]
+            cross_down_rsi = (r9.shift(1) >= r13.shift(1)) & (r9 < r13)
+            xs_rsi = df_plot.loc[cross_down_rsi, "time"]
+            ys_rsi = df_plot.loc[cross_down_rsi, "close"]
+            if len(xs_rsi) > 0:
+                fig.add_trace(go.Scatter(
+                    x=xs_rsi, y=ys_rsi, mode="markers",
+                    name="☠️ RSI 데드",
+                    marker=dict(size=10, symbol="x-thin", line=dict(width=1, color="black"), color="red")
+                ), row=1, col=1)
 
-                # 3단계(파랑): 종가 < EMA100
-                below_ema = df_plot["close"] < df_plot["EMA100"]
-                xs_ema = df_plot.loc[below_ema, "time"]
-                ys_ema = df_plot.loc[below_ema, "close"]
-                if len(xs_ema) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=xs_ema, y=ys_ema, mode="markers",
-                        name="☠️ EMA100 하회",
-                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black")),
-                        visible="legendonly"  # ✅ 디폴트 비활성화 (범례 클릭 시 표시)
-                    ), row=1, col=1)
-        except Exception:
-            pass
+    # ✅ 3단계(“☠️ EMA100 하회”) 블록은 완전히 삭제됨
+except Exception:
+    pass
     
         # ===== BB 라인 (row1) =====
         def _pnl_arr2(y_series):
@@ -2966,26 +2956,6 @@ def main():
         except Exception as e:
             print("⚠️ RSI(13) 굴곡 보정 오류:", e)
 
-        # ===== EMA200 짤림 완전 방지 (패딩 10% + 강제 range 적용) =====
-        try:
-            if "EMA200" in df_plot.columns:
-                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                pad = (y_max - y_min) * 0.10
-                y_min_adj = y_min - pad
-                y_max_adj = y_max + pad
-
-                fig.update_yaxes(
-                    range=[y_min_adj, y_max_adj],
-                    autorange=False,
-                    fixedrange=False,
-                    automargin=True,
-                    row=1, col=1
-                )
-                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-        except Exception as e:
-            print("⚠️ EMA200 짤림 보정 오류:", e)
-
         # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
         try:
             if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
@@ -3003,22 +2973,6 @@ def main():
                 rsi_scaled = df_plot["RSI13"].clip(0, 100)
                 cci_scaled = _normalize(df_plot["CCI"])
                 macd_scaled = _normalize(df_plot["MACD"])
-
-                # RSI(13)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=rsi_scaled,
-                    mode="lines",
-                    line=dict(color="#2A9D8F", width=2.2, dash="solid"),
-                    name="RSI(13)"
-                ), row=1, col=1, secondary_y=True)
-
-                # CCI(20)
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=cci_scaled,
-                    mode="lines",
-                    line=dict(color="#2196F3", width=1.6, dash="dot"),
-                    name="CCI(20, RSI-Scale)"
-                ), row=1, col=1, secondary_y=True)
 
                 # MACD (중복 제거됨)
                 if "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
@@ -3054,6 +3008,7 @@ def main():
     
         # ===== CCI 하단 보조지표 복원 (평균선 + 골든/데드 표시) =====
         try:
+            # ✅ CCI 보조지표 복원 (CCI + Signal + Golden/Dead Markers)
             if "CCI" in df_plot.columns:
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=df_plot["CCI"],
@@ -3065,6 +3020,39 @@ def main():
                     legendgrouptitle_text="CCI",
                     legendrank=110
                 ), row=2, col=1)
+
+            if "CCI_Signal" in df_plot.columns:
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["CCI_Signal"],
+                    mode="lines",
+                    line=dict(color="#FFB703", width=1.8, dash="dot"),
+                    name="CCI 신호(평균선)",
+                    legendgroup="CCI"
+                ), row=2, col=1)
+
+            if "CCI_Golden" in df_plot.columns:
+                gold_idx = df_plot.index[df_plot["CCI_Golden"] == 1]
+                if len(gold_idx) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=df_plot.loc[gold_idx, "time"],
+                        y=df_plot.loc[gold_idx, "CCI"].astype(float),
+                        mode="markers",
+                        marker=dict(symbol="star", color="#FFD166", size=10),
+                        name="CCI 골든★",
+                        legendgroup="CCI"
+                    ), row=2, col=1)
+
+            if "CCI_Dead" in df_plot.columns:
+                dead_idx = df_plot.index[df_plot["CCI_Dead"] == 1]
+                if len(dead_idx) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=df_plot.loc[dead_idx, "time"],
+                        y=df_plot.loc[dead_idx, "CCI"].astype(float),
+                        mode="markers",
+                        marker=dict(symbol="x", color="#EF476F", size=9),
+                        name="CCI 데드★",
+                        legendgroup="CCI"
+                    ), row=2, col=1)
 
             if "CCI_Signal" in df_plot.columns:
                 fig.add_trace(go.Scatter(
