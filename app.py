@@ -2669,6 +2669,9 @@ def main():
                     mode="lines",
                     name=f"VWMA({period})",
                     line=dict(color="orange", width=2.4, dash="solid"),
+                    legendgroup="이동평균선",
+                    legendgrouptitle_text="이동평균선",
+                    legendrank=10
                 ), row=1, col=1)
 
                 # VWMA ↔ EMA200 교차 신호
@@ -2844,11 +2847,14 @@ def main():
                     x=pd.concat([df_plot["time"], df_plot["time"][::-1]]),
                     y=pd.concat([df_plot["BB_up"], df_plot["BB_low"][::-1]]),
                     fill="toself",
-                    fillcolor="rgba(160,160,160,0.08)",  # 회색 투명 영역
+                    fillcolor="rgba(160,160,160,0.08)",
                     line=dict(color="rgba(0,0,0,0)"),
                     hoverinfo="skip",
                     name="BB 영역",
-                    showlegend=False
+                    showlegend=False,
+                    legendgroup="볼린저밴드",
+                    legendgrouptitle_text="볼린저밴드",
+                    legendrank=20
                 ), row=1, col=1)
 
             # 🧹 MA5·MA20 제거 — EMA 기반 이동평균만 표시
@@ -2891,7 +2897,10 @@ def main():
                         x=[t1], y=[y1],
                         mode="markers", name="도달⭐",
                         marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
-                        showlegend=not legend_emitted["성공"]
+                        showlegend=not legend_emitted["성공"],
+                        legendgroup="매매신호",
+                        legendgrouptitle_text="매매신호",
+                        legendrank=30
                     ), row=1, col=1)
                     legend_emitted["성공"] = True
                 elif row_["결과"] == "실패":
@@ -3049,7 +3058,9 @@ def main():
                     line=dict(color="teal", width=2.0),
                     name="CCI(20)",
                     showlegend=True,
-                    legendgroup="CCI"
+                    legendgroup="CCI",
+                    legendgrouptitle_text="CCI",
+                    legendrank=110
                 ), row=2, col=1)
 
             if "CCI_Signal" in df_plot.columns:
