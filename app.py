@@ -2621,7 +2621,7 @@ def main():
                             name=f"{bb_col.upper().replace('_',' ')}"
                         ), row=1, col=1)
 
-            # EMA200선: NaN 포함 보간 → 짤림 완전 방지
+            # NaN 포함 보간 → 짤림 완전 방지 (EMA200 단일 유지)
             if show_ema200 and "EMA200" in df_plot.columns:
                 df_plot["EMA200_filled"] = df_plot["EMA200"].interpolate(limit_direction="both")
                 fig.add_trace(go.Scatter(
@@ -2630,6 +2630,8 @@ def main():
                     line=dict(color="black", width=2.2, dash="solid"),
                     name="EMA(200)"
                 ), row=1, col=1)
+
+            # EMA200DMS 등 중복 라인 제거됨
 
             # EMA200 짤림 방지용 y축 패딩 재계산
             ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200_filled","VWMA100"] if c in df_plot.columns]
@@ -2734,7 +2736,7 @@ def main():
                     name="RSI(13)"
                 ), row=1, col=1, secondary_y=True)
 
-                # CCI(20 RSI 스케일) — 중복 제거
+                # ✅ CCI(20 RSI 스케일) — 중복 완전 제거 후 단일 유지
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=cci_scaled,
                     mode="lines",
@@ -2742,7 +2744,7 @@ def main():
                     name="CCI(20→RSI Scale)"
                 ), row=1, col=1, secondary_y=True)
 
-                # MACD(RSI 스케일) — 중복 제거
+                # MACD(RSI 스케일)
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"], y=macd_scaled,
                     mode="lines",
