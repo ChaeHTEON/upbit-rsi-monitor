@@ -3171,16 +3171,16 @@ except Exception:
                     row=2, col=1
                 )  # CCI 축 (RSI y2=0~100 유지)
 
-                # ✅ EMA200 짤림 방지용 여유 버퍼 확대 및 적용 순서 보정
+                # ✅ EMA200 중복 표시 정리 — BBLOW 하단 중복선 제거
                 try:
                     if "EMA200" in df_plot.columns:
                         y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
                         y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                        pad = (y_max - y_min) * 0.10  # 🔹 패딩 10%로 확대
+                        pad = (y_max - y_min) * 0.10
                         y_min_adj = y_min - pad
                         y_max_adj = y_max + pad
-
-                        # Plotly autoscale보다 먼저 강제 범위 지정
+        
+                        # 🔸 패딩만 적용하고, 중복된 EMA200 시각화는 추가하지 않음
                         fig.update_yaxes(
                             range=[y_min_adj, y_max_adj],
                             autorange=False,
@@ -3188,9 +3188,8 @@ except Exception:
                             automargin=True,
                             row=1, col=1
                         )
-                        print(f"✅ EMA200 y-range 보정 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
                 except Exception as e:
-                    print("⚠️ EMA200 스케일 보정 오류:", e)
+                    print("⚠️ EMA200 짤림 보정 오류:", e)
             except Exception:
                 pass
     
