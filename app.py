@@ -2394,17 +2394,6 @@ def main():
                             marker=dict(size=10, color="red", symbol="x-thin", line=dict(width=1, color="black"))
                         ), row=1, col=1)
 
-                # 3단계(파랑): 종가 < EMA100
-                below_ema = df_plot["close"] < df_plot["EMA100"]
-                xs_ema = df_plot.loc[below_ema, "time"]
-                ys_ema = df_plot.loc[below_ema, "close"]
-                if len(xs_ema) > 0:
-                    fig.add_trace(go.Scatter(
-                        x=xs_ema, y=ys_ema, mode="markers",
-                        name="☠️ EMA100 하회",
-                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black")),
-                        visible="legendonly"  # ✅ 디폴트 비활성화 (범례 클릭 시 표시)
-                    ), row=1, col=1)
         except Exception:
             pass
     
@@ -3098,7 +3087,7 @@ def main():
                         ],
                         subset=_subset_cols
                     )
-                    st.dataframe(styled_tbl, use_container_width=True)
+                    st.dataframe(styled_tbl, width='stretch')
     
                     csv_bytes = df_show.to_csv(index=False).encode("utf-8-sig")
                     st.download_button("⬇ 결과 CSV 다운로드", data=csv_bytes, file_name="sweep_results.csv", mime="text/csv", use_container_width=True)
@@ -3222,7 +3211,7 @@ def main():
                 return ""
 
             styled_tbl = tbl.style.applymap(style_result, subset=["결과"]) if "결과" in tbl.columns else tbl
-            st.dataframe(styled_tbl, use_container_width=True)
+            st.dataframe(styled_tbl, width='stretch')
 
         # -----------------------------
         # 📒 공유 메모 — 복원 (경로 보정)
