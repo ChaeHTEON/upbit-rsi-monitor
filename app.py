@@ -2369,37 +2369,47 @@ def main():
         except Exception as e:
             print("⚠️ Composite 강세 마커 오류:", e)
 
-# ☠️☠️☠️ 데드크로스(2단계까지 유지) — EMA100 하회 마커 제거
-try:
-    if "EMA100" in df_plot.columns and "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
-        # 1단계(노랑): MACD 데드크로스
-        macd_  = df_plot["MACD"]; macds_ = df_plot["MACD_signal"]
-        cross_down_macd = (macd_.shift(1) >= macds_.shift(1)) & (macd_ < macds_)
-        xs_macd = df_plot.loc[cross_down_macd, "time"]
-        ys_macd = df_plot.loc[cross_down_macd, "close"]
-        if len(xs_macd) > 0:
-            fig.add_trace(go.Scatter(
-                x=xs_macd, y=ys_macd, mode="markers",
-                name="☠️ MACD 데드",
-                marker=dict(size=10, symbol="x-thin", line=dict(width=1, color="black"), color="yellow")
-            ), row=1, col=1)
+        # ☠️☠️☠️ 데드크로스(3단계) 해골 표시 추가
+        try:
+            if "EMA100" in df_plot.columns and "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
+                # 1단계(노랑): MACD 데드크로스
+                macd_ = df_plot["MACD"]; macds_ = df_plot["MACD_signal"]
+                cross_down_macd = (macd_.shift(1) >= macds_.shift(1)) & (macd_ < macds_)
+                xs_macd = df_plot.loc[cross_down_macd, "time"]
+                ys_macd = df_plot.loc[cross_down_macd, "close"]
+                if len(xs_macd) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=xs_macd, y=ys_macd, mode="markers",
+                        name="☠️ MACD 데드",
+                        marker=dict(size=10, color="yellow", symbol="x-thin", line=dict(width=1, color="black"))
+                    ), row=1, col=1)
 
-        # 2단계(빨강): RSI(9)<RSI(13) 하향 교차
-        if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
-            r9 = df_plot["RSI9"]; r13 = df_plot["RSI13"]
-            cross_down_rsi = (r9.shift(1) >= r13.shift(1)) & (r9 < r13)
-            xs_rsi = df_plot.loc[cross_down_rsi, "time"]
-            ys_rsi = df_plot.loc[cross_down_rsi, "close"]
-            if len(xs_rsi) > 0:
-                fig.add_trace(go.Scatter(
-                    x=xs_rsi, y=ys_rsi, mode="markers",
-                    name="☠️ RSI 데드",
-                    marker=dict(size=10, symbol="x-thin", line=dict(width=1, color="black"), color="red")
-                ), row=1, col=1)
+                # 2단계(빨강): RSI(9)<RSI(13) 하향 교차
+                if "RSI9" in df_plot.columns and "RSI13" in df_plot.columns:
+                    r9 = df_plot["RSI9"]; r13 = df_plot["RSI13"]
+                    cross_down_rsi = (r9.shift(1) >= r13.shift(1)) & (r9 < r13)
+                    xs_rsi = df_plot.loc[cross_down_rsi, "time"]
+                    ys_rsi = df_plot.loc[cross_down_rsi, "close"]
+                    if len(xs_rsi) > 0:
+                        fig.add_trace(go.Scatter(
+                            x=xs_rsi, y=ys_rsi, mode="markers",
+                            name="☠️ RSI 데드",
+                            marker=dict(size=10, color="red", symbol="x-thin", line=dict(width=1, color="black"))
+                        ), row=1, col=1)
 
-    # ✅ 3단계(“☠️ EMA100 하회”) 블록은 완전히 삭제됨
-except Exception:
-    pass
+                # 3단계(파랑): 종가 < EMA100
+                below_ema = df_plot["close"] < df_plot["EMA100"]
+                xs_ema = df_plot.loc[below_ema, "time"]
+                ys_ema = df_plot.loc[below_ema, "close"]
+                if len(xs_ema) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=xs_ema, y=ys_ema, mode="markers",
+                        name="☠️ EMA100 하회",
+                        marker=dict(size=10, color="blue", symbol="x-thin", line=dict(width=1, color="black")),
+                        visible="legendonly"  # ✅ 디폴트 비활성화 (범례 클릭 시 표시)
+                    ), row=1, col=1)
+        except Exception:
+            pass
     
         # ===== BB 라인 (row1) =====
         def _pnl_arr2(y_series):
@@ -2611,33 +2621,16 @@ except Exception:
                             name=f"{bb_col.upper().replace('_',' ')}"
                         ), row=1, col=1)
 
-        # EMA200선: NaN 포함 보간 → 짤림 완전 방지
-        if show_ema200 and "EMA200" in df_plot.columns:
-            df_plot["EMA200_filled"] = df_plot["EMA200"].interpolate(limit_direction="both")
-            fig.add_trace(go.Scatter(
-                x=df_plot["time"], y=df_plot["EMA200_filled"],
-                mode="lines",
-                line=dict(color="black", width=2.2, dash="solid"),
-                name="EMA(200)"
-            ), row=1, col=1)
+            # EMA200선: NaN 포함 보간 → 짤림 완전 방지
+            if show_ema200 and "EMA200" in df_plot.columns:
+                df_plot["EMA200_filled"] = df_plot["EMA200"].interpolate(limit_direction="both")
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=df_plot["EMA200_filled"],
+                    mode="lines",
+                    line=dict(color="black", width=2.2, dash="solid"),
+                    name="EMA(200)"
+                ), row=1, col=1)
 
-            # ===== EMA200 짤림 보정 =====
-            try:
-                y_min = float(min(df_plot["low"].min(), df_plot["EMA200_filled"].min()))
-                y_max = float(max(df_plot["high"].max(), df_plot["EMA200_filled"].max()))
-                pad = (y_max - y_min) * 0.10
-                y_min_adj = y_min - pad
-                y_max_adj = y_max + pad
-                fig.update_yaxes(
-                    range=[y_min_adj, y_max_adj],
-                    autorange=False,
-                    fixedrange=False,
-                    automargin=True,
-                    row=1, col=1
-                )
-                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-            except Exception as e:
-                print("⚠️ EMA200 짤림 보정 오류:", e)
             # EMA200 짤림 방지용 y축 패딩 재계산
             ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200_filled","VWMA100"] if c in df_plot.columns]
             bb_cols  = [c for c in ["BB_up","BB_low","BB_mid"] if c in df_plot.columns]
@@ -2974,24 +2967,24 @@ except Exception:
             print("⚠️ RSI(13) 굴곡 보정 오류:", e)
 
         # ===== EMA200 짤림 완전 방지 (패딩 10% + 강제 range 적용) =====
-            try:
-                if "EMA200" in df_plot.columns:
-                    y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                    y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                    pad = (y_max - y_min) * 0.10
-                    y_min_adj = y_min - pad
-                    y_max_adj = y_max + pad
-    
-                    fig.update_yaxes(
-                        range=[y_min_adj, y_max_adj],
-                        autorange=False,
-                        fixedrange=False,
-                        automargin=True,
-                        row=1, col=1
-                    )
-                    print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-            except Exception as e:
-                print("⚠️ EMA200 짤림 보정 오류:", e)
+        try:
+            if "EMA200" in df_plot.columns:
+                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                pad = (y_max - y_min) * 0.10
+                y_min_adj = y_min - pad
+                y_max_adj = y_max + pad
+
+                fig.update_yaxes(
+                    range=[y_min_adj, y_max_adj],
+                    autorange=False,
+                    fixedrange=False,
+                    automargin=True,
+                    row=1, col=1
+                )
+                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
+        except Exception as e:
+            print("⚠️ EMA200 짤림 보정 오류:", e)
 
         # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
         try:
@@ -3010,6 +3003,15 @@ except Exception:
                 rsi_scaled = df_plot["RSI13"].clip(0, 100)
                 cci_scaled = _normalize(df_plot["CCI"])
                 macd_scaled = _normalize(df_plot["MACD"])
+
+                # RSI(13)
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=rsi_scaled,
+                    mode="lines",
+                    line=dict(color="#2A9D8F", width=2.2, dash="solid"),
+                    name="RSI(13)"
+                ), row=1, col=1, secondary_y=True)
+
 
                 # MACD (중복 제거됨)
                 if "MACD" in df_plot.columns and "MACD_signal" in df_plot.columns:
