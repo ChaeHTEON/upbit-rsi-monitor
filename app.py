@@ -2957,24 +2957,24 @@ except Exception:
             print("⚠️ RSI(13) 굴곡 보정 오류:", e)
 
         # ===== EMA200 짤림 완전 방지 (패딩 10% + 강제 range 적용) =====
-        try:
-            if "EMA200" in df_plot.columns:
-                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                pad = (y_max - y_min) * 0.10
-                y_min_adj = y_min - pad
-                y_max_adj = y_max + pad
-
-                fig.update_yaxes(
-                    range=[y_min_adj, y_max_adj],
-                    autorange=False,
-                    fixedrange=False,
-                    automargin=True,
-                    row=1, col=1
-                )
-                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-        except Exception as e:
-            print("⚠️ EMA200 짤림 보정 오류:", e)
+            try:
+                if "EMA200" in df_plot.columns:
+                    y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                    y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                    pad = (y_max - y_min) * 0.10
+                    y_min_adj = y_min - pad
+                    y_max_adj = y_max + pad
+    
+                    fig.update_yaxes(
+                        range=[y_min_adj, y_max_adj],
+                        autorange=False,
+                        fixedrange=False,
+                        automargin=True,
+                        row=1, col=1
+                    )
+                    print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
+            except Exception as e:
+                print("⚠️ EMA200 짤림 보정 오류:", e)
 
         # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
         try:
