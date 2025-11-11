@@ -3243,14 +3243,20 @@ def main():
                 "매매신호": 3,
                 "보조지표": 4
             }
-            # 🔹 중복 제거용 (CCI, EMA200 등 중복 라인 제외)
+            # 🔹 중복 제거용 (CCI, EMA200 등 중복 라인 완전 정리)
             seen = set()
             traces_clean = []
             for tr in fig.data:
-                if tr.name in ["CCI(20-RSL..)", "CCI(20)", "EMA200"]:
-                    if tr.name in seen:
-                        continue
-                    seen.add(tr.name)
+                # 중복 판단 기준: 이름 내 주요 키워드
+                name = getattr(tr, "name", "")
+                base_name = (
+                    "CCI(20)" if "CCI" in name else
+                    "EMA200" if "EMA200" in name else
+                    name
+                )
+                if base_name in seen:
+                    continue
+                seen.add(base_name)
                 traces_clean.append(tr)
 
             # 🔹 그룹 순서 및 하위 토글 제어
