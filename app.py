@@ -3173,26 +3173,26 @@ except Exception:
 
                 # ✅ EMA200 중복 표시 정리 — BBLOW 하단 중복선 제거
         # ✅ EMA200 중복 표시 정리 — BBLOW 하단 중복선 제거
-        try:
-            if "EMA200" in df_plot.columns:
-                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                pad = (y_max - y_min) * 0.10
-                y_min_adj = y_min - pad
-                y_max_adj = y_max + pad
-
-                fig.update_yaxes(
-                    range=[y_min_adj, y_max_adj],
-                    autorange=False,
-                    fixedrange=False,
-                    automargin=True,
-                    row=1, col=1
-                )
-                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-        except Exception as e:
-            print("⚠️ EMA200 짤림 보정 오류:", e)
-            except Exception:
-                pass
+            try:
+                if "EMA200" in df_plot.columns:
+                    y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                    y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                    pad = (y_max - y_min) * 0.10
+                    y_min_adj = y_min - pad
+                    y_max_adj = y_max + pad
+    
+                    fig.update_yaxes(
+                        range=[y_min_adj, y_max_adj],
+                        autorange=False,
+                        fixedrange=False,
+                        automargin=True,
+                        row=1, col=1
+                    )
+                    print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
+            except Exception as e:
+                print("⚠️ EMA200 짤림 보정 오류:", e)
+                except Exception:
+                    pass
     
         # ===== 레이아웃 (AutoScale 기본값 명시) =====
         # ✅ uirevision: 매번 새로운 키값으로 강제 리셋 (토글+랜덤)
