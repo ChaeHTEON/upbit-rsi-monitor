@@ -2956,6 +2956,26 @@ except Exception:
         except Exception as e:
             print("⚠️ RSI(13) 굴곡 보정 오류:", e)
 
+        # ===== EMA200 짤림 완전 방지 (패딩 10% + 강제 range 적용) =====
+        try:
+            if "EMA200" in df_plot.columns:
+                y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                pad = (y_max - y_min) * 0.10
+                y_min_adj = y_min - pad
+                y_max_adj = y_max + pad
+
+                fig.update_yaxes(
+                    range=[y_min_adj, y_max_adj],
+                    autorange=False,
+                    fixedrange=False,
+                    automargin=True,
+                    row=1, col=1
+                )
+                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
+        except Exception as e:
+            print("⚠️ EMA200 짤림 보정 오류:", e)
+
         # ===== RSI·CCI·MACD 통합 (중복 제거 + RSI 스케일 기준 정규화) =====
         try:
             if all(k in df_plot.columns for k in ["RSI13", "CCI", "MACD"]):
@@ -3171,28 +3191,28 @@ except Exception:
                     row=2, col=1
                 )  # CCI 축 (RSI y2=0~100 유지)
 
-                # ✅ EMA200 중복 표시 정리 — BBLOW 하단 중복선 제거
-        # ✅ EMA200 중복 표시 정리 — BBLOW 하단 중복선 제거
-            try:
-                if "EMA200" in df_plot.columns:
-                    y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
-                    y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
-                    pad = (y_max - y_min) * 0.10
-                    y_min_adj = y_min - pad
-                    y_max_adj = y_max + pad
-    
-                    fig.update_yaxes(
-                        range=[y_min_adj, y_max_adj],
-                        autorange=False,
-                        fixedrange=False,
-                        automargin=True,
-                        row=1, col=1
-                    )
-                    print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
-            except Exception as e:
-                print("⚠️ EMA200 짤림 보정 오류:", e)
-                except Exception:
-                    pass
+                # ✅ EMA200 짤림 방지용 여유 버퍼 확대 및 적용 순서 보정
+                try:
+                    if "EMA200" in df_plot.columns:
+                        y_min = float(min(df_plot["low"].min(), df_plot["EMA200"].min()))
+                        y_max = float(max(df_plot["high"].max(), df_plot["EMA200"].max()))
+                        pad = (y_max - y_min) * 0.10  # 🔹 패딩 10%로 확대
+                        y_min_adj = y_min - pad
+                        y_max_adj = y_max + pad
+
+                        # Plotly autoscale보다 먼저 강제 범위 지정
+                        fig.update_yaxes(
+                            range=[y_min_adj, y_max_adj],
+                            autorange=False,
+                            fixedrange=False,
+                            automargin=True,
+                            row=1, col=1
+                        )
+                        print(f"✅ EMA200 y-range 보정 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
+                except Exception as e:
+                    print("⚠️ EMA200 스케일 보정 오류:", e)
+            except Exception:
+                pass
     
         # ===== 레이아웃 (AutoScale 기본값 명시) =====
         # ✅ uirevision: 매번 새로운 키값으로 강제 리셋 (토글+랜덤)
