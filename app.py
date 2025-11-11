@@ -2761,7 +2761,10 @@ def main():
                         mode="lines",
                         line=dict(color="teal", width=2.0),
                         name="CCI(20)",
-                        showlegend=True
+                        showlegend=True,
+                        legendgroup="보조지표",
+                        legendgrouptitle_text="보조지표",
+                        legendrank=110
                     ), row=2, col=1)
         except Exception as e:
             print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
@@ -3216,21 +3219,52 @@ def main():
             legend_orientation="v",
             legend_x=1.02,
             legend_y=1,
-            legend_font=dict(size=9),            # 🔹 범례 폰트 크기 축소
-            legend_itemclick="toggle",           # 🔹 클릭 시 해당 항목만 비활성/활성
-            legend_itemdoubleclick="toggleothers", # 🔹 더블클릭 시 선택 항목만 표시
-            legend_title_text="",                # 🔹 불필요한 타이틀 제거
-            legend_tracegroupgap=4,              # 🔹 항목 간격 최소화
+            legend_font=dict(size=9),
+            legend_itemclick="toggle",
+            legend_itemdoubleclick="toggleothers",
+            legend_tracegroupgap=6,
+            legend_title_text="",
             legend_bgcolor="rgba(255,255,255,0.7)",
             legend_bordercolor="lightgray",
             legend_borderwidth=0.5,
-            margin=dict(l=60, r=100, t=60, b=40),  # 🔹 오른쪽 여백 살짝 축소
+            margin=dict(l=60, r=100, t=60, b=40),
             plot_bgcolor="white",
             hovermode="x unified",
             hoverlabel=dict(bgcolor="white", font_size=12),
             xaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
             yaxis=dict(showline=True, showgrid=True, linecolor="lightgray", gridcolor="whitesmoke"),
         )
+
+        # ===== ✅ 범례 그룹 순서 재정렬 및 하위 전체 토글 활성화 =====
+        try:
+            order_priority = {
+                "이동평균선": 1,
+                "볼린저밴드": 2,
+                "매매신호": 3,
+                "보조지표": 4
+            }
+            # 🔹 중복 제거용 (CCI, EMA200 등 중복 라인 제외)
+            seen = set()
+            traces_clean = []
+            for tr in fig.data:
+                if tr.name in ["CCI(20-RSL..)", "CCI(20)", "EMA200"]:
+                    if tr.name in seen:
+                        continue
+                    seen.add(tr.name)
+                traces_clean.append(tr)
+
+            # 🔹 그룹 순서 및 하위 토글 제어
+            def sort_key(tr):
+                rank = order_priority.get(getattr(tr, "legendgroup", ""), 99)
+                return (rank, getattr(tr, "legendrank", 999))
+
+            fig.data = tuple(sorted(traces_clean, key=sort_key))
+            fig.update_layout(
+                legend_itemclick="toggle",
+                legend_itemdoubleclick="toggleothers"
+            )
+        except Exception as e:
+            print(f"⚠️ 범례 재정렬 중 오류: {e}")
         # ===== 차트 상단: (왼) 매수가 입력  |  (오) 최적화뷰 버튼 =====
         with chart_box:
             top_l, top_r = st.columns([4, 1])
