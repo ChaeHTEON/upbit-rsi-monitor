@@ -2651,7 +2651,6 @@ def main():
             print("⚠️ MA/EMA/VWMA 표시 오류:", e)
 
         # ================================
-        # ================================
         # 🆕 거래량 가중 이동평균선 VWMA(100) — 중복 제거 및 교차 표시 포함
         # ================================
         try:
@@ -2664,26 +2663,13 @@ def main():
                 )
                 df_plot[f"VWMA{period}"] = vwma100
 
-                # 📈 이동평균선 그룹
-                ma_order = [
-                    ("EMA5",   "#5DADE2", 1.6, "EMA5"),
-                    ("EMA20",  "#2874A6", 1.8, "EMA20"),
-                    ("EMA60",  "#34495E", 2.0, "EMA60"),
-                    ("EMA100", "#1B2631", 2.0, "EMA100"),
-                    ("EMA200", "#000000", 2.2, "EMA200"),
-                    ("VWMA100", "#F4D03F", 2.0, "VWMA(100)")
-                ]
-                for idx, (col, color, width, label) in enumerate(ma_order):
-                    if col in df_plot.columns:
-                        fig.add_trace(go.Scatter(
-                            x=df_plot["time"], y=df_plot[col],
-                            mode="lines",
-                            line=dict(color=color, width=width),
-                            name=label,
-                            legendgroup="이동평균선",
-                            legendgrouptitle_text=("이동평균선" if idx == 0 else None),
-                            legendrank=10
-                        ), row=1, col=1)
+                # VWMA(100) 기본선
+                fig.add_trace(go.Scatter(
+                    x=df_plot["time"], y=vwma100,
+                    mode="lines",
+                    name=f"VWMA({period})",
+                    line=dict(color="orange", width=2.4, dash="solid"),
+                ), row=1, col=1)
 
                 # VWMA ↔ EMA200 교차 신호
                 try:
@@ -2767,14 +2753,12 @@ def main():
                 # 🆕 CCI 보조지표 (row2) 복원
                 if "CCI" in df_plot.columns:
                     fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=df_plot["CCI"],
+                        x=df_plot["time"],
+                        y=df_plot["CCI"],
                         mode="lines",
                         line=dict(color="teal", width=2.0),
                         name="CCI(20)",
-                        showlegend=True,
-                        legendgroup="CCI",
-                        legendgrouptitle_text="CCI",
-                        legendrank=110
+                        showlegend=True
                     ), row=2, col=1)
         except Exception as e:
             print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
@@ -2854,25 +2838,18 @@ def main():
                 except Exception as e:
                     print("⚠️ MA5/20 음영 표시 오류:", e)
 
-            # 📊 볼린저밴드 그룹 (상·중·하단선)
-            bb_specs = [
-                ("BB_up",  "#FFB703", "solid", "상단선"),
-                ("BB_mid", "#8D99AE", "dot",   "중심선"),
-                ("BB_low", "#219EBC", "solid", "하단선"),
-            ]
-            first = True
-            for col, color, dash, label in bb_specs:
-                if col in df_plot.columns:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"], y=df_plot[col],
-                        mode="lines",
-                        line=dict(color=color, width=1.3, dash=dash),
-                        name=f"볼린저밴드·{label}",
-                        legendgroup="볼린저밴드",
-                        legendgrouptitle_text=("볼린저밴드" if first else None),
-                        legendrank=20
-                    ), row=1, col=1)
-                    first = False
+            # BB 상하단 사이 영역 (가격 변동 범위 강조)
+            if all(k in df_plot.columns for k in ["BB_up", "BB_low"]):
+                fig.add_trace(go.Scatter(
+                    x=pd.concat([df_plot["time"], df_plot["time"][::-1]]),
+                    y=pd.concat([df_plot["BB_up"], df_plot["BB_low"][::-1]]),
+                    fill="toself",
+                    fillcolor="rgba(160,160,160,0.08)",  # 회색 투명 영역
+                    line=dict(color="rgba(0,0,0,0)"),
+                    hoverinfo="skip",
+                    name="BB 영역",
+                    showlegend=False
+                ), row=1, col=1)
 
             # 🧹 MA5·MA20 제거 — EMA 기반 이동평균만 표시
             df_plot = df_plot.drop(columns=[c for c in ["MA5", "MA20"] if c in df_plot.columns], errors="ignore")
@@ -2914,10 +2891,7 @@ def main():
                         x=[t1], y=[y1],
                         mode="markers", name="도달⭐",
                         marker=dict(size=12, color="orange", symbol="star", line=dict(width=1, color="black")),
-                        showlegend=not legend_emitted["성공"],
-                        legendgroup="매매신호",
-                        legendgrouptitle_text="매매신호",
-                        legendrank=30
+                        showlegend=not legend_emitted["성공"]
                     ), row=1, col=1)
                     legend_emitted["성공"] = True
                 elif row_["결과"] == "실패":
