@@ -2611,16 +2611,33 @@ except Exception:
                             name=f"{bb_col.upper().replace('_',' ')}"
                         ), row=1, col=1)
 
-            # EMA200선: NaN 포함 보간 → 짤림 완전 방지
-            if show_ema200 and "EMA200" in df_plot.columns:
-                df_plot["EMA200_filled"] = df_plot["EMA200"].interpolate(limit_direction="both")
-                fig.add_trace(go.Scatter(
-                    x=df_plot["time"], y=df_plot["EMA200_filled"],
-                    mode="lines",
-                    line=dict(color="black", width=2.2, dash="solid"),
-                    name="EMA(200)"
-                ), row=1, col=1)
+        # EMA200선: NaN 포함 보간 → 짤림 완전 방지
+        if show_ema200 and "EMA200" in df_plot.columns:
+            df_plot["EMA200_filled"] = df_plot["EMA200"].interpolate(limit_direction="both")
+            fig.add_trace(go.Scatter(
+                x=df_plot["time"], y=df_plot["EMA200_filled"],
+                mode="lines",
+                line=dict(color="black", width=2.2, dash="solid"),
+                name="EMA(200)"
+            ), row=1, col=1)
 
+            # ===== EMA200 짤림 보정 =====
+            try:
+                y_min = float(min(df_plot["low"].min(), df_plot["EMA200_filled"].min()))
+                y_max = float(max(df_plot["high"].max(), df_plot["EMA200_filled"].max()))
+                pad = (y_max - y_min) * 0.10
+                y_min_adj = y_min - pad
+                y_max_adj = y_max + pad
+                fig.update_yaxes(
+                    range=[y_min_adj, y_max_adj],
+                    autorange=False,
+                    fixedrange=False,
+                    automargin=True,
+                    row=1, col=1
+                )
+                print(f"✅ EMA200 패딩 적용: {y_min_adj:.2f} ~ {y_max_adj:.2f}")
+            except Exception as e:
+                print("⚠️ EMA200 짤림 보정 오류:", e)
             # EMA200 짤림 방지용 y축 패딩 재계산
             ema_cols = [c for c in ["EMA5","EMA20","EMA50","EMA100","EMA200_filled","VWMA100"] if c in df_plot.columns]
             bb_cols  = [c for c in ["BB_up","BB_low","BB_mid"] if c in df_plot.columns]
