@@ -779,6 +779,15 @@ def main():
         out["EMA100"] = out["close"].rolling(window=100).mean()
         # MA 200선
         out["EMA200"] = out["close"].rolling(window=200).mean()
+
+        # VWMA100 (거래량가중이동평균선)
+        try:
+            pv = (out["close"] * out["volume"]).rolling(100, min_periods=1).sum()
+            v  = out["volume"].rolling(100, min_periods=1).sum()
+            out["VWMA100"] = (pv / v.replace(0, np.nan)).fillna(method="bfill").fillna(method="ffill")
+        except Exception:
+            out["VWMA100"] = np.nan
+
         # MACD (12,16,9)
         _macd = ta.trend.MACD(close=out["close"], window_slow=16, window_fast=12, window_sign=9)
         out["MACD"] = _macd.macd()
@@ -2099,38 +2108,37 @@ def main():
 
         # ✅ 수정: subplot 4행 구조 맞춤 (row=5 → row=4)
         # (4) 거래량 + 평균선 + 2.5배 기준선
+        # ===== 거래량 패널 (개별 토글이 가능한 '시각 그룹') =====
         fig.add_trace(
             go.Bar(
                 x=df_plot["time"], y=df_plot["volume"],
-                name="거래량", marker_color=colors
+                name="거래량 › 막대", marker_color=colors, legendrank=2
             ),
             row=4, col=1
         )
 
-        # ✅ 거래량 기준선 NaN 방지 + 초기구간 표시 강화
-        df_plot["vol_mean"] = (
-            df_plot["volume"]
-            .rolling(20, min_periods=1)
-            .mean()
-            .fillna(method="bfill")
-            .fillna(method="ffill")
-        )
-        df_plot["vol_threshold"] = (
-            df_plot["vol_mean"]
-            .fillna(df_plot["volume"])
-            .fillna(method="bfill")
-            .fillna(method="ffill")
-            * 2.5
+        # 20MA (거래량 평균선)
+        fig.add_trace(
+            go.Scatter(
+                x=df_plot["time"],
+                y=df_plot["vol_mean"],
+                name="거래량 › 20MA",
+                mode="lines",
+                line=dict(width=1.2, dash="dot"),
+                legendrank=2
+            ),
+            row=4, col=1
         )
 
-        # ✅ 점선은 항상 표시되도록 (NaN 완전 제거)
+        # 2.5배 기준선
         fig.add_trace(
             go.Scatter(
                 x=df_plot["time"],
                 y=df_plot["vol_threshold"].fillna(0),
-                name="TGV 기준(2.5배)",
+                name="거래량 › 2.5배",
                 mode="lines",
-                line=dict(color="red", width=1.3, dash="dot")
+                line=dict(color="red", width=1.3, dash="dot"),
+                legendrank=2
             ),
             row=4, col=1
         )
@@ -2354,33 +2362,7 @@ def main():
                         marker=dict(symbol="star", size=16, color="red", line=dict(width=1, color="black")),
                     ), row=1, col=1)
 
-        # ✅ 복합지표(Composite_Score ≥ 0.7) 구간 중 첫 발생만 별표 표시 (MACD와 구분)
-        try:
-            _src_df = df_plot if "Composite_Score" in df_plot.columns else df
-            if "Composite_Score" in _src_df.columns:
-                strong_mask = _src_df["Composite_Score"] >= 0.7
-                # 연속 True 구간 중 첫 True만 표시
-                first_idx = strong_mask & (~strong_mask.shift(1, fill_value=False))
-                xs_comp = _src_df.loc[first_idx, "time"]
-                ys_comp = _src_df.loc[first_idx, "close"]
-                if len(xs_comp) > 0:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=xs_comp,
-                            y=ys_comp,
-                            mode="markers",
-                            name="Composite 강세★",
-                            marker=dict(
-                                size=11,
-                                color="gold",             # MACD와 구분
-                                symbol="diamond",         # 별 대신 다이아몬드형
-                                line=dict(width=1.2, color="black")
-                            ),
-                            showlegend=True              # ✅ 범례 표시
-                        ),
-                        row=1,
-                        col=1
-                    )
+        # (메인 차트의 Composite 강세★ 표식 제거 — 보조패널에서만 활용)
         except Exception as e:
             print("⚠️ Composite 강세 마커 오류:", e)
 
@@ -2443,8 +2425,8 @@ def main():
                 return name + ": %{y:.2f}<extra></extra>"
             return name + ": %{y:.2f}<br>수익률(%): %{customdata[1]}<extra></extra>"
     
-        # ===== 볼린저밴드 그룹 (BB 상/중/하단) =====
-        for bb_col, bb_name in [("BB_up", "BB 상단"), ("BB_mid", "BB 중앙"), ("BB_low", "BB 하단")]:
+        # ===== 볼린저밴드 (메인 최상위 · 개별 토글) =====
+        for bb_col, bb_name in [("BB_up", "BB › 상단"), ("BB_mid", "BB › 중앙"), ("BB_low", "BB › 하단")]:
             if bb_col in df_plot.columns:
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"],
@@ -2458,52 +2440,32 @@ def main():
                     ),
                     customdata=_pnl_arr2(df_plot[bb_col]),
                     hovertemplate=_ht_line(bb_name),
-                    legendgroup="볼린저밴드",
-                    legendgrouptitle_text="볼린저밴드 관련",
-                    showlegend=True
+                    legendrank=1,          # 🔹 메인 최상위
+                    showlegend=True        # 🔹 그룹 토글 문제 방지: legendgroup 제거
                 ), row=1, col=1)
 
-        # ===== 이동평균선 그룹 (EMA5/20/50/100/200/VWMA100) =====
-        for ema_col, color, dash in [
-            ("EMA5",  "#ff0000", "solid"),
-            ("EMA20", "#ffa500", "solid"),
-            ("EMA50", "black", "solid"),
-            ("EMA100","black", "dot"),
-            ("EMA200","black", "solid"),
-            ("VWMA100","#0080ff","dot")
+        # ===== 이동평균선 (메인 최상위 · 개별 토글) =====
+        for ema_col, color, dash, disp in [
+            ("EMA5",   "#ff0000", "solid", "이평 › EMA(5)"),
+            ("EMA20",  "#ffa500", "solid", "이평 › EMA(20)"),
+            ("EMA50",  "black",   "solid", "이평 › EMA(50)"),
+            ("EMA100", "black",   "dot",   "이평 › EMA(100)"),
+            ("EMA200", "black",   "solid", "이평 › EMA(200)"),
+            ("VWMA100","#0080ff", "dot",   "이평 › VWMA(100)")
         ]:
             if ema_col in df_plot.columns:
                 fig.add_trace(go.Scatter(
                     x=df_plot["time"],
                     y=df_plot[ema_col],
                     mode="lines",
-                    name=ema_col.replace("VWMA100","거래량가중이동평균선(100)"),
+                    name=disp,
                     line=dict(color=color, width=1.5, dash=dash),
-                    legendgroup="이동평균선",
-                    legendgrouptitle_text="이동평균선 관련",
-                    showlegend=True
+                    legendrank=1,          # 🔹 메인 최상위
+                    showlegend=True        # 🔹 그룹 토글 문제 방지: legendgroup 제거
                 ), row=1, col=1)
 
-        # ===== MACD 골든 교차 마커 (보조지표 표식 그룹) =====
-        try:
-            macd = df_plot["MACD"]
-            macds = df_plot["MACD_signal"]
-            cross_idx = (macd.shift(1) <= macds.shift(1)) & (macd > macds)
-            xs = df_plot.loc[cross_idx, "time"]
-            ys = df_plot.loc[cross_idx, "close"]
-            if len(xs) > 0:
-                fig.add_trace(go.Scatter(
-                    x=xs,
-                    y=ys,
-                    mode="markers",
-                    name="MACD 골든★",
-                    marker=dict(size=11, symbol="star", line=dict(width=1, color="black")),
-                    legendgroup="보조지표 표식",
-                    legendgrouptitle_text="보조지표 표식 관련",
-                    showlegend=True
-                ), row=1, col=1)
-        except Exception:
-            pass
+        # ===== MACD 골든 교차 마커 (메인 제거: 보조패널 row=5에서만 표시) =====
+        # (메인 차트 표식 블록 삭제)
 
         # ===== RSI(13) 선 (보조지표 선 그룹) =====
         if "RSI13" in df_plot.columns:
