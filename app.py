@@ -2753,19 +2753,6 @@ def main():
                 # RSI 스케일 고정
                 fig.update_yaxes(range=[0, 100], secondary_y=True, row=1, col=1)
 
-                # 🆕 CCI 보조지표 (row2) 복원
-                if "CCI" in df_plot.columns:
-                    fig.add_trace(go.Scatter(
-                        x=df_plot["time"],
-                        y=df_plot["CCI"],
-                        mode="lines",
-                        line=dict(color="teal", width=2.0),
-                        name="CCI(20)",
-                        showlegend=True,
-                        legendgroup="보조지표",
-                        legendgrouptitle_text="보조지표",
-                        legendrank=110
-                    ), row=2, col=1)
         except Exception as e:
             print("⚠️ RSI·CCI·MACD 통합 표시 오류:", e)
 
