@@ -3444,7 +3444,6 @@ def main():
                             all_parts.append(merged_df)
 
                     if all_parts:
-                    if all_parts:
                         merged_df = pd.concat(all_parts, ignore_index=True)
                         if "sweep_state" not in st.session_state:
                             st.session_state["sweep_state"] = {}
