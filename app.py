@@ -3374,7 +3374,10 @@ def main():
             fast_mode = st.checkbox("⚡ 빠른 테스트 모드 (최근 30일만)", value=False,
                                     key="sweep_fast_mode", on_change=_keep_sweep_open)
             run_sweep = st.button("▶ 조합 스캔 실행", use_container_width=True, key="btn_run_sweep")
-            if run_sweep and not st.session_state.get("use_sweep_wrapper"):
+            if run_sweep:
+                st.session_state["use_sweep_wrapper"] = False
+                st.session_state.pop("sweep_state", None)
+            if run_sweep:
                 prog = st.progress(0)
                 def _on_progress(p): prog.progress(min(max(p, 0.0), 1.0))
     
@@ -3407,6 +3410,9 @@ def main():
                         "CCI 수치 상향돌파 (1차)"
                     ]
                     default_strategy = st.session_state.get("primary_strategy", "없음")
+                    if "sweep_strategies" in st.session_state:
+                        del st.session_state["sweep_strategies"]
+
                     sweep_strategies = st.multiselect(
                         "1차 매매기법(복수 선택 가능, 조합 스캔 대상)",
                         strategy_options_for_sweep,
