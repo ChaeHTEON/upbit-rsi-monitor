@@ -3684,8 +3684,8 @@ def main():
 
                 df_keep = df_all[
                     (df_all["결과"].isin(["성공", "중립"])) &
-                    (df_all["승률(%)"] >= wr_val - 1e-6) &
-                    (df_all["합계수익률(%)"] >= target_thr_val - 1e-6)
+                    (pd.to_numeric(df_all["승률(%)"], errors="coerce") >= float(wr_val) - 1e-6) &
+                    (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= float(target_thr_val) * 100 - 1e-6)
                 ].copy()
 
                 if df_keep.empty:
