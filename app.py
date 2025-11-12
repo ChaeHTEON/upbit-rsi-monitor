@@ -3452,7 +3452,34 @@ def main():
                         st.success("✅ 선택한 모든 매매기법으로 조합 스캔이 완료되었습니다.")
                         st.session_state["use_sweep_wrapper"] = True
                 except Exception as _e:
-                    st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
+                except Exception as _e:
+                    st.warning(f"⚠️ 안전 스캔 실패: {_e}\n→ 기존 방식으로 자동 재시도합니다.")
+                    try:
+                        merged_df, ckpt = run_combination_scan_chunked(
+                            symbol=sweep_market,
+                            interval_key=interval_key,
+                            minutes_per_bar=minutes_per_bar,
+                            start_dt=sdt,
+                            end_dt=edt,
+                            days_per_chunk=7,
+                            checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}_fallback",
+                            max_minutes=15,
+                            on_progress=_on_progress,
+                            simulate_kwargs=simulate_kwargs,
+                        )
+                        if merged_df is not None and not merged_df.empty:
+                            st.session_state["sweep_state"] = {
+                                "rows": merged_df.to_dict("records"),
+                                "params": {
+                                    "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
+                                    "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
+                                    "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
+                                    "target_thr": float(threshold_pct)
+                                }
+                            }
+                            st.success("✅ 기존 방식으로 안전 재시도 완료 (결과 복원됨)")
+                    except Exception as _e2:
+                        st.error(f"❌ 재시도 중 오류 발생: {_e2}")
     
                 st.session_state["sweep_expanded"] = True
     
@@ -3651,14 +3678,18 @@ def main():
                 except Exception:
                     target_thr_val, wr_val = 60.0, 60.0
 
+                df_all["승률(%)"] = pd.to_numeric(df_all.get("승률(%)", 0), errors="coerce").fillna(0)
+                df_all["합계수익률(%)"] = pd.to_numeric(df_all.get("합계수익률(%)", 0), errors="coerce").fillna(0)
+                df_all["결과"] = df_all.get("결과", "").replace({None: "중립"})
+
                 df_keep = df_all[
                     (df_all["결과"].isin(["성공", "중립"])) &
-                    (pd.to_numeric(df_all["승률(%)"], errors="coerce") >= wr_val) &
-                    (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= target_thr_val)
+                    (df_all["승률(%)"] >= wr_val - 1e-6) &
+                    (df_all["합계수익률(%)"] >= target_thr_val - 1e-6)
                 ].copy()
 
                 if df_keep.empty:
-                    st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
+                    st.warning("⚠️ 현재 기준으로 조건을 만족하는 조합이 없습니다. (필터 완화 또는 기간 확대를 권장)")
                 else:
                     # ✅ KeyError 방지: '신호수' 누락 시 0으로 채움
                     if "신호수" not in df_keep.columns:
