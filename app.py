@@ -3396,6 +3396,7 @@ def main():
     
                     # ✅ 조합 스캔용 전략 멀티선택 (신규 RSI·CCI 상향돌파 포함)
                     strategy_options_for_sweep = [
+                        "전체",   # ✅ 기본값 복원 — 세션 내 default_strategy가 "전체"일 때 예외 방지
                         "없음",
                         "TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync",
                         "Composite_Confirm", "Divergence_RVB", "Market_Divergence",
@@ -3403,8 +3404,8 @@ def main():
                         "EMA100_Above", "EMA100_Below",
                         "Vol_Ratio_Imbalance",
                         "이동평균·볼밴 교차 (1차)",
-                        "RSI 수치 상향돌파 (1차)",     # 🆕 신규 포함
-                        "CCI 수치 상향돌파 (1차)"      # 🆕 신규 포함
+                        "RSI 수치 상향돌파 (1차)",
+                        "CCI 수치 상향돌파 (1차)"
                     ]
                     default_strategy = st.session_state.get("primary_strategy", "없음")
                     sweep_strategies = st.multiselect(
