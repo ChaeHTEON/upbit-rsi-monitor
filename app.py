@@ -3396,7 +3396,7 @@ def main():
     
                     # ✅ 조합 스캔용 전략 멀티선택 (신규 RSI·CCI 상향돌파 포함)
                     strategy_options_for_sweep = [
-                        "전체",   # ✅ 기본값 복원 — 세션 내 default_strategy가 "전체"일 때 예외 방지
+                        "전체",
                         "없음",
                         "TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync",
                         "Composite_Confirm", "Divergence_RVB", "Market_Divergence",
@@ -3404,8 +3404,8 @@ def main():
                         "EMA100_Above", "EMA100_Below",
                         "Vol_Ratio_Imbalance",
                         "이동평균·볼밴 교차 (1차)",
-                        "RSI 수치 상향돌파 (1차)",
-                        "CCI 수치 상향돌파 (1차)"
+                        "RSI 수치 상향돌파 (1차)",     # 🆕 신규 포함
+                        "CCI 수치 상향돌파 (1차)"      # 🆕 신규 포함
                     ]
                     default_strategy = st.session_state.get("primary_strategy", "없음")
                     sweep_strategies = st.multiselect(
@@ -3416,8 +3416,13 @@ def main():
                         on_change=_keep_sweep_open
                     )
 
+                    # ✅ '전체'가 포함되어 있으면 실제 전체 전략으로 확장
+                    exec_strategies = list(sweep_strategies or [default_strategy])
+                    if "전체" in exec_strategies:
+                        exec_strategies = [s for s in strategy_options_for_sweep if s not in ("전체", "없음")]
+
                     all_parts = []
-                    for strat in (sweep_strategies or [default_strategy]):
+                    for strat in exec_strategies:
                         # 각 전략을 세션에 적용
                         st.session_state["primary_strategy"] = strat
 
@@ -3688,8 +3693,10 @@ def main():
                     (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= float(target_thr_val) * 100 - 1e-6)
                 ].copy()
 
+                # ✅ 결과가 없을 때는 우선 전체 결과를 표시하도록 완화
                 if df_keep.empty:
-                    st.warning("⚠️ 현재 기준으로 조건을 만족하는 조합이 없습니다. (필터 완화 또는 기간 확대를 권장)")
+                    st.info("필터 결과가 없어 전체 결과를 우선 표시합니다. (승률/목표수익률 조건을 완화해 보세요)")
+                    df_keep = df_all.copy()
                 else:
                     # ✅ KeyError 방지: '신호수' 누락 시 0으로 채움
                     if "신호수" not in df_keep.columns:
