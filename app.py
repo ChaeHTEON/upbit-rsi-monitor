@@ -3397,8 +3397,9 @@ def main():
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
                     )
     
-                    # ✅ 조합 스캔용 전략 멀티선택 (정상 구조 복원)
+                    # ✅ 조합 스캔용 전략 멀티선택 (신규 RSI·CCI 상향돌파 포함)
                     strategy_options_for_sweep = [
+                        "전체",
                         "없음",
                         "TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync",
                         "Composite_Confirm", "Divergence_RVB", "Market_Divergence",
@@ -3406,13 +3407,10 @@ def main():
                         "EMA100_Above", "EMA100_Below",
                         "Vol_Ratio_Imbalance",
                         "이동평균·볼밴 교차 (1차)",
-                        "RSI 수치 상향돌파 (1차)",
-                        "CCI 수치 상향돌파 (1차)"
+                        "RSI 수치 상향돌파 (1차)",     # 🆕 신규 포함
+                        "CCI 수치 상향돌파 (1차)"      # 🆕 신규 포함
                     ]
                     default_strategy = st.session_state.get("primary_strategy", "없음")
-                    if "sweep_strategies" in st.session_state:
-                        del st.session_state["sweep_strategies"]
-
                     sweep_strategies = st.multiselect(
                         "1차 매매기법(복수 선택 가능, 조합 스캔 대상)",
                         strategy_options_for_sweep,
