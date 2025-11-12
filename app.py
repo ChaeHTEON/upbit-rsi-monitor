@@ -234,7 +234,7 @@ def main():
         with c1:
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
         with c2:
-st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (전체/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (전체/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
             primary_strategy = st.selectbox(
                     "매매기법 선택",
                     [
