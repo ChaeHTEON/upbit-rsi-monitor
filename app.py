@@ -3477,38 +3477,10 @@ def main():
                         st.session_state["sweep_state"] = {"rows": []}
                 except Exception as _e:
                     st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
-    
+
                 st.session_state["sweep_expanded"] = True
-                except Exception as _e:
-                    st.warning(f"⚠️ 안전 스캔 실패: {_e}\n→ 기존 방식으로 자동 재시도합니다.")
-                    try:
-                        merged_df, ckpt = run_combination_scan_chunked(
-                            symbol=sweep_market,
-                            interval_key=interval_key,
-                            minutes_per_bar=minutes_per_bar,
-                            start_dt=sdt,
-                            end_dt=edt,
-                            days_per_chunk=7,
-                            checkpoint_key=f"combo_scan_{sweep_market}_{interval_key}_fallback",
-                            max_minutes=15,
-                            on_progress=_on_progress,
-                            simulate_kwargs=simulate_kwargs,
-                        )
-                        if merged_df is not None and not merged_df.empty:
-                            st.session_state["sweep_state"] = {
-                                "rows": merged_df.to_dict("records"),
-                                "params": {
-                                    "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
-                                    "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
-                                    "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                                    "target_thr": float(threshold_pct)
-                                }
-                            }
-                            st.success("✅ 기존 방식으로 안전 재시도 완료 (결과 복원됨)")
-                    except Exception as _e2:
-                        st.error(f"❌ 재시도 중 오류 발생: {_e2}")
-    
-                st.session_state["sweep_expanded"] = True
+
+            dedup_label = "중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"
     
             dedup_label = "중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"
     
