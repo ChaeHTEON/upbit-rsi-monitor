@@ -868,8 +868,8 @@ def main():
             vol_ok = pd.Series([True]*len(df), index=df.index)
 
         n = len(df)
-        thr = float(threshold_p_
-    
+        thr = float(threshold_pct)
+
         # --- 1) 1차 조건 인덱스 (RSI/BB/CCI/바닥탐지) ---
         if (isinstance(bottom_mode, str) and bottom_mode != "없음") or (isinstance(bottom_mode, bool) and bottom_mode):
             base_sig_idx = df.index[
