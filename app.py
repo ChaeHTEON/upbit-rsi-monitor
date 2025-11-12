@@ -3394,9 +3394,8 @@ def main():
                         cci_mode=cci_mode, cci_over=cci_over, cci_under=cci_under, cci_signal_n=cci_signal,
                     )
     
-                    # ✅ 조합 스캔용 전략 멀티선택 (신규 RSI·CCI 상향돌파 포함)
+                    # ✅ 조합 스캔용 전략 멀티선택 (정상 구조 복원)
                     strategy_options_for_sweep = [
-                        "전체",
                         "없음",
                         "TGV", "RVB", "PR", "LCT", "4D_Sync", "240m_Sync",
                         "Composite_Confirm", "Divergence_RVB", "Market_Divergence",
@@ -3404,8 +3403,8 @@ def main():
                         "EMA100_Above", "EMA100_Below",
                         "Vol_Ratio_Imbalance",
                         "이동평균·볼밴 교차 (1차)",
-                        "RSI 수치 상향돌파 (1차)",     # 🆕 신규 포함
-                        "CCI 수치 상향돌파 (1차)"      # 🆕 신규 포함
+                        "RSI 수치 상향돌파 (1차)",
+                        "CCI 수치 상향돌파 (1차)"
                     ]
                     default_strategy = st.session_state.get("primary_strategy", "없음")
                     sweep_strategies = st.multiselect(
@@ -3416,14 +3415,8 @@ def main():
                         on_change=_keep_sweep_open
                     )
 
-                    # ✅ '전체'가 포함되어 있으면 실제 전체 전략으로 확장
-                    exec_strategies = list(sweep_strategies or [default_strategy])
-                    if "전체" in exec_strategies:
-                        exec_strategies = [s for s in strategy_options_for_sweep if s not in ("전체", "없음")]
-
                     all_parts = []
-                    for strat in exec_strategies:
-                        # 각 전략을 세션에 적용
+                    for strat in (sweep_strategies or [default_strategy]):
                         st.session_state["primary_strategy"] = strat
 
                         merged_df, ckpt = run_combination_scan_chunked(
@@ -3446,29 +3439,18 @@ def main():
 
                     if all_parts:
                         merged_df = pd.concat(all_parts, ignore_index=True)
-                        # ✅ primary_strategy 누락 방지 (각 전략마다 보장)
-                        if "전략" not in merged_df.columns:
-                            merged_df["전략"] = st.session_state.get("primary_strategy", "미지정")
-
-                        # ✅ 조합 결과 세션에 안전 저장
-                        st.session_state["sweep_state"] = {
-                            "rows": merged_df.to_dict("records"),
-                            "params": {
-                                "sweep_market": sweep_market,
-                                "sdt": sdt,
-                                "edt": edt,
-                                "bb_window": int(bb_window),
-                                "bb_dev": float(bb_dev),
-                                "cci_window": int(cci_window),
-                                "rsi_low": int(rsi_low),
-                                "rsi_high": int(rsi_high),
-                                "target_thr": float(threshold_pct)
-                            }
+                        if "sweep_state" not in st.session_state:
+                            st.session_state["sweep_state"] = {}
+                        st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
+                        st.session_state["sweep_state"]["params"] = {
+                            "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
+                            "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
+                            "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
+                            "target_thr": float(threshold_pct)
                         }
                         st.success("✅ 선택한 모든 매매기법으로 조합 스캔이 완료되었습니다.")
                         st.session_state["use_sweep_wrapper"] = True
                     else:
-                        # ✅ 결과가 비었을 경우에도 세션 초기화
                         st.session_state["sweep_state"] = {"rows": []}
                 except Exception as _e:
                     st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
