@@ -3422,6 +3422,11 @@ def main():
                         exec_strategies = [s for s in strategy_options_for_sweep if s not in ("전체", "없음")]
 
                     all_parts = []
+                    # ✅ '전체'가 선택된 경우 모든 전략 실행으로 확장
+                    exec_strategies = list(sweep_strategies or [default_strategy])
+                    if "전체" in exec_strategies:
+                        exec_strategies = [s for s in strategy_options_for_sweep if s not in ("전체", "없음")]
+
                     for strat in exec_strategies:
                         # 각 전략을 세션에 적용
                         st.session_state["primary_strategy"] = strat
@@ -3446,17 +3451,34 @@ def main():
 
                     if all_parts:
                         merged_df = pd.concat(all_parts, ignore_index=True)
-                        if "sweep_state" not in st.session_state:
-                            st.session_state["sweep_state"] = {}
-                        st.session_state["sweep_state"]["rows"] = merged_df.to_dict("records")
-                        st.session_state["sweep_state"]["params"] = {
-                            "sweep_market": sweep_market, "sdt": sdt, "edt": edt,
-                            "bb_window": int(bb_window), "bb_dev": float(bb_dev), "cci_window": int(cci_window),
-                            "rsi_low": int(rsi_low), "rsi_high": int(rsi_high),
-                            "target_thr": float(threshold_pct)
+                        # ✅ primary_strategy 누락 방지 (각 전략마다 보장)
+                        if "전략" not in merged_df.columns:
+                            merged_df["전략"] = st.session_state.get("primary_strategy", "미지정")
+
+                        # ✅ 조합 결과 세션에 안전 저장
+                        st.session_state["sweep_state"] = {
+                            "rows": merged_df.to_dict("records"),
+                            "params": {
+                                "sweep_market": sweep_market,
+                                "sdt": sdt,
+                                "edt": edt,
+                                "bb_window": int(bb_window),
+                                "bb_dev": float(bb_dev),
+                                "cci_window": int(cci_window),
+                                "rsi_low": int(rsi_low),
+                                "rsi_high": int(rsi_high),
+                                "target_thr": float(threshold_pct)
+                            }
                         }
                         st.success("✅ 선택한 모든 매매기법으로 조합 스캔이 완료되었습니다.")
                         st.session_state["use_sweep_wrapper"] = True
+                    else:
+                        # ✅ 결과가 비었을 경우에도 세션 초기화
+                        st.session_state["sweep_state"] = {"rows": []}
+                except Exception as _e:
+                    st.info("안전 스캔에 실패하여 기존 방식으로 계속합니다.")
+    
+                st.session_state["sweep_expanded"] = True
                 except Exception as _e:
                     st.warning(f"⚠️ 안전 스캔 실패: {_e}\n→ 기존 방식으로 자동 재시도합니다.")
                     try:
@@ -3690,12 +3712,12 @@ def main():
                 df_keep = df_all[
                     (df_all["결과"].isin(["성공", "중립"])) &
                     (pd.to_numeric(df_all["승률(%)"], errors="coerce") >= float(wr_val) - 1e-6) &
-                    (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= float(target_thr_val) * 100 - 1e-6)
+                    (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= float(target_thr_val) - 1e-6)
                 ].copy()
 
-                # ✅ 결과가 없을 때는 우선 전체 결과를 표시하도록 완화
+                # ✅ 결과 없을 경우 전체 표시 (진단 모드)
                 if df_keep.empty:
-                    st.info("필터 결과가 없어 전체 결과를 우선 표시합니다. (승률/목표수익률 조건을 완화해 보세요)")
+                    st.info("필터 결과가 없어 전체 결과를 표시합니다. (승률/목표수익률 조건을 완화해 보세요)")
                     df_keep = df_all.copy()
                 else:
                     # ✅ KeyError 방지: '신호수' 누락 시 0으로 채움
