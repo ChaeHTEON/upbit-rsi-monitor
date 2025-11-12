@@ -1587,7 +1587,7 @@ def main():
                 if on_progress: on_progress((i+1)/total)
                 continue
     
-            df_chunk = add_indicators(df_chunk, bb_window, bb_dev, cci_window, cci_signal_n)
+            df_chunk = add_indicators(df_chunk, bb_window, bb_dev, cci_window, simulate_kwargs.get("cci_signal_n", 9))
     
             res_chunk = simulate(
                 df_chunk,
