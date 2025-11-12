@@ -3452,7 +3452,6 @@ def main():
                         st.success("✅ 선택한 모든 매매기법으로 조합 스캔이 완료되었습니다.")
                         st.session_state["use_sweep_wrapper"] = True
                 except Exception as _e:
-                except Exception as _e:
                     st.warning(f"⚠️ 안전 스캔 실패: {_e}\n→ 기존 방식으로 자동 재시도합니다.")
                     try:
                         merged_df, ckpt = run_combination_scan_chunked(
