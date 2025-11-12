@@ -849,7 +849,8 @@ def main():
                  hit_basis="종가 기준", miss_policy="(고정) 성공·실패·중립", bottom_mode=False,
                  supply_levels: Optional[Set[float]] = None,
                  manual_supply_levels: Optional[list] = None,
-                 cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9):
+                 cci_mode: str = "없음", cci_over: float = 100.0, cci_under: float = -100.0, cci_signal_n: int = 9,
+                 cci_signal=None):
         """UI/UX 유지. 기존 로직 + 바닥탐지 + 매물대 + CCI 1차 조건."""
         res = []
         # ✅ 거래량 조건(전역 세션) — RSI/BB/CCI보다 우선 적용되는 필터
@@ -867,7 +868,7 @@ def main():
             vol_ok = pd.Series([True]*len(df), index=df.index)
 
         n = len(df)
-        thr = float(threshold_pct)
+        thr = float(threshold_p_
     
         # --- 1) 1차 조건 인덱스 (RSI/BB/CCI/바닥탐지) ---
         if (isinstance(bottom_mode, str) and bottom_mode != "없음") or (isinstance(bottom_mode, bool) and bottom_mode):
