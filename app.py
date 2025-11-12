@@ -3422,11 +3422,6 @@ def main():
                         exec_strategies = [s for s in strategy_options_for_sweep if s not in ("전체", "없음")]
 
                     all_parts = []
-                    # ✅ '전체'가 선택된 경우 모든 전략 실행으로 확장
-                    exec_strategies = list(sweep_strategies or [default_strategy])
-                    if "전체" in exec_strategies:
-                        exec_strategies = [s for s in strategy_options_for_sweep if s not in ("전체", "없음")]
-
                     for strat in exec_strategies:
                         # 각 전략을 세션에 적용
                         st.session_state["primary_strategy"] = strat
@@ -3480,8 +3475,6 @@ def main():
 
                 st.session_state["sweep_expanded"] = True
 
-            dedup_label = "중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"
-    
             dedup_label = "중복 제거 (연속 동일 결과 1개)" if dup_mode.startswith("중복 제거") else "중복 포함 (연속 신호 모두)"
     
             def _winrate(df_in: pd.DataFrame):
