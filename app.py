@@ -3684,13 +3684,11 @@ def main():
                 df_keep = df_all[
                     (df_all["결과"].isin(["성공", "중립"])) &
                     (pd.to_numeric(df_all["승률(%)"], errors="coerce") >= float(wr_val) - 1e-6) &
-                    (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= float(target_thr_val) - 1e-6)
+                    (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= float(target_thr_val) * 100 - 1e-6)
                 ].copy()
 
-                # ✅ 결과 없을 경우 전체 표시 (진단 모드)
                 if df_keep.empty:
-                    st.info("필터 결과가 없어 전체 결과를 표시합니다. (승률/목표수익률 조건을 완화해 보세요)")
-                    df_keep = df_all.copy()
+                    st.warning("⚠️ 현재 기준으로 조건을 만족하는 조합이 없습니다. (필터 완화 또는 기간 확대를 권장)")
                 else:
                     # ✅ KeyError 방지: '신호수' 누락 시 0으로 채움
                     if "신호수" not in df_keep.columns:
