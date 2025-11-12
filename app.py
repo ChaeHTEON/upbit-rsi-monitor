@@ -234,11 +234,11 @@ def main():
         with c1:
             lookahead = st.slider("측정 캔들 수 (기준 이후 N봉)", 1, 60, 10, key="lookahead_main")
         with c2:
-            st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (없음/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
+st.markdown('<div class="hint">1차 규칙: 주요 매매기법 선택 (전체/과매도반전/이중바닥 등)</div>', unsafe_allow_html=True)
             primary_strategy = st.selectbox(
                     "매매기법 선택",
                     [
-                        "없음",
+                        "전체",
                         "TGV",
                         "RVB",
                         "PR",
@@ -261,7 +261,7 @@ def main():
                     index=0
                 )
             st.session_state["primary_strategy"] = primary_strategy
-            if primary_strategy != "없음":
+            if primary_strategy != "전체":
                 st.info(f"✅ 현재 '{primary_strategy}' 전략이 1차 규칙으로 적용됩니다. RSI/BB/CCI 조건은 2차 기준으로 평가됩니다.")
 
             # 🆕 RSI·CCI 수치 상향돌파 설정 UI
