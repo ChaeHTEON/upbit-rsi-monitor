@@ -3644,8 +3644,18 @@ def main():
                 if "성공률(%)" not in df_all.columns and "승률(%)" in df_all.columns:
                     df_all["성공률(%)"] = df_all["승률(%)"]
 
-                # ✅ 표시 완화: 성공·중립 외에도 실패까지 모두 표시(우선 전수 표시로 원인 파악)
-                df_keep = df_all.copy()
+                # ✅ 필터 적용: 목표수익률·승률 기준 이상만 표시 (실패 제외)
+                try:
+                    target_thr_val = float(st.session_state.get("sweep_threshold_pct", 60))
+                    wr_val = float(st.session_state.get("sweep_winrate_thr", 60))
+                except Exception:
+                    target_thr_val, wr_val = 60.0, 60.0
+
+                df_keep = df_all[
+                    (df_all["결과"].isin(["성공", "중립"])) &
+                    (pd.to_numeric(df_all["승률(%)"], errors="coerce") >= wr_val) &
+                    (pd.to_numeric(df_all["합계수익률(%)"], errors="coerce") >= target_thr_val)
+                ].copy()
 
                 if df_keep.empty:
                     st.info("조건을 만족하는 조합이 없습니다. (데이터 없음)")
